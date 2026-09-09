@@ -193,3 +193,37 @@ This document records the implementation progress phase by phase, per master pro
 - Still no worker/queue (Phase 5 role in the master catalog) — deferred; SchemaBuilder precedes it so orchestration can hand complete Page Schemas
 
 ---
+
+## Phase 6 — Worker & Job Orchestration (BullMQ)
+
+**Date:** 2026-09-09  
+**Objective:** Async job tier between the API and the AI engine: `202 { jobId }` on enqueue, BullMQ worker draining the queue, engine call with retries/backoff/timeout/budget, stable lifecycle events (§11.4), idempotent create/replay, cancellation, per-job telemetry spans, and an E2E against the real engine (stub provider).
+
+**Implemented:**
+- `apps/worker` (TypeScript, fastify + BullMQ + ioredis): `jobs/{types,enqueue}`, `engine/{types,client}`, `queue/{ports,bullmq,memory}`, `processor`, `routes`, `server`, `store`, `telemetry`
+- Queue port layer (ADR-0004): production = BullMQ over real Redis; tests = in-memory driver (`makeMemoryDriver`) that emulates BullMQ dedupe/backoff/exhaustion so the **real processor** runs offline. ioredis-mock cannot run BullMQ Lua (`cmsgpack`), so the whole suite was de-coupled from a live Redis.
+- API (PART X §11): `POST /api/jobs` (202/200 replay, `Idempotency-Key` or derived fingerprint, `E-JOB-002` on same-key-different-payload → 422), `GET /api/jobs/:id[/events|/spans]`, `DELETE /api/jobs/:id` (cancel, 409 if terminal), `GET /healthz`
+- Lifecycle: `job.queued → job.started → stage.* → job.completed | job.failed | job.cancelled`; stage events synthesized from the engine payload via a stable engine-stage→event map; `persona/layout/asset-planner` intentionally emit nothing; engine 5xx/timeout retried (exponential backoff, `E-JOB-001` on exhaustion), business/`FAILED` and malformed (`E-JOB-004`) terminal
+- Idempotency: `gen_<sha256(key)[0:24]>` job id passed to the engine (echoed back), so `/internal/v1/pages/{job_id}` is reachable from the job view
+- Crash recovery: interrupted `RUNNING` re-runs with `job.retried {E-JOB-005}`
+
+**Created:**
+- `apps/worker/*` (src + tests + configs + `.env.example`), `apps/worker/README.md`
+- `tests/{fake-engine,harness,integration,routes,telemetry}.test.ts` (16 unit), `real-engine.integration.test.ts` (E2E, spawns uvicorn), `real-bullmq.integration.test.ts` (real Redis, self-skips)
+- `docs/adr/ADR-0004-worker-orchestration.md`
+
+**Database:** in-memory `MemoryJobStore` + `MemorySpanStore` (persistence = next phase)
+**API:** worker HTTP API added (see above); engine contract unchanged
+**Frontend:** N/A
+
+**Tests:** worker `pnpm test` 16 green (lifecycle order, idempotency, retry→complete attempts=3, exhaustion E-JOB-001, business E-AI-001/005/002 no retry, malformed E-JOB-004, timeout E-JOB-001, cancel E-JOB-003 no engine call, telemetry spans); `test:integration` real-engine E2E green (real job COMPLETED, `engineJobId` echo, schemaVersion 1.0.0, `page_validation.valid`, well-formed events); real-BullMQ skipped (no Redis). Repo-wide: ai-engine 66 pytest, ruff, mypy (35) green; page-schema 19 + ui-components TS green.
+
+**Results:** worker typecheck + build clean; full-stack flow proven: API → queue → processor → engine (real HTTP) → validated page envelope → stable events.
+
+**Known limitations:**
+- Idempotency/`E-JOB-002` guarantee is within one worker process only (in-memory store; DB phase next)
+- `VALIDATING`/`RENDERING` states are reserved (engine is synchronous); post-hoc stage events, not streamed
+- BullMQ-specific paths (stalled/RT-delivery) only exercised when the optional real-BullMQ test runs against local Redis
+- Real-engine e2e asserts a well-formed event frame rather than a fixed stage list (engine only tracks its 5 sub-generation steps)
+
+---

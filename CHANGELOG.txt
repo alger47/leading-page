@@ -94,3 +94,20 @@
 **Status:** 66 pytest green; ruff clean; mypy clean (35 modules); TS ui-components 33 green (incl. ai-fixture) + page-schema 19 green; fixture export byte-deterministic (drift check green); mini-eval validity 1.0 & pages_validity 1.0.
 
 **Awaiting:** "continue" → Phase 6 — Worker & job orchestration (master catalog) / Database & persistence per PART X
+
+### Phase 6 — Worker & Job Orchestration (2026-09-09)
+**Created** (`apps/worker`, TypeScript + fastify + BullMQ + ioredis):
+- Queue port layer (ADR-0004): `src/queue/{ports,bullmq,memory}.ts` — production BullMQ over real Redis; tests drive an in-memory driver emulating BullMQ dedupe/backoff/exhaustion so the REAL processor runs offline (ioredis-mock cannot run BullMQ Lua `cmsgpack`)
+- API (PART X §11): `POST /api/jobs` (202/200 replay, Idempotency-Key or derived fingerprint, E-JOB-002 → 422), `GET /api/jobs/:id[/events|/spans]`, `DELETE /api/jobs/:id` (cancel E-JOB-003, 409 if terminal), `GET /healthz`
+- Lifecycle events (§11.4) with stable engine-stage→event map; E-JOB-001 transient exhaustion, E-JOB-004 malformed envelope (no retry), E-JOB-005 crash recovery; engine 5xx/timeouts retried with exponential backoff, business/FAILED terminal
+- Idempotency: job id `gen_<sha256(key)[0:24]>` passed to the engine and echoed back; `/internal/v1/pages/{job_id}` reachable from job view
+- Tests: 16 unit (lifecycle order, replay/conflict, retry→complete, exhaustion, business no-retry, malformed, timeout, cancel, telemetry spans) + `real-engine.integration.test.ts` E2E (spawns uvicorn from ai-engine venv; real job COMPLETED, engineJobId echo, schemaVersion 1.0.0, valid page) + `real-bullmq.integration.test.ts` (real Redis, self-skips) + `apps/worker/README.md`
+
+**Fixed:**
+- ioredis-mock "Redis is not a constructor" (default-export-only bundle) → replaced with in-memory queue driver
+- Transient 5xx mapped to E-JOB-001 (was E-JOB-004 fallback); IdempotencyConflictError → HTTP 422 (was 500)
+- E2E token mismatch (engine rejects non-`AI_INTERNAL_TOKEN` clients) — harness token aligned
+
+**Status:** worker typecheck + build clean; `pnpm test` 16 green; `test:integration` real-engine green (real-BullMQ skipped, no Redis). Repo-wide green: ai-engine 66 pytest / ruff / mypy (35), page-schema 19, ui-components TS.
+
+**Awaiting:** "continue" → Database & persistence phase

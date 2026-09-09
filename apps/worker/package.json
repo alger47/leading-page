@@ -1,0 +1,29 @@
+{
+  "name": "@landing-ai/worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "BullMQ job orchestration: web -> queue -> ai-engine, retries, idempotency, telemetry",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "bullmq": "^5.34.0",
+    "fastify": "^5.2.0",
+    "ioredis": "^5.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "ioredis-mock": "^8.9.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  }
+}
