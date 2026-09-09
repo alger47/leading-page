@@ -37,3 +37,51 @@
 - Seed components (hero, features, cta, header, footer)
 - Renderer component
 - Visual baselines (ar/fr × themes)
+
+---
+
+## Phase 2 Completion (2026-09-09):
+
+**Tests:** 15 passing (9 semantic + 6 structural)
+**Drift check:** Active and passing (registry ↔ JSON Schema lockstep)
+**Typecheck:** Clean
+**Commit:** `efedf5e` feat(schema): establish canonical page schema with validation
+
+**Environment notes:**
+- pnpm 12.3.4 installed globally (path: C:\Users\FC\AppData\Roaming\npm\pnpm.cmd)
+- pnpm v11+ uses `allowBuilds` (not onlyBuiltDependencies) in pnpm-workspace.yaml
+- Git identity set locally: FC / FC@localhost
+
+---
+
+## Phase 3 Completion (2026-09-09):
+
+**Design System (packages/design-system):**
+- Tokens: color, font, space, radius, shadow, breakpoints, motion, z-index
+- 4 theme presets: warm-professional, cool-modern, bold-creative, minimal-clean; resolveTheme() falls back to cool-modern
+- Arabic-first typography: getFontStack() → 1.8 leading / no letter-spacing for Arabic; 1.6 for Latin
+- RTL helpers (directionFromLocale)
+
+**UI Components (packages/ui-components):**
+- ThemeProvider injects tokens as CSS custom properties; dir/lang from schema
+- Primitives: Button (primary/secondary), Container, SectionHeading
+- Sections: Header (basic/with-cta), Hero (split), Features (grid, honors layoutHint.columns), Cta (button/boxed CTA), Footer (extended)
+- Renderer: deterministic; unknown type → FallbackSection + E-RENDER-001; per-section error boundary (E-RENDER-002 hook); same renderer for preview & production
+- Registry mirrors page-schema (drift check green)
+
+**Tests:** page-schema 15 + design-system 9 + ui-components 23 = 47 passing
+**Typecheck:** Clean (all 3 packages) | **Drift check:** green
+**Commit:** (Phase 3)
+
+**Windows/vitest fixes learned:**
+- vite/resolve aliases with `new URL(...)` include %20 for spaces → use `fileURLToPath`
+- tsconfig `paths` needed for tsc to resolve workspace source (baseUrl + relative)
+- Remove `rootDir` when aliasing source outside the package
+- Components with react-jsx: drop unused `import React from 'react'` unless using React.* types
+
+**Open items:**
+- lint: turbo.json has lint task but no eslint config/scripts yet (to be set up)
+- fr seed fixture not yet added (matrix currently ar/en × 4 themes)
+- assets (asset:hero-vet) are references only; image generation model decision deferred
+
+**Next phase:** Phase 4 — AI Engine (FastAPI)

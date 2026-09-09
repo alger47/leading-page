@@ -91,3 +91,37 @@ This document records the implementation progress phase by phase, per master pro
 - L2 rules limited to SEM-001..004 (seed set)
 
 ---
+
+## Phase 3 — Design System + Renderer
+
+**Date:** 2026-09-09  
+**Objective:** Tokens, theme presets, Arabic-first typography, and a deterministic schema → DOM renderer shared by preview and production.
+
+**Implemented:**
+- `@landing-ai/design-system`: design tokens, 4 theme presets, `resolveTheme()` fallback, typography with script-aware leading, RTL helpers
+- `@landing-ai/ui-components`: ThemeProvider (CSS custom properties from tokens), primitives (Button/Container/SectionHeading), sections (Header/Hero/Features/Cta/Footer), component registry, deterministic `Render`er
+- E-RENDER-001 safe fallback for unknown section types; per-section error boundary hook (E-RENDER-002) so one bad section never blanks the page
+- Matrix tests: every seed fixture × theme preset renders identically across reruns
+
+**Created:**
+- `packages/design-system/src/{tokens,themes,typography,rtl}/*`
+- `packages/design-system/tests/design-system.test.ts`
+- `packages/ui-components/src/{theme,primitives,sections,registry,Renderer}.{ts,tsx}`
+- `packages/ui-components/vitest.config.ts`, `tests/setup.ts`
+- `packages/ui-components/tests/{sections,Renderer,matrix}.test.tsx`
+
+**Database:** N/A  
+**API:** N/A  
+**AI:** N/A  
+**Frontend:** `ui-components` + `design-system` (source-aliased into vite/tsc)
+
+**Tests:** 47 total across repo (15 schema + 9 design-system + 23 ui-components) — all passing  
+**Results:** Typecheck clean (all 3 packages); drift check green; features grid honors `layoutHint.columns`
+
+**Known limitations:**
+- lint not configured yet (turbo `lint` task exists; no eslint rig) — deferred to a tooling pass
+- fr fixture not created; matrix currently ar/en × 4 theme presets
+- Images are `asset:` references only; generation model decision deferred
+- Typography: 1.8 leading for Arabic vs 1.6 for Latin (assertion fixed to compare Arabic > Latin)
+
+---

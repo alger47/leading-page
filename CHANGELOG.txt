@@ -41,3 +41,20 @@
 - CI drift check for generated artifacts
 
 **Awaiting:** "continue" → Phase 3 — Design System + Renderer
+
+### Phase 3 — Design System + Renderer (2026-09-09)
+**Created:**
+- packages/design-system (tokens, 4 theme presets, typography w/ Arabic-first, RTL helpers)
+- packages/ui-components (ThemeProvider, primitives, 5 sections, registry, Renderer)
+- packages/ui-components/vitest.config.ts + tests/setup.ts (jsdom cleanup)
+- Tests: design-system (9) + ui-components (23: sections/renderer/matrix)
+
+**Fixed:**
+- Vitest alias path with spaces (LEADING PAGE) → fileURLToPath
+- Renderer brand-name queries (header+footer duplicate) → getAllByText
+- Registry typing + tsconfig paths to design-system source
+- Features grid honors layoutHint.columns
+
+**Status:** All package tests pass (page-schema 15, design-system 9, ui-components 23 = 47 total); typecheck clean; codegen drift check green.
+
+**Awaiting:** "continue" → Phase 4 — AI Engine
