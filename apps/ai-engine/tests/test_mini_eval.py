@@ -21,7 +21,9 @@ def test_golden_briefs_all_complete(container) -> None:
     assert len(report.cases) >= 10
     assert all(c.status == "COMPLETED" for c in report.cases)
     assert all(c.passed for c in report.cases)
+    assert all(c.page_valid for c in report.cases)
     assert report.validity_rate >= report.target_validity
+    assert report.summary()["pages_validity_rate"] >= report.target_validity
 
 
 def test_golden_set_has_injection_case() -> None:
@@ -40,9 +42,10 @@ def test_mini_eval_writes_report(tmp_path) -> None:
     import asyncio
 
     report = asyncio.run(go())
-    report_file = tmp_path / "phase4-mini-eval.md"
+    report_file = tmp_path / "phase5-mini-eval.md"
     assert report_file.exists()
     text = report_file.read_text(encoding="utf-8")
-    assert "# Phase 4" in text
+    assert "# Phase 5" in text
     assert "injection-en-006" in text
     assert report.summary()["validity_met"] is True
+    assert report.summary()["pages_validity_rate"] == 1.0

@@ -117,6 +117,9 @@ class JobResult:
     error_message: str | None = None
     start_ms: int = 0
     end_ms: int = 0
+    page: dict[str, Any] | None = None
+    page_validation: dict[str, Any] | None = None
+    build_issues: list[ValidationIssue] = field(default_factory=list)
 
     @property
     def total_attempts(self) -> int:
@@ -151,5 +154,8 @@ class JobResult:
                 "attempts_detail": [a.to_dict() for s in self.stages for a in s.attempts],
             },
             "validation": self.validation_summary(),
+            "page": self.page,
+            "page_validation": self.page_validation,
+            "build_issues": self.build_issues,
             "headers_preview": {s.stage: (s.data.get("title", "") if s.data else "") for s in self.stages},
         }

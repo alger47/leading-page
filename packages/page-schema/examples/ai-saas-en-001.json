@@ -1,0 +1,143 @@
+{
+  "schemaVersion": "1.0.0",
+  "page": {
+    "title": "Modern our platform you can trust",
+    "locale": "en",
+    "direction": "ltr"
+  },
+  "theme": {
+    "preset": "warm-professional",
+    "font": "inter",
+    "primaryColor": "role:primary",
+    "radius": "medium",
+    "density": "comfortable"
+  },
+  "sections": [
+    {
+      "id": "header-1",
+      "type": "header",
+      "variant": "with-cta",
+      "content": {
+        "brandName": "[Business name]",
+        "nav": [
+          {
+            "label": "Home",
+            "href": "#hero-1"
+          },
+          {
+            "label": "Services",
+            "href": "#features-1"
+          },
+          {
+            "label": "Contact",
+            "href": "#cta-1"
+          }
+        ],
+        "navCta": {
+          "label": "Get started",
+          "href": "#cta-1"
+        }
+      }
+    },
+    {
+      "id": "hero-1",
+      "type": "hero",
+      "variant": "split",
+      "content": {
+        "title": "Modern our platform you can trust",
+        "subtitle": "Everything our platform needs to welcome new customers and grow with confidence.",
+        "primaryCta": {
+          "label": "Get started",
+          "href": "#cta-1"
+        },
+        "secondaryCta": {
+          "label": "Learn more",
+          "href": "#features-1"
+        },
+        "media": {
+          "assetRef": "asset:hero-saas",
+          "alt": "our platform"
+        }
+      }
+    },
+    {
+      "id": "features-1",
+      "type": "features",
+      "variant": "grid-3",
+      "content": {
+        "eyebrow": "Why choose us",
+        "title": "What we offer",
+        "items": [
+          {
+            "title": "Simple onboarding",
+            "description": "Getting started takes minutes, not days."
+          },
+          {
+            "title": "Focused support",
+            "description": "A small team that answers quickly and honestly."
+          },
+          {
+            "title": "Clear next steps",
+            "description": "You always know what happens next."
+          }
+        ]
+      },
+      "layoutHint": {
+        "columns": 3
+      }
+    },
+    {
+      "id": "cta-1",
+      "type": "cta",
+      "variant": "banner",
+      "content": {
+        "title": "Ready to get started with our platform?",
+        "subtitle": "Tell us about your goals and we will prepare a personalized plan.",
+        "primaryCta": {
+          "label": "Get started",
+          "href": "#cta-1"
+        }
+      }
+    },
+    {
+      "id": "footer-1",
+      "type": "footer",
+      "variant": "extended",
+      "content": {
+        "brandName": "[Business name]",
+        "links": [
+          {
+            "label": "Home",
+            "href": "#hero-1"
+          },
+          {
+            "label": "Services",
+            "href": "#features-1"
+          },
+          {
+            "label": "Contact",
+            "href": "#cta-1"
+          }
+        ],
+        "legal": "Legal placeholder — add your company details in the editor.",
+        "contact": {
+          "phone": "[Phone]",
+          "email": "[Email]",
+          "address": "[Address]"
+        }
+      }
+    }
+  ],
+  "assets": [],
+  "metadata": {
+    "generationId": "fixture-ai-saas-en-001",
+    "promptVersions": {
+      "brief-analyzer": "1.0.0",
+      "page-planner": "1.0.0",
+      "layout-planner": "1.0.0",
+      "content-generator": "1.0.0",
+      "asset-planner": "1.0.0"
+    },
+    "model": "premium"
+  }
+}

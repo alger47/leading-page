@@ -1,9 +1,10 @@
-# AI Engine — Pipeline Walkthrough (Phase 4)
+# AI Engine — Pipeline Walkthrough (Phase 5)
 
 The engine turns a `brief` into five structured stage outputs. Stages 1→2→3 are
 sequential; stages 4∥5 (ContentGenerator ∥ AssetPlanner) run in parallel
-(master prompt §6.10). Final Page Schema assembly from these outputs is
-Phase 5 (SchemaBuilder is deterministic code, never free-typed by an LLM).
+(master prompt §6.10). A deterministic **SchemaBuilder** (stage 7) then merges
+those outputs into the canonical Page Schema envelope — it is code, never
+free-typed by the LLM (§6.12).
 
 ## 1. L0 gate (§8.1) — before any LLM call
 
@@ -58,12 +59,56 @@ anchors only). HTML/`javascript:`/event-handler text is a hard error.
 ```
 validate_brief → Id → ledger → brief-analyzer → page-planner → layout-planner
                 → asyncio.gather(content-generator, asset-planner)
+                → SchemaBuilder (deterministic) → L1+L2 page validation
                 → status COMPLETED | FAILED (+error_code | error_message)
 ```
 
 `JobResult.to_dict()` returns stages, per-attempt ledger detail, validation
-counts, and a merged `data` map (stage name → output) for Phase 5's
-SchemaBuilder.
+counts, the assembled `page` (Page Schema envelope), its `page_validation`,
+`build_issues`, and a merged `data` map (stage name → output).
+
+## 3b. SchemaBuilder (stage 7 — deterministic code, §6.1/§6.12)
+
+`app/services/schema_builder.py` merges plan + content + layout + analysis into
+the canonical envelope (`schemaVersion, page, theme, sections, assets,
+metadata`).
+
+- **Ordering** is layout-planner driven, then made phase-stable: header(s)
+  first, the hero immediately after, footer(s) last — SEM-001/SEM-004 always
+  hold for assembled pages.
+- **Slot mapping** is canonical-schema driven: the content-generator emits hero
+  `image`; the envelope and `hero.schema.json` contract name it `media`. Only
+  slot *shape* is retouched, never text.
+- **Null optional CTA slots are dropped** (canonical section schemas forbid
+  null); a missing optional CTA simply renders nothing.
+- **Theme**: preset from LayoutPlanner; `font` from locale (ar → cairo, else
+  inter); `primaryColor: role:primary`, `radius: medium`, `density:
+  comfortable` (all within the canonical enums).
+- **Direction** derives from locale (ar → rtl), never guessed from content (§5.4).
+- **Page title** derives deterministically: hero title → brief summary → branded
+  placeholder. Never invented.
+- **Assets stay `[]` on purpose**: PART VII AssetResolver supplies URLs in a
+  later phase; sections reference assets by `asset:` refs only.
+- **metadata**: generationId, promptVersions (name→version per stage), model.
+
+Assembly anomalies are non-fatal `E-BUILD-0xx` diagnostics (the envelope still
+renders honestly): `E-BUILD-001` slot dropped/mapped, `E-BUILD-002` planned
+section has no generated content (omitted), `E-BUILD-003` page title fallback,
+`E-BUILD-004` canonical envelope schema unavailable (validation records it).
+
+## 3c. Page validation (L1 + L2, §8.1–8.2)
+
+`app/services/page_validator.py` validates the assembled envelope:
+
+- **L1** reads the CANONICAL `packages/page-schema/schema/envelope.schema.json`
+  via the single source of truth (ADR-0002); mirrors `validateStructural`
+  (`E-VAL-STRUCT-001`).
+- **L2** mirrors `validateSemantic` in Python: SEM-001..004. The TS validators
+  stay authoritative at render/publish time; the Python mirror lets engine-side
+  mini-eval measure page validity.
+
+`page_validation = {valid, errors, warnings, issues}` rides on every COMPLETED
+job (`/internal/v1/generate` and `/internal/v1/pages/{job_id}`).
 
 ## 4. Providers (§6.2)
 
@@ -94,24 +139,36 @@ Phase 4; persisted in Phase 6 (PART X §10.2 entities).
 | `GET /healthz` | — | schema/prompt/stage counts (ready) |
 | `POST /internal/v1/generate` | `X-Internal-Token` (HMAC-constant-time) | `{brief, locale?, tone?, job_id?, budget_usd?}` |
 | `GET /internal/v1/ledger/{job_id}` | token | in-memory job report (500 jobs ring buffer) |
+| `GET /internal/v1/pages/{job_id}` | token | assembled Page Schema + validation for preview |
 | `GET /internal/v1/prompts` | token | registered prompt refs |
 
 422 → `E-AI-001` L0 rejection (machine-readable `detail.code`); all other
 states are returned in the `job` envelope with `status: COMPLETED|FAILED`.
 
-## 7. Mini-eval (§9.1–9.2) — Phase 4 acceptance
+## 7. Mini-eval (§9.1–9.2) — Phase 5 acceptance
 
 `python -m app.evaluation.mini_eval` runs 13 golden briefs (12 verticals
 × {ar, fr, en} distribution + 1 prompt-injection case) through the full
 pipeline on the stub and writes
-`evaluation/reports/phase4-mini-eval.md`.
+`evaluation/reports/phase5-mini-eval.md`.
 
 - metric: schema validity rate = valid generation attempts / attempts;
   target **≥ 0.99**; first-attempt OK rate tracked;
+- **page validity**: since Phase 5 every case also asserts the assembled Page
+  Schema passes canonical L1 + SEM checks → `pages_validity_rate` (target the
+  same); exit code is 0 only when both rates meet target;
 - per-stage attempts + costs recorded (≥10 cases, then on every job);
 - injection case asserts output is artifact-free and `brief_flags` marks it.
 
-Exit code 0 only when validity meets target (CI-enforceable).
+## 8. Renderer fixtures (schema → DOM pin, §6.12)
+
+`python -m app.evaluation.export_fixtures` runs the stub pipeline on two briefs
+(ar vet, en saas) and writes the assembled envelopes to
+`packages/page-schema/examples/ai-vet-ar-001.json` and
+`ai-saas-en-001.json` (deterministic; committed). `--check` verifies the
+committed files are byte-identical to fresh output (drift guard, also a pytest).
+ui-components renders them in `tests/ai-fixture.test.tsx` (matrix × 4 themes,
+determinism, single-h1); page-schema TS validators assert L1 + SEM on them.
 
 ## Run
 
@@ -122,6 +179,7 @@ cd apps\ai-engine
 .\.venv\Scripts\ruff.exe check .
 .\.venv\Scripts\python.exe -m mypy app
 .\.venv\Scripts\python.exe -m app.evaluation.mini_eval
+.\.venv\Scripts\python.exe -m app.evaluation.export_fixtures --check
 ```
 
 See ADR-0003 for the architecture decisions behind this layout.

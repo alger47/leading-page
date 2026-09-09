@@ -81,3 +81,16 @@
 **Status:** 41 pytest green; ruff clean; mypy clean (32 modules); mini-eval 13/13 cases, validity 1.0 ≥ 0.99, per-stage attempts/cost recorded, injection case flagged and artifact-free.
 
 **Awaiting:** "continue" → Phase 5 — SchemaBuilder (assemble stage outputs into the Page Schema)
+
+### Phase 5 — SchemaBuilder (stage 7) + Page Schema preview (2026-09-09)
+**Created:**
+- `app/services/schema_builder.py` — deterministic stage 7 assembly (ordering anchors header/hero/footer, slot mapping image→media, null optional CTA slots dropped, locale direction/font, theme defaults, honest page title); diagnostics E-BUILD-001..003
+- `app/services/page_validator.py` — L1 against the CANONICAL `packages/page-schema/schema/envelope.schema.json` (ADR-0002, `AI_PAGE_SCHEMA_DIR`, E-BUILD-004) + Python SEM-001..004 mirror; `page_validation` rides on every completed job
+- `app/evaluation/export_fixtures.py` (+ `--check` drift guard) → `packages/page-schema/examples/ai-vet-ar-001.json`, `ai-saas-en-001.json`
+- `packages/ui-components/tests/ai-fixture.test.tsx` (schema→DOM pin, §6.12); page-schema TS validators assert L1+SEM on AI fixtures
+- API `GET /internal/v1/pages/{job_id}`; `JobResult.page/page_validation/build_issues`
+- Mini-eval page validity: 13/13 assembled pages valid (pages_validity_rate ≥ 0.99), report `evaluation/reports/phase5-mini-eval.md`
+
+**Status:** 66 pytest green; ruff clean; mypy clean (35 modules); TS ui-components 33 green (incl. ai-fixture) + page-schema 19 green; fixture export byte-deterministic (drift check green); mini-eval validity 1.0 & pages_validity 1.0.
+
+**Awaiting:** "continue" → Phase 6 — Worker & job orchestration (master catalog) / Database & persistence per PART X

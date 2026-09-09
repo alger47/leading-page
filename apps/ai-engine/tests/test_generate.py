@@ -14,6 +14,9 @@ def test_generate_completes(client, auth_headers, brief_sample) -> None:
     assert job["brief_flags"]["injection_detected"] is False
     assert job["ledger"]["attempts"] == 5
     assert job["ledger"]["cost_usd"] > 0
+    assert job["page"] is not None
+    assert job["page_validation"]["valid"] is True
+    assert job["build_issues"] == []
     for attempt in job["ledger"]["attempts_detail"]:
         assert attempt["outcome"] == "ok"
         assert attempt["cost_usd"] >= 0

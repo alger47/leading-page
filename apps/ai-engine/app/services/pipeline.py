@@ -21,6 +21,8 @@ from app.core.brief_validation import validate_brief
 from app.core.errors import AiEngineError, ProviderHardError
 from app.cost.ledger import JobLedger
 from app.routing.config import RoutingConfig
+from app.services.page_validator import PageValidationError, validate_page
+from app.services.schema_builder import assemble
 from app.services.stage_runner import StageRunner
 
 ALL_STAGES = ("brief-analyzer", "page-planner", "layout-planner", "content-generator", "asset-planner")
@@ -133,6 +135,39 @@ class Pipeline:
         if not (s4.ok and s5.ok):
             return self._fail(result, start_ms, ledger)
 
+        # Stage 7 — SchemaBuilder (deterministic code, never the LLM; §6.1).
+        schema, build_issues = assemble(
+            plan=plan,
+            content=s4.data or {},
+            layout=s3.data or {},
+            analysis=analysis,
+            job_id=result.job_id,
+            locale=resolved_locale,
+            prompt_versions=_prompt_versions(result.stages),
+            model=_primary_model(result.stages),
+        )
+        envelope = self.settings.page_schema_dir / self.settings.envelope_schema_name
+        try:
+            page_validation = validate_page(schema, envelope_path=envelope)
+        except PageValidationError as exc:  # canonical schema unavailable (misconfiguration)
+            page_validation = {
+                "valid": False,
+                "errors": [
+                    {
+                        "layer": "structural",
+                        "ruleId": "E-BUILD-004",
+                        "severity": "error",
+                        "path": "/",
+                        "message": str(exc),
+                    }
+                ],
+                "warnings": [],
+                "issues": [],
+            }
+        result.page = schema
+        result.page_validation = page_validation
+        result.build_issues = build_issues
+
         result.status = "COMPLETED"
         result.end_ms = int(time.perf_counter() * 1000)
         return result
@@ -150,3 +185,23 @@ class Pipeline:
         result.error_code = code
         result.error_message = message
         return result
+
+
+def _prompt_versions(stages: list[StageResult]) -> dict[str, str]:
+    versions: dict[str, str] = {}
+    for stage in stages:
+        if not stage.attempts:
+            continue
+        prompt_ref = stage.attempts[0].prompt_ref
+        versions[stage.stage] = prompt_ref.rsplit("@", 1)[-1] if "@" in prompt_ref else prompt_ref
+    return versions
+
+
+def _primary_model(stages: list[StageResult]) -> str:
+    for stage in stages:
+        if stage.stage == "content-generator" and stage.attempts:
+            return stage.attempts[0].model_class
+    for stage in stages:
+        if stage.attempts:
+            return stage.attempts[0].model_class
+    return "stub"

@@ -155,9 +155,41 @@ This document records the implementation progress phase by phase, per master pro
 **Tests:** 41 pytest (healthz/auth, generate happy path, L0/E-AI-001, budget E-AI-002, E-AI-004/E-AI-005, repair ladder via flaky/rigged/raising providers, ledger caps, prompt registry, injection, mini-eval)  
 **Results:** ruff clean; mypy clean (32 modules); mini-eval validity 1.0 ≥ 0.99, 13/13 cases, injection case flagged & artifact-free
 
-**Known limitations:**
+**Known limitations (resolved in Phase 5):**
 - HTTP providers have no live-network test in CI (seams + config validation in place)
 - In-memory job store is volatile (Phase 6)
-- Stage outputs are not yet assembled into the Page Schema envelope (that is Phase 5 — SchemaBuilder)
+- Stage outputs are not yet assembled into the Page Schema envelope (→ Phase 5 SchemaBuilder)
+
+---
+
+## Phase 5 — SchemaBuilder (stage 7) + Page Schema preview loop
+
+**Date:** 2026-09-09  
+**Objective:** Deterministic assembly of the five stage outputs into the canonical Page Schema envelope, L1+L2 page validation on every job, and a schema → DOM renderer pin (§6.12).
+
+**Implemented:**
+- `app/services/schema_builder.py`: deterministic stage 7 — ordering (layout-driven, then phase-stable header/hero/footer anchors), canonical slot mapping (content `image` → `media`), null optional CTA slots dropped, locale-derived direction/font, theme defaults within canonical enums, honest page-title derivation; assembly diagnostics `E-BUILD-001..003`
+- `app/services/page_validator.py`: L1 against the CANONICAL `envelope.schema.json` (ADR-0002 single source, `AI_PAGE_SCHEMA_DIR`, `E-BUILD-004` if unavailable) + Python SEM-001..004 mirror; `page_validation = {valid, errors, warnings, issues}` rides on every completed job
+- Pipeline: SchemaBuilder + validation after stages 4∥5 (stages list unchanged — 5 provider stages); `JobResult.page/page_validation/build_issues`
+- API: `GET /internal/v1/pages/{job_id}` (assembled schema + validation for preview)
+- Mini-eval: per-case `page_valid` + `pages_validity_rate` (target same ≥0.99); 13/13 pages valid, report `evaluation/reports/phase5-mini-eval.md`
+- Renderer pin: `app/evaluation/export_fixtures.py` writes deterministic envelopes to `packages/page-schema/examples/ai-vet-ar-001.json` + `ai-saas-en-001.json`; `--check` drift guard (pytest); ui-components `tests/ai-fixture.test.tsx` (matrix × 4 themes, determinism, single h1); page-schema TS validators now assert L1+SEM on the AI fixtures
+
+**Created:**
+- `apps/ai-engine/app/services/{schema_builder,page_validator}.py`
+- `apps/ai-engine/app/evaluation/export_fixtures.py`, `evaluation/reports/phase5-mini-eval.md`
+- `packages/page-schema/examples/ai-*.json`, `packages/ui-components/tests/ai-fixture.test.tsx`
+
+**Database:** still in-memory JobStore (Phase 6)
+**API:** added `GET /internal/v1/pages/{job_id}`
+**Frontend:** renderer pin tests only (assembled pages now render)
+
+**Tests:** 66 pytest (SchemaBuilder assembly, SEM mirror, pipeline page, fixture drift, generate/pages endpoints) + TS 33 ui-components (incl. ai-fixture) + 19 page-schema (incl. AI fixtures)  
+**Results:** ruff clean; mypy clean (35 modules); mini-eval validity 1.0 & pages_validity 1.0 ≥ 0.99, 13/13 cases, injection flagged & artifact-free; fixture export byte-deterministic (drift check green)
+
+**Known limitations:**
+- Assemble-time semantic checks mirror TS SEM-001..004 only; per-type slot typing (hero/features/…) is authoritative at render/publish via the TS validators
+- Assets are `asset:` references with `assets: []` until PART VII AssetResolver (later phase)
+- Still no worker/queue (Phase 5 role in the master catalog) — deferred; SchemaBuilder precedes it so orchestration can hand complete Page Schemas
 
 ---

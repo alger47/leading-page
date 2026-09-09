@@ -73,6 +73,22 @@ async def ledger(request: Request, job_id: str) -> dict:
     return record
 
 
+@router.get("/internal/v1/pages/{job_id}", dependencies=[Depends(require_internal_token)])
+async def page(job_id: str, request: Request) -> dict:
+    """Assembled Page Schema for a job (renderer/preview input, Phase 5)."""
+    container = _container(request)
+    record = container.jobs.get(job_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="job not found in in-memory store")
+    return {
+        "job_id": job_id,
+        "status": record.get("status"),
+        "page": record.get("page"),
+        "page_validation": record.get("page_validation"),
+        "build_issues": record.get("build_issues"),
+    }
+
+
 @router.get("/internal/v1/prompts", dependencies=[Depends(require_internal_token)])
 async def prompts(request: Request) -> dict:
     container = _container(request)

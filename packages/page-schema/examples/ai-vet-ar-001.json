@@ -1,0 +1,143 @@
+{
+  "schemaVersion": "1.0.0",
+  "page": {
+    "title": "عيادتنا البيطرية العصرية التي تستحق ثقتك",
+    "locale": "ar",
+    "direction": "rtl"
+  },
+  "theme": {
+    "preset": "warm-professional",
+    "font": "cairo",
+    "primaryColor": "role:primary",
+    "radius": "medium",
+    "density": "comfortable"
+  },
+  "sections": [
+    {
+      "id": "header-1",
+      "type": "header",
+      "variant": "with-cta",
+      "content": {
+        "brandName": "[اسم الشركة]",
+        "nav": [
+          {
+            "label": "الرئيسية",
+            "href": "#hero-1"
+          },
+          {
+            "label": "خدماتنا",
+            "href": "#features-1"
+          },
+          {
+            "label": "تواصل معنا",
+            "href": "#cta-1"
+          }
+        ],
+        "navCta": {
+          "label": "ابدأ الآن",
+          "href": "#cta-1"
+        }
+      }
+    },
+    {
+      "id": "hero-1",
+      "type": "hero",
+      "variant": "split",
+      "content": {
+        "title": "عيادتنا البيطرية العصرية التي تستحق ثقتك",
+        "subtitle": "كل ما يحتاجه عيادتنا البيطرية لاستقبال عملاء جدد والنمو بثقة.",
+        "primaryCta": {
+          "label": "ابدأ الآن",
+          "href": "#cta-1"
+        },
+        "secondaryCta": {
+          "label": "اعرف المزيد",
+          "href": "#features-1"
+        },
+        "media": {
+          "assetRef": "asset:hero-veterinary",
+          "alt": "عيادتنا البيطرية"
+        }
+      }
+    },
+    {
+      "id": "features-1",
+      "type": "features",
+      "variant": "grid-3",
+      "content": {
+        "eyebrow": "لماذا تختارنا",
+        "title": "ماذا نقدم",
+        "items": [
+          {
+            "title": "بداية سهلة",
+            "description": "تبدأ في دقائق، لا في أيام."
+          },
+          {
+            "title": "دعم قريب",
+            "description": "فريق صغير يرد بسرعة وبشفافية."
+          },
+          {
+            "title": "خطوات واضحة",
+            "description": "تعرف دائماً ما الخطوة التالية."
+          }
+        ]
+      },
+      "layoutHint": {
+        "columns": 3
+      }
+    },
+    {
+      "id": "cta-1",
+      "type": "cta",
+      "variant": "banner",
+      "content": {
+        "title": "جاهز للبدء مع عيادتنا البيطرية؟",
+        "subtitle": "أخبرنا بأهدافك وسنعدّ خطة مخصصة لك.",
+        "primaryCta": {
+          "label": "ابدأ الآن",
+          "href": "#cta-1"
+        }
+      }
+    },
+    {
+      "id": "footer-1",
+      "type": "footer",
+      "variant": "extended",
+      "content": {
+        "brandName": "[اسم الشركة]",
+        "links": [
+          {
+            "label": "الرئيسية",
+            "href": "#hero-1"
+          },
+          {
+            "label": "خدماتنا",
+            "href": "#features-1"
+          },
+          {
+            "label": "تواصل معنا",
+            "href": "#cta-1"
+          }
+        ],
+        "legal": "نص قانوني مؤقت — أكمل بياناتك في المحرر.",
+        "contact": {
+          "phone": "[Phone]",
+          "email": "[Email]",
+          "address": "[Address]"
+        }
+      }
+    }
+  ],
+  "assets": [],
+  "metadata": {
+    "generationId": "fixture-ai-vet-ar-001",
+    "promptVersions": {
+      "brief-analyzer": "1.0.0",
+      "page-planner": "1.0.0",
+      "layout-planner": "1.0.0",
+      "content-generator": "1.0.0",
+      "asset-planner": "1.0.0"
+    },
+    "model": "premium"
+  }
+}

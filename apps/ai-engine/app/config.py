@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     # Mini-eval acceptance target (PART IX §9.2).
     eval_min_validity: float = 0.99
 
+    # Canonical Page Schema contracts (ADR-0002 single source of truth).
+    # Defaults to packages/page-schema/schema in the monorepo; overridable via
+    # AI_PAGE_SCHEMA_DIR when the engine is deployed without the monorepo.
+    page_schema_dir: Path = ROOT.parents[1] / "packages" / "page-schema" / "schema"
+    envelope_schema_name: str = "envelope.schema.json"
+
     # HTTP provider credentials (empty => provider unavailable, tests use stub).
     openai_api_key: str = ""
     openai_base_url: str = "https://api.openai.com/v1"

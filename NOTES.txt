@@ -109,3 +109,41 @@
 **Tests:** 41 pytest passing | **Ruff:** clean | **Mypy:** clean (32 modules)
 
 **Next phase:** Phase 5 — SchemaBuilder (merge 5 stage outputs → Page Schema envelope; renderer preview loop)
+
+---
+
+## Phase 5 Completion (2026-09-09):
+
+**SchemaBuilder (stage 7, deterministic; never LLM):**
+- `app/services/schema_builder.py`: merges plan+content+layout+analysis → canonical envelope `{schemaVersion, page, theme, sections, assets, metadata}`
+- Ordering = layout-planner order then anchors (header first, hero immediately after, footer last) → SEM-001/004 always hold
+- Content `image` slot → canonical `media` (MediaRef `assetRef`/`alt`); null optional CTAs dropped (schemas forbid null)
+- Direction = locale-derived (ar→rtl, §5.4, never content-guessed); theme font ar→cairo / else inter; primaryColor role:primary; radius medium; density comfortable
+- Page title derivation: hero title → brief summary → "[Business name]" (honest, never invented)
+- Diagnostics: E-BUILD-001 (slot dropped/mapped), -002 (planned section without content, omitted), -003 (title fallback), -004 (canonical schema unavailable)
+- Assets stay `[]` — PART VII AssetResolver supplies URLs in a later phase; sections reference `asset:` refs
+
+**Validation (engine-side):**
+- L1: reads the CANONICAL `packages/page-schema/schema/envelope.schema.json` (ADR-0002 single source; `AI_PAGE_SCHEMA_DIR` override) → mirrors E-VAL-STRUCT-001
+- L2: Python mirror of TS `validateSemantic` (SEM-001..004) — TS validators stay authoritative at render/publish
+- `page_validation = {valid, errors, warnings, issues}` on every COMPLETED job; available via `/internal/v1/pages/{job_id}`
+
+**Determinism pin (§6.12):**
+- export_fixtures.py writes `packages/page-schema/examples/ai-vet-ar-001.json` (ar) + `ai-saas-en-001.json` (en) — byte-identical across runs; `--check` = drift guard (also pytest `test_fixture_exports`)
+- ui-components `tests/ai-fixture.test.tsx`: render matrix × 4 themes, determinism, single h1, no fallback/error blocks
+- page-schema structural+semantic tests now include the AI fixtures (TS-authoritative L1+L2)
+
+**Mini-eval (Phase 5):** 13/13 COMPLETED; validity 1.0; **pages_validity 1.0** (all assembled pages pass canonical L1 + SEM); injection flagged & artifact-free; report `evaluation/reports/phase5-mini-eval.md`
+
+**Tests:** 66 pytest | **Ruff:** clean | **Mypy:** clean (35 modules) | **TS:** ui-components 33 + page-schema 19 green
+
+**Learned:**
+- config ROOT.parents[1] = repo root for `page_schema_dir` default (parents index off-by-one gotcha)
+- python `validate_structural` must guard `sections` non-list (robustness for hostile input)
+- Determinism tests compare page dicts excluding `metadata.generationId` (varying job id by design) or fix job_id
+
+**Open items:**
+- worker/queue orchestration (master catalog Phase 5 role) — deferred; SchemaBuilder first so orchestration hands complete Page Schemas
+- asset resolution (PART VII) still open; images are `asset:` refs with `assets: []`
+
+**Next phase:** Phase 6 — Worker & job orchestration / Database & persistence per PART X

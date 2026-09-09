@@ -14,6 +14,10 @@ import { validateStructural, validateSectionIdUniqueness } from '../src/validato
 import validVetAr from '../examples/valid-vet-ar-001.json';
 import validSaasEn from '../examples/valid-saas-en-001.json';
 
+// AI-generated fixtures (Phase 5 — SchemaBuilder exports, engine drift-guarded)
+import aiVetAr from '../examples/ai-vet-ar-001.json';
+import aiSaasEn from '../examples/ai-saas-en-001.json';
+
 // Invalid fixtures
 import invalidNoHero from '../examples/invalid-no-hero.json';
 import invalidDuplicateIds from '../examples/invalid-duplicate-ids.json';
@@ -28,6 +32,18 @@ describe('L1 Structural Validation', () => {
 
     it('should validate valid-saas-en-001.json', () => {
       const result = validateStructural(validSaasEn);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should validate ai-vet-ar-001.json (SchemaBuilder output)', () => {
+      const result = validateStructural(aiVetAr);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should validate ai-saas-en-001.json (SchemaBuilder output)', () => {
+      const result = validateStructural(aiSaasEn);
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
