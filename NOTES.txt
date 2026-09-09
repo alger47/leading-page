@@ -177,3 +177,33 @@
 - `Start-Process` on PowerShell cannot use the same file for stdout+stderr redirect
 
 **Next phase:** Database & persistence (durable JobStore, spans, ledger; multi-instance idempotency)
+
+## Phase 6 (DB) — Database & Persistence
+
+**Setup found:** PostgreSQL 18 already runs as a Windows service on `127.0.0.1:5432` (bin at `D:\postgresql-18.4-2-windows-x64\bin`, superuser `postgres`/`postgres`). Created `landing_ai` (dev) + `landing_ai_test` (tests). DB-backed migrations + tests run for real, no Docker needed.
+
+**Prisma on pnpm (v12) gotchas:**
+- Install fails with `ERR_PNPM_IGNORED_BUILDS` until `allowBuilds` includes `prisma`, `@prisma/client`, `@prisma/engines` (pnpm then rewrites the workspace yaml with a literal `set this to true or false` line → prune the duplicate before re-running).
+- Prisma 6.19.3 works offline (engines ship via optional deps); Node 26 ok.
+- `prisma migrate dev` is interactive-ish; add a `migrate status` fallback to confirm applied migrations when the update banner eats the output.
+- **Prisma `@unique` emits `CREATE UNIQUE INDEX`**, NOT a `pg_constraint` row — constraint-presence tests must introspect `pg_indexes` (check `indexdef LIKE '%UNIQUE%'`), not `pg_constraint`.
+- Prisma `$executeRawUnsafe` refuses multi-statement strings ("cannot insert multiple commands into a prepared statement") — split DROP SCHEMA / CREATE SCHEMA into two calls.
+
+**Schema/JSONB pitfalls:**
+- JSONB round-trips reorder object keys (alphabetical-ish after another write) — version-immutability tests must compare deep equality (toEqual), never raw JSON strings.
+- Prisma Json (`JsonValue`/`InputJsonValue`) typing is strict: `Record<string, unknown>` is NOT `InputJsonValue`; passing reusable content is cleanest as `content: unknown` in the repo input, validated (L1) then cast `as Prisma.InputJsonValue` at insert. Json `null` must be `Prisma.JsonNull`, not JS `null`.
+- Json field arrays (eventsJson) read back as `JsonArray`, not `JobEvent[]` — cast through `unknown`.
+
+**Optimistic concurrency, real semantics:** read `latest` in a txn, then insert next version; a concurrent writer hitting the `unique(page_id, version_number)` race surfaces as Prisma `P2002` — map BOTH the explicit baseVersion mismatch and P2002 to the same `OptimisticConcurrencyError`. Promise.allSettled verified: exactly one of two concurrent `saveVersion(base=2)` wins, sequence stays [1,2,3].
+
+**Tenant isolation at the SQL level (§10.5):** every read is `findFirst({ where: { id, project: { id, userId: owner.userId, archivedAt: null } } })` — cross-tenant touches throw `NotFoundError` (no existence disclosure). Archived projects drop out of ALL child access. Isolation matrix across all 6 repositories green.
+
+**Seed idempotency:** naive re-run broke on (a) page `saveVersion(base 0)` when v1 existed and (b) duplicate job idempotency keys → guard every insert behind an existence check (listVersions empty / get catches / published getForPage null).
+
+**Test runtime world:** DB tests drop + replay the whole schema each run (`globalSetup` → `prisma migrate deploy` via `pnpm exec prisma migrate deploy` with `DATABASE_URL`); files MUST run serially (`fileParallelism: false`) or another file's truncate deletes this file's fixtures mid-test.
+
+**Cross-package:** `@landing-ai/page-schema` resolves via `main: dist/index.js` — an unbuilt workspace (no `dist/`) makes vitest fail to resolve the entry. Build it first (`pnpm --filter @landing-ai/page-schema build`).
+
+**Tests:** 24 DB tests green (migrate-clean + §10.2 constraint/introspection, isolation matrix, immutability, optimistic concurrency, jobs state machine + idempotency-key dedupe + attempt idempotency, publishing snapshot move + append-only events). Typecheck + build clean; dev DB seeded idempotently (1 user, 2 projects, 2 jobs, 5 prompt versions, 1 published page).
+
+**Next phase:** Web application (auth, dashboard, projects, brief form, generation UX, preview) — worker durable JobStore swap lands there with real project context.

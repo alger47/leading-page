@@ -111,3 +111,24 @@
 **Status:** worker typecheck + build clean; `pnpm test` 16 green; `test:integration` real-engine green (real-BullMQ skipped, no Redis). Repo-wide green: ai-engine 66 pytest / ruff / mypy (35), page-schema 19, ui-components TS.
 
 **Awaiting:** "continue" → Database & persistence phase
+
+### Phase 6 — Database & Persistence (PostgreSQL + Prisma) (2026-09-09)
+**Created** (`packages/database`, PART X §10):
+- Prisma schema (§10.1 full entity model, snake_cased): User/Project/Page/PageVersion, GenerationJob/GenerationAttempt, PublishedPage/Subdomain/PublicationEvent, Asset, PromptVersion; GenerationStatus enum mirrors worker JobStatus; audit fields + soft deletes (user/project/page/asset, published_page.unpublishedAt); append-only publication events
+- Forward-only migrations (§10.3): `0001_init` (reviewed SQL) + `0002_add_unpublished_at`; constraints `unique(page_id, version_number)`, `@unique(idempotencyKey)` (DB-level multi-instance dedupe), `@unique(stage, version)`, `@unique(storageRef)`, `@unique(host)`, `@unique(page_id, locale)`; ownership-chain FK/indexes (§10.2)
+- Tenant-scoped repositories (§10.5, normative): all methods take `Owner { userId }`, ownership chain baked into SQL predicates; cross-tenant access → `NotFoundError`
+- Version immutability (§10.2): versions are new rows only; restore = new version; optimistic concurrency via `baseVersion` (exactly-one-wins)
+- GenerationJob state machine (§10.2) + idempotent attempt recording per (job, stage, attempt)
+- Dev seeds (`prisma/seed.ts`, PD-05, idempotent): demo user, vet page (from valid fixture, published) + SaaS project, COMPLETED job from golden `vet-ar-001.json`, 5 engine prompt YAMLs → `PromptVersion` registry
+- `src/{client,errors,owner}.ts`, `src/repositories/{projects,pages,jobs,assets,published,prompts}.ts`, tests (24), ADR-0005, README + `.env.example`
+
+**Fixed:**
+- Prisma `@unique` → `CREATE UNIQUE INDEX` (introspect `pg_indexes`, not `pg_constraint`)
+- vitest parallel file workers + shared schema → cross-file TRUNCATE race; `fileParallelism: false` + schema drop/replay in globalSetup
+- JSONB round-trip re-keys objects → immutability asserted as deep equality, not string equality
+- Seed idempotency (page version baseVersion + job key conflicts on re-run)
+- Json field typing: `content: unknown` (validated first), InputJsonValue casts for resultJson/snapshotJson
+
+**Status:** 24 DB tests green (migrate clean + constraints, isolation matrix, immutability, optimistic concurrency, jobs state machine + dedupe, publishing); typecheck + build clean; seed verified idempotent against local PostgreSQL 18. Requires `packages/page-schema` built.
+
+**Awaiting:** "continue" → Phase 7 — Web application

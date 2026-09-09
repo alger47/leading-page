@@ -227,3 +227,38 @@ This document records the implementation progress phase by phase, per master pro
 - Real-engine e2e asserts a well-formed event frame rather than a fixed stage list (engine only tracks its 5 sub-generation steps)
 
 ---
+
+## Phase 6 (DB) — Database & Persistence (PostgreSQL + Prisma)
+
+**Date:** 2026-09-09  
+**Objective:** Durable, tenant-safe data layer per PART X §10: full entity model, forward-only migrations, integrity constraints/indexes, tenant-scoped repositories (no find-by-id without an ownership filter), optimistic concurrency on drafts, version immutability, dev seeds.
+
+**Implemented:**
+- `packages/database` (@landing-ai/database): Prisma client, repositories, seeds
+- `prisma/schema.prisma` — full §10.1 model: `User ─< Project ─< Page ─< PageVersion`, `Project ─< GenerationJob ─< GenerationAttempt`, `PageVersion ──< PublishedPage >── Subdomain`, `PromptVersion`; `GenerationStatus` enum mirrors the worker `JobStatus`; audit fields (`createdAt/updatedAt/createdBy`), soft deletes (user/project/page/asset, `published_page.unpublishedAt`), append-only `publication_event`
+- Migrations: `0001_init` (full model, reviewed SQL) + `0002_add_unpublished_at` (single ALTER) — forward-only (§10.3)
+- Constraints: `unique(page_id, version_number)`, `@unique(idempotencyKey)` (multi-instance dedupe), `@unique(stage, version)` prompt registry, `@unique(storageRef)`, `@unique(host)`, `@unique(page_id, locale)`; FKs with CASCADE down the ownership tree, RESTRICT on version→published, SetNull on job.page_id; indexes on every ownership FK + `(project_id, status)` + `status`
+- Repositories (all `Owner { userId }`-scoped, §10.5): projects, pages/versions, jobs+attempts, assets, publishing (+events, subdomains), prompt registry
+- Version immutability (§10.2): versions have no update path; a new draft/save = new row; restore copies into a new version
+- Optimistic concurrency (§10.2): `saveVersion({ baseVersion })` — exactly one of two concurrent saves wins
+- Job state machine (§10.2) + idempotency-key dedupe at the DB layer + idempotent attempt recording per `(job, stage, attempt)`
+- Seeds (`prisma/seed.ts`, PD-05 dev-only, idempotent): demo user, vet project (page from `valid-vet-ar-001.json`, published to a demo subdomain, COMPLETED job from golden `vet-ar-001.json` with an attempt row), SaaS project (queued job), 5 engine prompt YAMLs registered as `PromptVersion` with real sha256 hashes
+
+**Created:**
+- `packages/database/{package.json,tsconfig*,vitest.config.ts,.env.example,README.md}` + `prisma/{schema.prisma,migrations/*,seed.ts}`
+- `src/{client,errors,owner,index}.ts`, `src/repositories/{projects,pages,jobs,assets,published,prompts}.ts`
+- `tests/{global-setup,migrate,isolation,immutability,concurrency,jobs,published}.test.ts` — 24 green
+- `docs/adr/ADR-0005-database-persistence.md`
+
+**Tests:** `globalSetup` drops the schema and replays all migrations on `DATABASE_URL` (default local `landing_ai_test`); files run serially (`fileParallelism: false`). All 24 green: migrations clean + §10.2 constraints present; tenant-isolation matrix across every repository (wrong owner → `NotFoundError`, archived projects excluded); version immutability (new rows, restore = new version, stale base rejected); optimistic concurrency (exactly-one-wins, gapless sequence); job state machine + key dedupe + attempt idempotency; publish snapshot move + append-only events. Typecheck + build clean (requires `packages/page-schema` built first).
+
+**Database:** PostgreSQL (local PG18) — `landing_ai` (dev: migrate dev + seed) and `landing_ai_test` (tests: drop schema + migrate deploy each run)
+**API:** unchanged (worker `MemoryJobStore` still powers the runtime; `JobsRepository` mirrors its semantics for the Phase 7 swap)
+**Frontend:** N/A
+
+**Known limitations / next:**
+- Worker persistence swap (durable JobStore with project context) lands with the web app (Phase 7) where auth exists
+- Isolation is repository-level; account deletion soft-path and cross-project sharing are future work
+- Production `DATABASE_URL` provisioning + password rotation are deployment-phase concerns
+
+---

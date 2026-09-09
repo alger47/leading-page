@@ -1,0 +1,300 @@
+// @landing-ai/database — canonical persistence model (PART X §10.1–§10.4).
+// Forward-only migrations. Tables are explicitly snake_cased with @@map for
+// reviewed SQL. Tenant ownership chain (normative §10.5):
+//   User ─< Project ─< Page ─< PageVersion
+//                        └─< Asset
+//   Project ─< GenerationJob ─< GenerationAttempt
+//   PageVersion ──< PublishedPage >── Subdomain
+//   PromptVersion (registry of prompt assets)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------- enums
+
+enum PageStatus {
+  DRAFT
+  ARCHIVED
+}
+
+enum AssetKind {
+  IMAGE
+  LOGO
+  ICON
+  PHOTO
+}
+
+enum AssetStatus {
+  UPLOADED
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum GenerationStatus {
+  QUEUED
+  RUNNING
+  VALIDATING
+  RENDERING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum AttemptOutcome {
+  SUCCESS
+  FAILED
+  RETRIED
+  TIMED_OUT
+  SKIPPED
+}
+
+enum PublicationEventType {
+  PUBLISH
+  UNPUBLISH
+}
+
+// ---------------------------------------------------------------- user / project
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  deactivatedAt DateTime? @db.Timestamptz // soft delete (§10.4)
+  createdAt     DateTime  @default(now()) @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @db.Timestamptz
+
+  projects Project[]
+
+  @@map("user")
+}
+
+model Project {
+  id            String     @id @default(cuid())
+  name          String
+  defaultLocale String?
+  tone          String?
+  budgetUsd     Decimal?   @db.Decimal(12, 2)
+  archivedAt    DateTime?  @db.Timestamptz // soft delete (§10.4)
+  createdAt     DateTime   @default(now()) @db.Timestamptz
+  updatedAt     DateTime   @updatedAt @db.Timestamptz
+  createdBy     String?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  pages     Page[]
+  assets    Asset[]
+  jobs      GenerationJob[]
+  subdomain Subdomain[]
+  published PublishedPage[]
+
+  @@index([userId])
+  @@map("project")
+}
+
+// ---------------------------------------------------------------- page + version
+
+model Page {
+  id         String     @id @default(cuid())
+  title      String
+  locale     String?
+  status     PageStatus @default(DRAFT)
+  archivedAt DateTime?  @db.Timestamptz
+  createdAt  DateTime   @default(now()) @db.Timestamptz
+  updatedAt  DateTime   @updatedAt @db.Timestamptz
+  createdBy  String?
+
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  versions      PageVersion[]
+  generationJob GenerationJob[]
+  published     PublishedPage[]
+
+  @@index([projectId])
+  @@map("page")
+}
+
+/// Immutable once created — a new draft/save is always a new row (§10.2).
+model PageVersion {
+  id            String   @id @default(cuid())
+  versionNumber Int      // 1-based; optimistic concurrency via baseVersion on save
+  schemaVersion String
+  contentJson   Json     // validated Page Schema
+  createdAt     DateTime @default(now()) @db.Timestamptz
+  createdBy     String?
+
+  pageId String
+  page   Page   @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  published PublishedPage[]
+
+  @@unique([pageId, versionNumber])
+  @@index([pageId, createdAt(sort: Desc)])
+  @@map("page_version")
+}
+
+// ---------------------------------------------------------------- asset
+
+model Asset {
+  id         String      @id @default(cuid())
+  kind       AssetKind
+  storageRef String      @unique
+  url        String?
+  mimeType   String?
+  sizeBytes  Int?
+  sha256     String?
+  status     AssetStatus @default(UPLOADED)
+  removedAt  DateTime?   @db.Timestamptz // soft delete (§10.4)
+  createdAt  DateTime    @default(now()) @db.Timestamptz
+  updatedAt  DateTime    @updatedAt @db.Timestamptz
+  createdBy  String?
+
+  projectId String
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("asset")
+}
+
+// ---------------------------------------------------------------- generation job
+
+model GenerationJob {
+  id            String           @id // worker job id (gen_<sha256[0:24]>)
+  label         String
+  brief         String
+  locale        String?
+  tone          String?
+  budgetUsd     Decimal?         @db.Decimal(12, 2)
+  requestJson   Json             // full GenerationRequest snapshot
+  status        GenerationStatus
+  idempotencyKey String          @unique
+  fingerprint   String
+  traceId       String
+  engineJobId   String?
+  engineStatus  String?
+  attemptsMade  Int              @default(0)
+  errorCode     String?
+  errorMessage  String?
+  resultJson    Json?
+  eventsJson    Json             @default("[]") // append-only stable events (§11.4)
+  createdAt     DateTime         @default(now()) @db.Timestamptz
+  updatedAt     DateTime         @updatedAt @db.Timestamptz
+  startedAt     DateTime?        @db.Timestamptz
+  completedAt   DateTime?        @db.Timestamptz
+
+  projectId String
+  project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  pageId    String?
+  page      Page?          @relation(fields: [pageId], references: [id], onDelete: SetNull)
+
+  attempts GenerationAttempt[]
+
+  @@index([projectId, status])
+  @@index([status])
+  @@index([projectId, createdAt(sort: Desc)])
+  @@map("generation_job")
+}
+
+model GenerationAttempt {
+  id             String        @id @default(cuid())
+  stage          String
+  attempt        Int
+  provider       String?
+  model          String?
+  promptVersion  String?
+  tokensIn       Int?
+  tokensOut      Int?
+  costUsd        Decimal?      @db.Decimal(18, 6)
+  latencyMs      Int?
+  outcome        AttemptOutcome
+  validationJson Json?
+  createdAt      DateTime      @default(now()) @db.Timestamptz
+
+  jobId String
+  job   GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, stage, attempt])
+  @@index([jobId])
+  @@map("generation_attempt")
+}
+
+// ---------------------------------------------------------------- publishing
+
+model Subdomain {
+  id        String   @id @default(cuid())
+  host      String   @unique
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  projectId String
+  project   Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  publishedPage PublishedPage[]
+
+  @@index([projectId])
+  @@map("subdomain")
+}
+
+/// One published snapshot per version; publishing a new version moves the
+/// publishedPage.pageVersionId pointer (transactional, §10.2).
+model PublishedPage {
+  id           String   @id @default(cuid())
+  locale       String
+  slug         String?
+  publishedAt  DateTime @default(now()) @db.Timestamptz
+  publishedBy  String?
+  unpublishedAt DateTime? @db.Timestamptz // soft-unpublish keeps the audit trail (§10.4)
+
+  pageVersionId String      @unique
+  pageVersion   PageVersion @relation(fields: [pageVersionId], references: [id], onDelete: Restrict)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  pageId    String
+  page      Page    @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  subdomainId String?
+  subdomain Subdomain? @relation(fields: [subdomainId], references: [id], onDelete: SetNull)
+
+  events PublicationEvent[]
+
+  @@unique([pageId, locale])
+  @@index([projectId])
+  @@map("published_page")
+}
+
+/// Append-only (§10.4): the repository exposes create + list, never update/delete.
+model PublicationEvent {
+  id        String              @id @default(cuid())
+  type      PublicationEventType
+  at        DateTime            @default(now()) @db.Timestamptz
+  byUser    String?
+  snapshotJson Json?            // published version snapshot at event time
+
+  publishedPageId String
+  publishedPage   PublishedPage @relation(fields: [publishedPageId], references: [id], onDelete: Cascade)
+
+  @@index([publishedPageId, at(sort: Desc)])
+  @@map("publication_event")
+}
+
+// ---------------------------------------------------------------- prompt registry
+
+model PromptVersion {
+  id          String   @id @default(cuid())
+  stage       String   // engine stage name (brief-analyzer, page-planner, ...)
+  name        String
+  version     Int
+  contentHash String
+  contentRef  String   // path of the prompt asset in the repo
+  createdAt   DateTime @default(now()) @db.Timestamptz
+
+  @@unique([stage, version])
+  @@map("prompt_version")
+}
