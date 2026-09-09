@@ -1,0 +1,127 @@
+{
+  "schemaVersion": "1.0.0",
+  "page": {
+    "title": "عيادة الأصدقاء البيطرية",
+    "locale": "ar",
+    "direction": "rtl",
+    "seo": {
+      "title": "عيادة بيطرية متخصصة في الكلاب والقطط",
+      "description": "رعاية بيطرية احترافية لحيواناتك الأليفة. احجز موعدك الآن.",
+      "robots": "index, follow"
+    }
+  },
+  "theme": {
+    "preset": "warm-professional",
+    "font": "rubik",
+    "primaryColor": "role:primary",
+    "radius": "medium",
+    "density": "comfortable"
+  },
+  "sections": [
+    {
+      "id": "header-1",
+      "type": "header",
+      "variant": "with-cta",
+      "content": {
+        "brandName": "عيادة الأصدقاء البيطرية",
+        "nav": [
+          { "label": "الرئيسية", "href": "#hero-1" },
+          { "label": "خدماتنا", "href": "#features-1" },
+          { "label": "تواصل معنا", "href": "#cta-1" }
+        ],
+        "navCta": {
+          "label": "احجز موعد",
+          "href": "#cta-1"
+        }
+      }
+    },
+    {
+      "id": "hero-1",
+      "type": "hero",
+      "variant": "split",
+      "content": {
+        "title": "رعاية بيطرية تثق بها عائلتك",
+        "subtitle": "نقدم رعاية شاملة لحيواناتك الأليفة بأحدث المعدات وأفضل الأطباء البيطريين",
+        "primaryCta": {
+          "label": "احجز موعدًا",
+          "href": "#cta-1"
+        },
+        "media": {
+          "assetRef": "asset:hero-vet",
+          "alt": "طبيب بيطري يفحص كلب"
+        }
+      },
+      "layoutHint": {
+        "mediaSide": "end"
+      }
+    },
+    {
+      "id": "features-1",
+      "type": "features",
+      "variant": "grid-3",
+      "content": {
+        "eyebrow": "خدماتنا",
+        "title": "رعاية متكاملة لحيوانك",
+        "items": [
+          {
+            "title": "فحوصات دورية",
+            "description": "فحوصات شاملة للحفاظ على صحة حيوانك"
+          },
+          {
+            "title": "تطعيمات",
+            "description": "جميع التطعيمات اللازمة لحماية حيوانك"
+          },
+          {
+            "title": "جراحات",
+            "description": "جراحات متقدمة بأحدث التقنيات"
+          }
+        ]
+      }
+    },
+    {
+      "id": "cta-1",
+      "type": "cta",
+      "variant": "banner",
+      "content": {
+        "title": "احجز موعدك الآن",
+        "subtitle": "اتصل بنا أو قم بالحجز عبر الإنترنت",
+        "primaryCta": {
+          "label": "احجز موعد",
+          "href": "#contact-1"
+        }
+      }
+    },
+    {
+      "id": "footer-1",
+      "type": "footer",
+      "variant": "extended",
+      "content": {
+        "brandName": "عيادة الأصدقاء البيطرية",
+        "links": [
+          { "label": "الرئيسية", "href": "#hero-1" },
+          { "label": "خدماتنا", "href": "#features-1" },
+          { "label": "تواصل معنا", "href": "#cta-1" }
+        ],
+        "social": [
+          { "platform": "facebook", "url": "https://facebook.com/example" }
+        ],
+        "legal": "© 2026 عيادة الأصدقاء البيطرية. جميع الحقوق محفوظة.",
+        "contact": {
+          "phone": "+213-XXX-XXX-XXX",
+          "email": "contact@vet-clinic.example.com"
+        }
+      }
+    }
+  ],
+  "assets": [
+    {
+      "id": "asset:hero-vet",
+      "kind": "image",
+      "source": "stock",
+      "url": "https://images.unsplash.com/example/vet-dog.jpg",
+      "alt": "طبيب بيطري يفحص كلب",
+      "width": 1200,
+      "height": 800
+    }
+  ]
+}

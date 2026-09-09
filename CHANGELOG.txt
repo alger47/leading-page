@@ -1,0 +1,43 @@
+# CHANGELOG - Project Changes Documentation
+
+## Date: 2026-09-09
+
+### Phase 0 — Protocol Bootstrap
+- Read and acknowledged master prompt (GIDE.txt)
+- Confirmed 12 Prime Directives
+- Created docs/MASTER_PROMPT.md
+
+### Phase 1 — Deep Discovery
+- Analyzed repository structure (greenfield project)
+- Created docs/discovery-report.md (sections A-M)
+- Created docs/architecture.md
+- Identified technology stack and architecture decisions
+
+### Phase 2 — Page Schema Foundation
+**Created:**
+- ADR-0002: Canonical Schema Strategy (JSON Schema → Zod + Pydantic)
+- Root config: pnpm-workspace.yaml, turbo.json, tsconfig.base.json, package.json
+- packages/page-schema/schema/envelope.schema.json (main document envelope)
+- packages/page-schema/schema/sections/hero.schema.json
+- packages/page-schema/schema/sections/features.schema.json
+- packages/page-schema/schema/sections/cta.schema.json
+- packages/page-schema/schema/sections/header.schema.json
+- packages/page-schema/schema/sections/footer.schema.json
+- packages/page-schema/src/validators/structural.ts (L1 validator)
+- packages/page-schema/src/validators/semantic.ts (L2 validator with SEM-001..004)
+- packages/page-schema/src/registry.ts (section type registry)
+- packages/page-schema/src/index.ts (package exports)
+- packages/page-schema/src/migrations/index.ts (migration skeleton)
+- packages/page-schema/examples/valid-vet-ar-001.json (Arabic RTL fixture)
+- packages/page-schema/examples/valid-saas-en-001.json (English LTR fixture)
+- packages/page-schema/examples/invalid-no-hero.json (missing hero)
+- packages/page-schema/examples/invalid-duplicate-ids.json (duplicate IDs)
+- packages/page-schema/tests/structural.test.ts
+- packages/page-schema/tests/semantic.test.ts
+
+**Decisions:**
+- Canonical JSON Schema as source of truth
+- Codegen to Zod (TypeScript) and Pydantic (Python)
+- CI drift check for generated artifacts
+
+**Awaiting:** "continue" → Phase 3 — Design System + Renderer

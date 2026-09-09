@@ -1,0 +1,260 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://landing-ai-platform.com/schemas/envelope.schema.json",
+  "title": "Page Schema Envelope",
+  "description": "The document envelope for a landing page schema. This is the single contract between all subsystems.",
+  "type": "object",
+  "required": ["schemaVersion", "page", "theme", "sections"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Semantic version of the schema (MAJOR.MINOR.PATCH)"
+    },
+    "page": {
+      "$ref": "#/definitions/PageMetadata"
+    },
+    "theme": {
+      "$ref": "#/definitions/Theme"
+    },
+    "sections": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Ordered list of sections composing the page",
+      "items": {
+        "$ref": "#/definitions/Section"
+      }
+    },
+    "assets": {
+      "type": "array",
+      "default": [],
+      "description": "Referenced assets (images, icons, etc.)",
+      "items": {
+        "$ref": "#/definitions/Asset"
+      }
+    },
+    "metadata": {
+      "$ref": "#/definitions/GenerationMetadata"
+    }
+  },
+  "definitions": {
+    "PageMetadata": {
+      "type": "object",
+      "required": ["title", "locale", "direction"],
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Page title (used for display and SEO)"
+        },
+        "locale": {
+          "type": "string",
+          "enum": ["ar", "fr", "en"],
+          "description": "Primary language of the page"
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["rtl", "ltr"],
+          "description": "Text direction (derived from locale)"
+        },
+        "seo": {
+          "$ref": "#/definitions/SEO"
+        }
+      }
+    },
+    "SEO": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "ogImageRef": {
+          "type": "string",
+          "pattern": "^asset:",
+          "description": "Reference to an asset (e.g., asset:hero-image)"
+        },
+        "canonical": {
+          "type": "string",
+          "format": "uri"
+        },
+        "robots": {
+          "type": "string",
+          "enum": ["index, follow", "noindex, follow", "index, nofollow", "noindex, nofollow"],
+          "default": "index, follow"
+        }
+      }
+    },
+    "Theme": {
+      "type": "object",
+      "required": ["preset", "font", "primaryColor", "radius", "density"],
+      "additionalProperties": false,
+      "properties": {
+        "preset": {
+          "type": "string",
+          "enum": ["warm-professional", "cool-modern", "bold-creative", "minimal-clean"],
+          "description": "Theme preset name"
+        },
+        "font": {
+          "type": "string",
+          "enum": ["rubik", "cairo", "tajawal", "inter", "system"],
+          "description": "Primary font family"
+        },
+        "primaryColor": {
+          "type": "string",
+          "pattern": "^role:",
+          "description": "Color role reference (e.g., role:primary)"
+        },
+        "radius": {
+          "type": "string",
+          "enum": ["none", "small", "medium", "large", "full"],
+          "description": "Border radius scale"
+        },
+        "density": {
+          "type": "string",
+          "enum": ["compact", "comfortable", "spacious"],
+          "description": "Spacing density"
+        }
+      }
+    },
+    "Section": {
+      "type": "object",
+      "required": ["id", "type", "variant", "content"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*[a-z0-9]$",
+          "minLength": 3,
+          "maxLength": 50,
+          "description": "Stable, unique section identifier (slug format)"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["header", "hero", "features", "services", "testimonials", "pricing", "faq", "stats", "logos", "gallery", "about", "team", "contact", "cta", "footer"],
+          "description": "Section type from registry"
+        },
+        "variant": {
+          "type": "string",
+          "description": "Variant from registry[type].variants"
+        },
+        "content": {
+          "type": "object",
+          "description": "Typed content slots defined by registry[type].slots"
+        },
+        "layoutHint": {
+          "$ref": "#/definitions/LayoutHint"
+        },
+        "visibility": {
+          "$ref": "#/definitions/Visibility"
+        }
+      }
+    },
+    "LayoutHint": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mediaSide": {
+          "type": "string",
+          "enum": ["start", "end"],
+          "description": "Media placement (for split layouts)"
+        },
+        "columns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        },
+        "align": {
+          "type": "string",
+          "enum": ["start", "center", "end"]
+        }
+      }
+    },
+    "Visibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mobile": {
+          "type": "boolean",
+          "default": true
+        },
+        "desktop": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "Asset": {
+      "type": "object",
+      "required": ["id", "kind", "source", "url", "alt"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^asset:",
+          "description": "Asset identifier (e.g., asset:hero-dog)"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["image", "illustration", "icon"]
+        },
+        "source": {
+          "type": "string",
+          "enum": ["stock", "generated", "upload", "curated"]
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "alt": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Localized alt text (required for accessibility)"
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "checksum": {
+          "type": "string"
+        },
+        "license": {
+          "type": "string"
+        }
+      }
+    },
+    "GenerationMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "generationId": {
+          "type": "string",
+          "description": "Job ID that generated this schema"
+        },
+        "promptVersions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Map of prompt name to version used"
+        },
+        "model": {
+          "type": "string",
+          "description": "AI model used for generation"
+        }
+      }
+    }
+  }
+}

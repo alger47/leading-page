@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://landing-ai-platform.com/schemas/sections/cta.schema.json",
+  "title": "CTA Section Schema",
+  "description": "Call-to-action section - driving user action",
+  "type": "object",
+  "required": ["title", "primaryCta"],
+  "additionalProperties": false,
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "CTA headline"
+    },
+    "subtitle": {
+      "type": "string",
+      "maxLength": 300,
+      "description": "Supporting text"
+    },
+    "primaryCta": {
+      "$ref": "#/definitions/CTA"
+    },
+    "secondaryCta": {
+      "$ref": "#/definitions/CTA"
+    }
+  },
+  "definitions": {
+    "CTA": {
+      "type": "object",
+      "required": ["label", "href"],
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "href": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

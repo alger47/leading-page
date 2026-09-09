@@ -1,0 +1,39 @@
+# NOTES - Project Notes
+
+## Date: 2026-09-09
+
+### Phase 2 Notes:
+
+**Schema Design:**
+- Envelope schema includes: schemaVersion, page, theme, sections, assets, metadata
+- Section anatomy: id (slug format), type (from registry), variant, content (typed slots), layoutHint, visibility
+- Slot types: text, richText, cta, link, mediaRef, enum, items[], boolean, number
+- Forbidden in slots: HTML, scripts, inline styles, class names, arbitrary URLs
+
+**Registry (MVP):**
+- header: basic, with-cta
+- hero: split, centered, full-bleed, minimal
+- features: grid-3, grid-4, alternating, icon-row
+- cta: banner, boxed, band
+- footer: basic, extended
+
+**Validation Rules (L2):**
+- SEM-001: Exactly one hero; hero is first content section (error)
+- SEM-002: hero.title non-empty, 2-14 words (error)
+- SEM-003: >= 1 CTA in first two content sections (error)
+- SEM-004: Page ends with footer (error)
+
+**Fixtures:**
+- valid-vet-ar-001: Arabic RTL veterinary clinic (complete)
+- valid-saas-en-001: English LTR SaaS tool (complete)
+- invalid-no-hero: Missing hero section
+- invalid-duplicate-ids: Duplicate section IDs
+
+**Next Steps (Phase 3):**
+- Design tokens (color, font, space, radius, shadow)
+- Theme presets (warm-professional, cool-modern, bold-creative, minimal-clean)
+- Arabic-first typography (Rubik, Cairo, Tajawal)
+- RTL/LTR primitives
+- Seed components (hero, features, cta, header, footer)
+- Renderer component
+- Visual baselines (ar/fr × themes)

@@ -1,0 +1,101 @@
+{
+  "schemaVersion": "1.0.0",
+  "page": {
+    "title": "SaaS Expense Tracker",
+    "locale": "en",
+    "direction": "ltr",
+    "seo": {
+      "title": "Track Expenses Easily | SaaS Tool",
+      "description": "Simple expense tracking for freelancers. Start free today.",
+      "robots": "index, follow"
+    }
+  },
+  "theme": {
+    "preset": "cool-modern",
+    "font": "inter",
+    "primaryColor": "role:primary",
+    "radius": "small",
+    "density": "comfortable"
+  },
+  "sections": [
+    {
+      "id": "header-1",
+      "type": "header",
+      "variant": "with-cta",
+      "content": {
+        "brandName": "ExpenseFlow",
+        "nav": [
+          { "label": "Features", "href": "#features-1" },
+          { "label": "Pricing", "href": "#pricing-1" }
+        ],
+        "navCta": {
+          "label": "Start Free",
+          "href": "#cta-1"
+        }
+      }
+    },
+    {
+      "id": "hero-1",
+      "type": "hero",
+      "variant": "centered",
+      "content": {
+        "title": "Track Every Dollar Effortlessly",
+        "subtitle": "The simplest way for freelancers to manage expenses. No complex spreadsheets.",
+        "primaryCta": {
+          "label": "Start Free Trial",
+          "href": "#cta-1"
+        }
+      }
+    },
+    {
+      "id": "features-1",
+      "type": "features",
+      "variant": "grid-3",
+      "content": {
+        "eyebrow": "Why Choose Us",
+        "title": "Everything You Need",
+        "items": [
+          {
+            "title": "Auto Categorize",
+            "description": "AI-powered expense categorization"
+          },
+          {
+            "title": "Receipt Scanning",
+            "description": "Scan receipts with your phone camera"
+          },
+          {
+            "title": "Tax Reports",
+            "description": "Generate tax-ready reports in seconds"
+          }
+        ]
+      }
+    },
+    {
+      "id": "cta-1",
+      "type": "cta",
+      "variant": "boxed",
+      "content": {
+        "title": "Start Tracking Today",
+        "subtitle": "Free for 14 days. No credit card required.",
+        "primaryCta": {
+          "label": "Get Started Free",
+          "href": "#"
+        }
+      }
+    },
+    {
+      "id": "footer-1",
+      "type": "footer",
+      "variant": "basic",
+      "content": {
+        "brandName": "ExpenseFlow",
+        "links": [
+          { "label": "Features", "href": "#features-1" },
+          { "label": "Privacy", "href": "#" },
+          { "label": "Terms", "href": "#" }
+        ],
+        "legal": "© 2026 ExpenseFlow. All rights reserved."
+      }
+    }
+  ]
+}

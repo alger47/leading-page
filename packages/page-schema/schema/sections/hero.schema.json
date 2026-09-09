@@ -1,0 +1,77 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://landing-ai-platform.com/schemas/sections/hero.schema.json",
+  "title": "Hero Section Schema",
+  "description": "Hero section - the main banner at the top of the page",
+  "type": "object",
+  "required": ["title", "primaryCta"],
+  "additionalProperties": false,
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 14,
+      "description": "Main headline (2-14 words, per SEM-002)"
+    },
+    "subtitle": {
+      "type": "string",
+      "maxLength": 300,
+      "description": "Supporting text below the headline"
+    },
+    "primaryCta": {
+      "$ref": "#/definitions/CTA"
+    },
+    "secondaryCta": {
+      "$ref": "#/definitions/CTA"
+    },
+    "media": {
+      "$ref": "#/definitions/MediaRef"
+    },
+    "badges": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "maxLength": 50
+      },
+      "description": "Trust badges or short descriptors"
+    }
+  },
+  "definitions": {
+    "CTA": {
+      "type": "object",
+      "required": ["label", "href"],
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 50,
+          "description": "Button text"
+        },
+        "href": {
+          "type": "string",
+          "pattern": "^#",
+          "description": "Internal link (section anchor)"
+        }
+      }
+    },
+    "MediaRef": {
+      "type": "object",
+      "required": ["assetRef", "alt"],
+      "additionalProperties": false,
+      "properties": {
+        "assetRef": {
+          "type": "string",
+          "pattern": "^asset:",
+          "description": "Reference to an asset in the assets array"
+        },
+        "alt": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Alt text for the image"
+        }
+      }
+    }
+  }
+}

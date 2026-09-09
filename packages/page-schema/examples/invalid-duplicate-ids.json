@@ -1,0 +1,44 @@
+{
+  "_description": "INVALID: Duplicate section IDs",
+  "schemaVersion": "1.0.0",
+  "page": {
+    "title": "Duplicate IDs Page",
+    "locale": "en",
+    "direction": "ltr"
+  },
+  "theme": {
+    "preset": "minimal-clean",
+    "font": "inter",
+    "primaryColor": "role:primary",
+    "radius": "medium",
+    "density": "comfortable"
+  },
+  "sections": [
+    {
+      "id": "hero-1",
+      "type": "hero",
+      "variant": "centered",
+      "content": {
+        "title": "Hero Title Here",
+        "primaryCta": { "label": "Click", "href": "#" }
+      }
+    },
+    {
+      "id": "hero-1",
+      "type": "features",
+      "variant": "grid-3",
+      "content": {
+        "items": [{ "title": "Feature", "description": "Desc" }]
+      }
+    },
+    {
+      "id": "footer-1",
+      "type": "footer",
+      "variant": "basic",
+      "content": {
+        "brandName": "Brand",
+        "links": [{ "label": "Home", "href": "#" }]
+      }
+    }
+  ]
+}

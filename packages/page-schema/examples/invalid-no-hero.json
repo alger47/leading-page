@@ -1,0 +1,45 @@
+{
+  "_description": "INVALID: Missing hero section (violates SEM-001)",
+  "schemaVersion": "1.0.0",
+  "page": {
+    "title": "Missing Hero Page",
+    "locale": "en",
+    "direction": "ltr"
+  },
+  "theme": {
+    "preset": "minimal-clean",
+    "font": "inter",
+    "primaryColor": "role:primary",
+    "radius": "medium",
+    "density": "comfortable"
+  },
+  "sections": [
+    {
+      "id": "header-1",
+      "type": "header",
+      "variant": "basic",
+      "content": {
+        "brandName": "Test Brand"
+      }
+    },
+    {
+      "id": "features-1",
+      "type": "features",
+      "variant": "grid-3",
+      "content": {
+        "items": [
+          { "title": "Feature 1", "description": "Description 1" }
+        ]
+      }
+    },
+    {
+      "id": "footer-1",
+      "type": "footer",
+      "variant": "basic",
+      "content": {
+        "brandName": "Test Brand",
+        "links": [{ "label": "Home", "href": "#" }]
+      }
+    }
+  ]
+}

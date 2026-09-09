@@ -1,0 +1,64 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://landing-ai-platform.com/schemas/sections/header.schema.json",
+  "title": "Header Section Schema",
+  "description": "Header/navigation section - site branding and navigation",
+  "type": "object",
+  "required": ["brandName"],
+  "additionalProperties": false,
+  "properties": {
+    "brandName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Business/brand name"
+    },
+    "nav": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "$ref": "#/definitions/NavItem"
+      },
+      "description": "Navigation links"
+    },
+    "navCta": {
+      "$ref": "#/definitions/CTA",
+      "description": "CTA button in navigation"
+    }
+  },
+  "definitions": {
+    "NavItem": {
+      "type": "object",
+      "required": ["label", "href"],
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "href": {
+          "type": "string",
+          "pattern": "^#",
+          "description": "Section anchor"
+        }
+      }
+    },
+    "CTA": {
+      "type": "object",
+      "required": ["label", "href"],
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "href": {
+          "type": "string",
+          "pattern": "^#"
+        }
+      }
+    }
+  }
+}
