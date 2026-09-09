@@ -1,0 +1,12 @@
+{
+  "case_id": "restaurant-fr-001",
+  "brief": "Restaurant familial à Marseille, cuisine méditerranéenne, service du mardi au dimanche. La page doit donner envie de réserver une table.",
+  "locale": "fr",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["pricing"],
+    "content_must_include": ["réservation"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: warm-professional", "aucun élément de contact inventé"]
+  }
+}

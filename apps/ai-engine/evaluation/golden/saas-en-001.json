@@ -1,0 +1,12 @@
+{
+  "case_id": "saas-en-001",
+  "brief": "SaaS invoicing tool for freelancers. Simple time-tracking, automated invoices, Stripe payments. Modern and efficient. Free trial.",
+  "locale": "en",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": [],
+    "content_must_include": ["free trial CTA"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: cool-modern", "no invented pricing numbers"]
+  }
+}

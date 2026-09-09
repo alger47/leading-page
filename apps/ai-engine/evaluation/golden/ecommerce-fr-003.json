@@ -1,0 +1,12 @@
+{
+  "case_id": "ecommerce-fr-003",
+  "brief": "Boutique en ligne d'accessoires de voyage éco-responsables : sacs, gourdes, trousses zéro déchet. Panier simple et livraison rapide.",
+  "locale": "fr",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": [],
+    "content_must_include": ["découvrir la boutique"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: cool-modern", "aucun prix inventé"]
+  }
+}

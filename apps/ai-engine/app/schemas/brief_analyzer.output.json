@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "BriefAnalysis",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["vertical", "audience", "tone", "intent", "signals", "summary", "has_enough_facts"],
+  "properties": {
+    "vertical": {
+      "type": "string",
+      "enum": ["restaurant", "saas", "veterinary", "hotel", "gym", "real-estate", "law-firm", "medical-clinic", "startup", "e-commerce", "agency", "education", "other"]
+    },
+    "audience": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "tone": {
+      "type": "string",
+      "enum": ["warm-professional", "cool-modern", "bold-creative", "minimal-clean", "friendly-casual"]
+    },
+    "intent": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "signals": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["cta", "contact", "appointment", "pricing", "testimonial", "none"] }
+    },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "has_enough_facts": { "type": "boolean" }
+  }
+}

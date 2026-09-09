@@ -58,3 +58,26 @@
 **Status:** All package tests pass (page-schema 15, design-system 9, ui-components 23 = 47 total); typecheck clean; codegen drift check green.
 
 **Awaiting:** "continue" → Phase 4 — AI Engine
+
+### Phase 4 — AI Engine (2026-09-09)
+**Created** (`apps/ai-engine`, FastAPI + Python 3.12):
+- API: `app/api/{container,deps,routes}.py`, `app/main.py` (healthz public; `/internal/v1/generate`, `/ledger/{job_id}`, `/prompts` behind X-Internal-Token)
+- Provider abstraction (PART VI §6.2): `app/providers/{protocol,stub,stub_data,http_providers,factory}.py`; stub is deterministic and never echoes brief text (anti-hallucination/injection by construction)
+- Config-driven routing (§6.3): `config/routing.yaml`, `app/routing/config.py`
+- Versioned prompts (§6.6): 5 YAML assets (stage1..stage5) + `app/prompts/{assets,registry}.py`; canonical stage JSON Schemas in `app/schemas/` (ADR-0002)
+- Repair ladder (§6.5): `app/services/{stage_runner,repair,fallbacks,validate,pipeline}.py` — retry → targeted re-ask → deterministic safe repair → honest `E-AI-004`; provider crashes → one recorded attempt then `E-AI-005`
+- Cost ledger (§6.9): `app/cost/ledger.py` — per-attempt USD estimates, per-job attempt cap (`E-AI-003`) + budget (`E-AI-002`)
+- L0 gate (§8.1): `app/core/brief_validation.py` — length caps, ar/fr/en locale detection, injection flagging
+- Error codes E-AI-001..006: `app/core/errors.py`
+- Mini-eval (§9.1–9.2): 13 golden briefs (12 verticals × {ar,fr,en} + injection case) in `evaluation/golden/`, `app/evaluation/mini_eval.py`, committed report `evaluation/reports/phase4-mini-eval.md`
+
+**Fixed during bring-up:**
+- `PromptAsset.render` → slot-only regex substitution (literal braces in prompt prose no longer raise KeyError)
+- SchemaStore directory resolution, stub plan shape (slots as object, hero-first/footer-last) to satisfy schema + SEM rules
+- Locale detection: accent-aware French heuristic; broader injection phrasing (ignore these instructions, set ... instead)
+
+**Docs:** `.env.example`, `README.md`, `docs/ai-pipeline.md`, ADR-0003.
+
+**Status:** 41 pytest green; ruff clean; mypy clean (32 modules); mini-eval 13/13 cases, validity 1.0 ≥ 0.99, per-stage attempts/cost recorded, injection case flagged and artifact-free.
+
+**Awaiting:** "continue" → Phase 5 — SchemaBuilder (assemble stage outputs into the Page Schema)

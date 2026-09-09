@@ -125,3 +125,39 @@ This document records the implementation progress phase by phase, per master pro
 - Typography: 1.8 leading for Arabic vs 1.6 for Latin (assertion fixed to compare Arabic > Latin)
 
 ---
+
+## Phase 4 — AI Engine
+
+**Date:** 2026-09-09  
+**Objective:** Schema-driven generation service: provider abstraction, versioned prompts, structured output, repair ladder, cost ledger, honest failure, and a golden-brief mini-eval.
+
+**Implemented:**
+- `apps/ai-engine` FastAPI service (Python 3.12)
+- Provider abstraction (§6.2): `StructuredLLMProvider` protocol; stub (deterministic, offline, never echoes briefs), openai/anthropic HTTP providers; config-driven routing (§6.3) in `config/routing.yaml`
+- Versioned prompt assets (§6.6): stage1..stage5 YAML + `PromptStore`; canonical stage JSON Schemas in `app/schemas/` (ADR-0002)
+- Repair ladder (§6.5): generate → validate → retry → targeted re-ask → deterministic safe repair → honest `E-AI-004`; provider crashes record once then `E-AI-005`
+- Cost ledger (§6.9): `JobLedger` with per-attempt USD estimates, per-job attempt cap (`E-AI-003`) and budget (`E-AI-002`); credit: stages 4∥5 via `asyncio.gather`
+- L0 gate (§8.1): length caps, ar/fr/en locale detection, injection flagging (brief-as-data enforcement is baked into prompts)
+- Internal API: `GET /healthz` public; `POST /internal/v1/generate`, `GET /internal/v1/ledger/{job_id}`, `GET /internal/v1/prompts` behind `X-Internal-Token`
+- Mini-eval (§9.1–9.2): 13 golden briefs (12 verticals × ar/fr/en + injection case), schema validity measured, Markdown report committed
+
+**Created:**
+- `apps/ai-engine/app/{api,core,prompts,providers,routing,schemas,cost,services,evaluation}/**`
+- `apps/ai-engine/config/routing.yaml`, `evaluation/golden/*.json`
+- `docs/ai-pipeline.md`, `docs/adr/ADR-0003-ai-engine-architecture.md`
+- `apps/ai-engine/{README.md,.env.example,pyproject.toml}`
+
+**Database:** in-memory JobStore (Phase 6: PostgreSQL ledger per PART X)
+**API:** FastAPI `/healthz` + `/internal/v1/*` (internal token auth)
+**AI:** staged generation pipeline with repair ladder + honest failure
+**Frontend:** none this phase
+
+**Tests:** 41 pytest (healthz/auth, generate happy path, L0/E-AI-001, budget E-AI-002, E-AI-004/E-AI-005, repair ladder via flaky/rigged/raising providers, ledger caps, prompt registry, injection, mini-eval)  
+**Results:** ruff clean; mypy clean (32 modules); mini-eval validity 1.0 ≥ 0.99, 13/13 cases, injection case flagged & artifact-free
+
+**Known limitations:**
+- HTTP providers have no live-network test in CI (seams + config validation in place)
+- In-memory job store is volatile (Phase 6)
+- Stage outputs are not yet assembled into the Page Schema envelope (that is Phase 5 — SchemaBuilder)
+
+---

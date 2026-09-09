@@ -85,3 +85,27 @@
 - assets (asset:hero-vet) are references only; image generation model decision deferred
 
 **Next phase:** Phase 4 — AI Engine (FastAPI)
+
+---
+
+## Phase 4 Completion (2026-09-09):
+
+**AI Engine (apps/ai-engine, Python 3.12 + FastAPI):**
+- Python on this machine: `py -3` = 3.12.5 (no `python`/`uv` on PATH); venv at apps/ai-engine/.venv
+- Providers: stub (deterministic, offline, never echoes brief), openai/anthropic (HTTP, JSON-schema/tool-calling); swappable via config/routing.yaml only
+- PromptAsset.render = slot-only regex substitution — literal `{...}` prose in templates is safe; missing required slot raises KeyError (registry validates required slots at boot)
+- Error codes: E-AI-001 L0 / -002 budget / -003 attempts / -004 honest stage failure / -005 provider hard error / -006 config (unknown stage/model/prompt)
+- ProviderHardError carries stage+attempt so E-AI-005 jobs still record the failed attempt in the ledger
+- JobLedger enforces budget BEFORE spend (check_before_next) and attempt cap; tiny-budget test → E-AI-002
+- FastAPI TestClient needs lifespan (TestClient context) for app.state.container
+- ruff: BLE001/`except Exception` in stage_runner intentionally noqa'd (provider plugin boundary → E-AI-005)
+- mypy: `types-PyYAML` installed; GENERIC dict in stub_data must be annotated `dict[str, dict[str, Any]]`
+- Locale: ar via Arabic script; fr via accent-count + function-word heuristic (à/en/des/votre…)
+
+**Mini-eval (PART IX):**
+- 13 golden briefs (12 verticals + injection-en-006) → 13/13 COMPLETED; validity 1.0000 ≥ 0.99; first-attempt OK 1.0; per-stage attempts + cost recorded; injection flagged & artifact-free
+- Report committed at `evaluation/reports/phase4-mini-eval.md`; runnable via `python -m app.evaluation.mini_eval`
+
+**Tests:** 41 pytest passing | **Ruff:** clean | **Mypy:** clean (32 modules)
+
+**Next phase:** Phase 5 — SchemaBuilder (merge 5 stage outputs → Page Schema envelope; renderer preview loop)

@@ -1,0 +1,12 @@
+{
+  "case_id": "agency-en-005",
+  "brief": "Creative marketing agency for local businesses. Branding, social media, website design. Friendly and results-driven.",
+  "locale": "en",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": [],
+    "content_must_include": ["contact CTA"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: friendly-casual", "no invented client results"]
+  }
+}

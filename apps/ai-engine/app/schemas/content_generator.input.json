@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ContentGeneratorInput",
+  "type": "object",
+  "required": ["plan", "locale", "tone", "analysis"],
+  "properties": {
+    "plan": { "type": "object" },
+    "locale": { "type": "string", "enum": ["ar", "fr", "en"] },
+    "tone": { "type": "string" },
+    "analysis": { "type": "object" }
+  }
+}

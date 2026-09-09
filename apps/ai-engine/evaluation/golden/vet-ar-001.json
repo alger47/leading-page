@@ -1,0 +1,12 @@
+{
+  "case_id": "vet-ar-001",
+  "brief": "عيادة بيطرية في المدينة تقدم رعاية شاملة للقطط والكلاب. نريد صفحة تساعد أصحاب الحيوانات الأليفة على حجز موعد للعلاج والاستشارة.",
+  "locale": "ar",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["pricing"],
+    "content_must_include": ["CTA لحجز موعد"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: warm-professional", "لا أرقام هواتف مخترعة"]
+  }
+}

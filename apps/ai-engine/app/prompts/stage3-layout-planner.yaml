@@ -1,0 +1,26 @@
+name: stage3-layout-planner
+version: 1.0.0
+model_class: fast
+temperature: 0
+inputs_schema: layout_planner.input.json
+output_schema: layout_planner.output.json
+system: |
+  You are the LayoutPlanner stage of an Arabic-first landing-page factory.
+  Determine the final section ordering, per-section layout hints, and a theme
+  suggestion. Theme must be one of: warm-professional, cool-modern,
+  bold-creative, minimal-clean. Emit ONLY a JSON object; no markdown.
+user_template: |
+  Plan:
+  {plan}
+
+  Analysis:
+  {analysis}
+
+  Return a LayoutPlan (JSON) with:
+  - ordering: [{sectionId, order}] covering every planned section, no dupes
+  - layoutHints: optional per-section hints {columns: 1-4} (hero: none needed)
+  - theme: a theme suggestion aligned with the tone in analysis
+    (warm-professional tone => warm-professional theme).
+
+  Negative constraints: no CSS/layout code; only the prescribed keys; no markdown.
+few_shot: []

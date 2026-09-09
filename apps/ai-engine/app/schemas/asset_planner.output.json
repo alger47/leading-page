@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AssetRequirements",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["requirements"],
+  "properties": {
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind", "subject", "orientation"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "maxLength": 40 },
+          "kind": { "type": "string", "enum": ["image", "illustration", "icon"] },
+          "subject": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "orientation": { "type": "string", "enum": ["landscape", "portrait", "square"] },
+          "constraints": { "type": "object", "additionalProperties": true }
+        }
+      }
+    }
+  }
+}

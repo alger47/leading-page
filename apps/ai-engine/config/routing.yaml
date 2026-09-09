@@ -1,0 +1,55 @@
+# Config-driven model routing (Master Prompt PART VI §6.3).
+#
+# Rule: changing a model MUST NOT require code changes — only this config change
+# plus an evaluation run. Per-stage: model_class, temperature, max attempts,
+# fallback order. Per model class: provider + per-1k-token cost + default model_id.
+#
+# provider values: stub | openai | anthropic
+
+models:
+  fast:
+    provider: stub
+    model_id: "stub-fast"
+    cost_per_1k_input: 0.0001
+    cost_per_1k_output: 0.0004
+  premium:
+    provider: stub
+    model_id: "stub-premium"
+    cost_per_1k_input: 0.003
+    cost_per_1k_output: 0.015
+
+stages:
+  brief-analyzer:
+    prompt: stage1-brief-analyzer
+    model_class: fast
+    temperature: 0
+    max_attempts: 2
+    fallbacks: [fast]
+  page-planner:
+    prompt: stage2-page-planner
+    model_class: fast
+    temperature: 0
+    max_attempts: 2
+    fallbacks: [fast]
+  layout-planner:
+    prompt: stage3-layout-planner
+    model_class: fast
+    temperature: 0
+    max_attempts: 2
+    fallbacks: [fast]
+  content-generator:
+    prompt: stage4-content-generator
+    model_class: premium
+    temperature: 0.6
+    max_attempts: 3
+    fallbacks: [premium, fast]
+  asset-planner:
+    prompt: stage5-asset-planner
+    model_class: fast
+    temperature: 0
+    max_attempts: 2
+    fallbacks: [fast]
+
+job:
+  max_total_attempts: 18
+  default_budget_usd: 0.25

@@ -1,0 +1,12 @@
+{
+  "case_id": "medical-clinic-ar-003",
+  "brief": "عيادة طبية عامة تقدم فحوصات دورية وتطعيمات للعائلات. هدفنا حجز المواعيد عبر الموقع بسهولة.",
+  "locale": "ar",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["pricing"],
+    "content_must_include": ["حجز موعد"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: warm-professional", "إنجازات طبية مختلقة ممنوعة"]
+  }
+}

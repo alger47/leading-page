@@ -1,0 +1,12 @@
+{
+  "case_id": "startup-en-004",
+  "brief": "Tech startup building a developer analytics platform. Fast setup, real-time dashboards, API-first. Target: engineering teams in seed-stage companies.",
+  "locale": "en",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": [],
+    "content_must_include": ["request demo CTA"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: cool-modern", "no invented metrics"]
+  }
+}
