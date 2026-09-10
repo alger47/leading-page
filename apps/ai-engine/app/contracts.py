@@ -113,6 +113,31 @@ class StageResult:
         return stage
 
 
+# Stages that decide what the visitor reads; if any of them succeeded through a
+# non-stub provider the page is LLM-generated, otherwise it is deterministic.
+_CONTENT_STAGES: tuple[str, ...] = ("page-planner", "layout-planner", "content-generator")
+
+
+def generation_mode_for(result, routing) -> str:
+    """`llm` when a content-producing stage succeeded through a model class whose
+    configured provider is not the deterministic stub; else `stub`. Resolution goes
+    through the routing table (the attempt's own `provider` field records the model
+    id, not the vendor) so the web's demo-mode disclosure stays honest."""
+    for stage in result.stages:
+        if stage.stage not in _CONTENT_STAGES:
+            continue
+        for attempt in stage.attempts:
+            if attempt.outcome is not Outcome.ok:
+                continue
+            try:
+                provider = routing.model(attempt.model_class).provider
+            except Exception:
+                continue
+            if provider != "stub":
+                return "llm"
+    return "stub"
+
+
 @dataclass
 class JobResult:
     job_id: str

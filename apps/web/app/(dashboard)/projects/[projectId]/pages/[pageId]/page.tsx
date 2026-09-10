@@ -17,7 +17,12 @@ export default async function PageDetailPage({ params }: { params: { projectId: 
   }
 
   const activeJob = detail.latestJob
-    ? { id: detail.latestJob.id, status: detail.latestJob.status, briefIncomplete: detail.latestJob.briefAnalysis?.has_enough_facts === false }
+    ? {
+        id: detail.latestJob.id,
+        status: detail.latestJob.status,
+        briefIncomplete: detail.latestJob.briefAnalysis?.has_enough_facts === false,
+        demoMode: detail.latestJob.generationMode,
+      }
     : null;
   const hasVersion = detail.latestVersion !== null && detail.latestVersion.versionNumber >= 1;
   const publishView = await getPublishView(owner, params.projectId, params.pageId);
@@ -30,6 +35,9 @@ export default async function PageDetailPage({ params }: { params: { projectId: 
         {detail.latestJob ? `Latest generation: ${detail.latestJob.status}` : 'No generation started yet.'}
         {detail.latestJob && detail.latestJob.briefAnalysis?.has_enough_facts === false && (
           <span className="meta-warn">⚠️ Brief incomplet — generic content expected</span>
+        )}
+        {detail.latestJob && detail.latestJob.status === 'COMPLETED' && detail.latestJob.generationMode === 'stub' && (
+          <span className="meta-warn">Mode démonstration — no LLM configured, content from templates</span>
         )}
       </p>
 

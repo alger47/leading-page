@@ -29,7 +29,7 @@ import uuid
 from typing import Any
 
 from app.config import Settings
-from app.contracts import JobResult
+from app.contracts import JobResult, generation_mode_for
 from app.core.errors import AiEngineError
 from app.cost.ledger import JobLedger
 from app.routing.config import RoutingConfig
@@ -209,6 +209,7 @@ class SectionRegenerator:
         result.page = updated
         result.page_validation = page_validation
         result.build_issues = issues
+        result.brief_flags["generation_mode"] = generation_mode_for(result, self.routing)
         result.status = "COMPLETED"
         result.end_ms = int(time.perf_counter() * 1000)
         return result

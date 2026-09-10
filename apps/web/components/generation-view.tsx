@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/client-api';
-import { extractBriefAnalysis, isIncompleteBrief } from '@/lib/brief-analysis';
+import { extractBriefAnalysis, extractGenerationMode, isIncompleteBrief, type GenerationMode } from '@/lib/brief-analysis';
 
 const LOCALES = [
   { value: 'fr', label: 'Français' },
@@ -38,13 +38,14 @@ interface JobView {
   events?: Array<{ type: string; at: string; detail?: string }>;
   result?: unknown;
   briefIncomplete?: boolean;
+  demoMode?: GenerationMode | null;
 }
 
 export interface GenerationViewProps {
   projectId: string;
   pageId: string;
   hasVersion: boolean;
-  activeJob: { id: string; status: string; briefIncomplete?: boolean } | null;
+  activeJob: { id: string; status: string; briefIncomplete?: boolean; demoMode?: GenerationMode | null } | null;
 }
 
 const BRIEF_MIN_LENGTH = 10;
@@ -56,7 +57,7 @@ export function GenerationView({ projectId, pageId, hasVersion, activeJob }: Gen
   const [tone, setTone] = useState('warm-professional');
   const [job, setJob] = useState<JobView | null>(() =>
     activeJob
-      ? { jobId: activeJob.id, status: activeJob.status, attemptsMade: 0, errorCode: null, errorMessage: null, briefIncomplete: activeJob.briefIncomplete }
+      ? { jobId: activeJob.id, status: activeJob.status, attemptsMade: 0, errorCode: null, errorMessage: null, briefIncomplete: activeJob.briefIncomplete, demoMode: activeJob.demoMode }
       : null,
   );
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +76,7 @@ export function GenerationView({ projectId, pageId, hasVersion, activeJob }: Gen
     );
     if (res.status === 200 && res.body.job) {
       const next = res.body.job as JobView;
-      setJob({ ...next, briefIncomplete: isIncompleteBrief(next.events) });
+      setJob({ ...next, briefIncomplete: isIncompleteBrief(next.events), demoMode: extractGenerationMode(next.events) ?? next.demoMode });
       if (next.status === 'COMPLETED') {
         router.refresh();
       }
@@ -195,6 +196,13 @@ export function GenerationView({ projectId, pageId, hasVersion, activeJob }: Gen
         </div>
       )}
 
+      {job && completed && job.demoMode === 'stub' && (
+        <div className="demo" role="note">
+          <strong>Démonstration mode.</strong>
+          <span>No LLM configured — the content comes from deterministic templates. Set a provider key and restart the AI Engine for tailored copy.</span>
+        </div>
+      )}
+
       {job && !completed && (
         <div className={`status status--${job.status.toLowerCase()}`}>
           <div className="status-row">
@@ -235,6 +243,7 @@ export function GenerationView({ projectId, pageId, hasVersion, activeJob }: Gen
         .hint { color: var(--color-text-muted); font-size: 0.875rem; }
         .hint--warn { color: #92400e; }
         .incomplete { display: grid; gap: 4px; border: 1px solid #fcd34d; background: #fffbeb; border-radius: var(--radius-md); padding: 12px 16px; font-size: 0.875rem; color: #78350f; max-width: 640px; }
+        .demo { display: grid; gap: 4px; border: 1px dashed var(--color-border); background: var(--color-surface-alt); border-radius: var(--radius-md); padding: 12px 16px; font-size: 0.875rem; color: var(--color-text-muted); max-width: 640px; }
         .status { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 16px; background: var(--color-surface); max-width: 640px; }
         .status-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
         .cancel { border: 1px solid var(--color-border); background: var(--color-surface); border-radius: var(--radius-sm); padding: 6px 12px; cursor: pointer; font-size: 0.875rem; }

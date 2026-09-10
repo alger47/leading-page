@@ -24,6 +24,10 @@ export interface EventLike {
 }
 
 const BRIEF_ANALYZED_EVENT = 'stage.brief_analyzed';
+const JOB_COMPLETED_EVENT = 'job.completed';
+
+/** Whether the generated content came from a real model or the stub templates. */
+export type GenerationMode = 'llm' | 'stub';
 
 /** Parse the first brief-analysis payload found in job events, or null. */
 export function extractBriefAnalysis(events: EventLike[] | null | undefined): BriefAnalysis | null {
@@ -33,6 +37,21 @@ export function extractBriefAnalysis(events: EventLike[] | null | undefined): Br
     try {
       const parsed = JSON.parse(event.detail) as Partial<BriefAnalysis>;
       if (parsed && typeof parsed === 'object' && 'has_enough_facts' in parsed) return parsed;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+/** The relayed `{ mode }` from the worker's `job.completed` event, if present. */
+export function extractGenerationMode(events: EventLike[] | null | undefined): GenerationMode | null {
+  if (!Array.isArray(events)) return null;
+  for (const event of events) {
+    if (event.type !== JOB_COMPLETED_EVENT || typeof event.detail !== 'string') continue;
+    try {
+      const parsed = JSON.parse(event.detail) as { mode?: string } | null;
+      if (parsed && (parsed.mode === 'llm' || parsed.mode === 'stub')) return parsed.mode;
     } catch {
       continue;
     }

@@ -14,6 +14,7 @@ from pathlib import Path
 
 from app.api.container import build_container
 from app.config import Settings
+from app.contracts import GenerationAttempt, JobResult, Outcome, StageResult, Usage, generation_mode_for
 from app.routing.config import RoutingConfig
 
 ROUTING_PATH = Path("config/routing.yaml")
@@ -56,3 +57,72 @@ def test_generate_surfaces_brief_analysis_payload(client, auth_headers, brief_sa
     # other stages keep their payload internal
     gen_stage = next(s for s in job["stages"] if s["stage"] == "content-generator")
     assert "data" not in gen_stage
+    # the completed job also carries the honest demo-mode flag (stub here)
+    assert job["brief_flags"]["generation_mode"] == "stub"
+
+
+def _attempt(model_class: str, outcome: Outcome = Outcome.ok) -> GenerationAttempt:
+    return GenerationAttempt(
+        stage="content-generator",
+        attempt_number=1,
+        prompt_ref="stage4-content-generator@stable",
+        model_class=model_class,
+        provider=model_class,
+        model_id=model_class,
+        usage=Usage(1, 1),
+        cost_usd=0.0,
+        latency_ms=1.0,
+        outcome=outcome,
+    )
+
+
+def _job_with_content_attempt(model_class: str, outcome: Outcome = Outcome.ok) -> JobResult:
+    job = JobResult(job_id="j", status="COMPLETED")
+    job.stages.append(StageResult(stage="content-generator", ok=True, attempts=[_attempt(model_class, outcome)]))
+    return job
+
+
+class _FakeModel:
+    def __init__(self, provider: str) -> None:
+        self.provider = provider
+
+
+class _FakeRouting:
+    def __init__(self, provider_by_class: dict[str, str]) -> None:
+        self._providers = provider_by_class
+
+    def model(self, model_class: str) -> _FakeModel:
+        return _FakeModel(self._providers[model_class])
+
+
+def test_generation_mode_resolves_through_routing() -> None:
+    job = _job_with_content_attempt("premium")
+    stub_routing = _FakeRouting({"premium": "stub", "fast": "stub"})
+    llm_routing = _FakeRouting({"premium": "openai", "fast": "stub"})
+    assert generation_mode_for(job, stub_routing) == "stub"
+    assert generation_mode_for(job, llm_routing) == "llm"
+
+
+def test_generation_mode_ignores_failed_llm_attempts() -> None:
+    job = _job_with_content_attempt("premium", outcome=Outcome.refused)
+    assert generation_mode_for(job, _FakeRouting({"premium": "openai", "fast": "stub"})) == "stub"
+
+
+def test_regenerate_section_path_carries_generation_mode(container) -> None:
+    import asyncio
+
+    async def scenario() -> None:
+        source = await container.pipeline.run(brief="SaaS tool for team tasks.", locale="en", job_id="mode-regen-src")
+        assert source.status == "COMPLETED" and source.page is not None
+        hero_id = next(s["id"] for s in source.page["sections"] if s["type"] == "hero")
+        job = await container.regenerator.run(
+            job_id="mode-regen",
+            brief="better copy",
+            page=source.page,
+            target_section_id=hero_id,
+            locale="en",
+        )
+        assert job.status == "COMPLETED", job.error_message
+        assert job.to_dict()["brief_flags"]["generation_mode"] == "stub"
+
+    asyncio.run(scenario())

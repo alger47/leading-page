@@ -3,7 +3,7 @@
  * events (payload is relayed as the `detail` of `stage.brief_analyzed`).
  */
 import { describe, expect, it } from 'vitest';
-import { extractBriefAnalysis, isIncompleteBrief } from '../lib/brief-analysis.js';
+import { extractBriefAnalysis, extractGenerationMode, isIncompleteBrief } from '../lib/brief-analysis.js';
 
 describe('extractBriefAnalysis', () => {
   it('parses the brief-analyzed event detail', () => {
@@ -42,5 +42,30 @@ describe('isIncompleteBrief', () => {
     expect(isIncompleteBrief(thin)).toBe(true);
     expect(isIncompleteBrief(rich)).toBe(false);
     expect(isIncompleteBrief([])).toBe(false);
+  });
+});
+
+describe('extractGenerationMode', () => {
+  it('reads the mode relayed on job.completed', () => {
+    const events = [{ type: 'job.completed', at: 'x', detail: JSON.stringify({ mode: 'stub' }) }];
+    expect(extractGenerationMode(events)).toBe('stub');
+  });
+
+  it('returns llm only for a real provider', () => {
+    const events = [{ type: 'job.completed', at: 'x', detail: JSON.stringify({ mode: 'llm' }) }];
+    expect(extractGenerationMode(events)).toBe('llm');
+  });
+
+  it('returns null when missing, malformed, or foreign', () => {
+    expect(extractGenerationMode([])).toBeNull();
+    expect(extractGenerationMode([{ type: 'job.completed', at: 'x' }])).toBeNull();
+    expect(extractGenerationMode([{ type: 'job.completed', at: 'x', detail: 'not json' }])).toBeNull();
+    expect(extractGenerationMode([{ type: 'job.completed', at: 'x', detail: '{}' }])).toBeNull();
+    expect(extractGenerationMode(undefined)).toBeNull();
+  });
+
+  it('ignores mode on non-completed events', () => {
+    const events = [{ type: 'stage.brief_analyzed', at: 'x', detail: JSON.stringify({ mode: 'llm' }) }];
+    expect(extractGenerationMode(events)).toBeNull();
   });
 });

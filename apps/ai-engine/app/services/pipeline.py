@@ -16,7 +16,7 @@ import time
 import uuid
 
 from app.config import Settings
-from app.contracts import JobResult, StageResult
+from app.contracts import JobResult, StageResult, generation_mode_for
 from app.core.brief_validation import validate_brief
 from app.core.errors import AiEngineError, ProviderHardError
 from app.cost.ledger import JobLedger
@@ -167,6 +167,7 @@ class Pipeline:
         result.page = schema
         result.page_validation = page_validation
         result.build_issues = build_issues
+        result.brief_flags["generation_mode"] = generation_mode_for(result, self.routing)
 
         result.status = "COMPLETED"
         result.end_ms = int(time.perf_counter() * 1000)

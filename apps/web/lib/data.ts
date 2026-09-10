@@ -13,7 +13,7 @@ import {
   type Owner,
 } from '@landing-ai/database';
 import { config } from './env';
-import { extractBriefAnalysis } from './brief-analysis';
+import { extractBriefAnalysis, extractGenerationMode } from './brief-analysis';
 
 function repos() {
   const prisma = getPrismaClient();
@@ -54,6 +54,7 @@ export interface PageDetailView {
     errorMessage: string | null;
     createdAt: string;
     briefAnalysis: import('./brief-analysis').BriefAnalysis | null;
+    generationMode: import('./brief-analysis').GenerationMode | null;
   } | null;
 }
 
@@ -182,6 +183,7 @@ export async function getPageDetailView(owner: Owner, projectId: string, pageId:
           errorMessage: latestJob.errorMessage,
           createdAt: latestJob.createdAt.toISOString(),
           briefAnalysis: latestJob ? extractBriefAnalysis(Array.isArray(latestJob.eventsJson) ? (latestJob.eventsJson as Array<{ type: string; detail?: string }>) : []) : null,
+          generationMode: latestJob ? extractGenerationMode(Array.isArray(latestJob.eventsJson) ? (latestJob.eventsJson as Array<{ type: string; detail?: string }>) : []) : null,
         }
       : null,
   };

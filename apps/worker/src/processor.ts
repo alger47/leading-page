@@ -190,7 +190,8 @@ async function finalizeSuccess(record: JobRecord, result: EngineJobPayload, job:
   record.status = 'COMPLETED';
   record.errorCode = undefined;
   record.errorMessage = undefined;
-  emit(record, JOB_COMPLETED);
+  const mode = (result.brief_flags as Record<string, unknown> | undefined)?.generation_mode ?? 'stub';
+  emit(record, JOB_COMPLETED, { detail: JSON.stringify({ mode }) });
 }
 
 async function handleTerminalFailure(record: JobRecord, job: JobLike, token: string | undefined, code: string, cause: unknown): Promise<void> {

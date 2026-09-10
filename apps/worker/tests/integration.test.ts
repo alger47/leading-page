@@ -51,6 +51,11 @@ describe('worker -> engine integration', () => {
       'stage.validated',
       'job.completed',
     ]);
+
+    // the completed event relays the honest generation mode (stub here)
+    const rawEvents = (await h.app.inject({ method: 'GET', url: `/api/jobs/${jobId}/events` })).json<{ events: Array<{ type: string; detail?: string }> }>().events;
+    const completedEvent = rawEvents.find((e) => e.type === 'job.completed');
+    expect(completedEvent?.detail).toBe(JSON.stringify({ mode: 'stub' }));
   });
 
   it('replays the same Idempotency-Key instead of re-running', async () => {
