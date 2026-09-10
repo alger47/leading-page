@@ -334,6 +334,128 @@ describe('phase8 editor (J3)', () => {
   });
 });
 
+describe('phase9 versioning (J4)', () => {
+  /** Generate version 1, then save an edited copy as version 2. */
+  async function makeTwoVersions(api: ApiClient): Promise<{ projectId: string; pageId: string; editedContent: Record<string, unknown> }> {
+    const { projectId, pageId } = await makeProjectAndPage(api);
+
+    const created = await generate(api, projectId, pageId);
+    const jobId = (await jsonOf<{ jobId: string }>(created)).jobId;
+    worker.setStatus(jobId, 'COMPLETED', { result: { page: samplePageSchema() } });
+    await waitFor(async () => (await fetchJob(api, jobId)).job?.status === 'COMPLETED');
+
+    const edited = JSON.parse(JSON.stringify(samplePageSchema())) as { page: { title: string; locale: string; direction: string }; sections: Array<{ id: string; content: Record<string, string> }> };
+    edited.page.title = 'Agence Bakhti — version éditée';
+    edited.sections[0].content.headline = 'Bienvenue — nouvelle une';
+
+    const save = await api.call('POST', `/api/v1/pages/${pageId}/versions`, { baseVersion: 1, schemaVersion: '1.0.0', content: edited });
+    expect(save.status).toBe(200);
+    expect((await jsonOf<{ version: { versionNumber: number } }>(save)).version.versionNumber).toBe(2);
+    return { projectId, pageId, editedContent: edited as unknown as Record<string, unknown> };
+  }
+
+  it('lists the immutable version history (metadata only, ascending)', async () => {
+    const api = await makeUser('j4-list@example.com');
+    const { pageId } = await makeTwoVersions(api);
+
+    const res = await api.call('GET', `/api/v1/pages/${pageId}/versions`);
+    expect(res.status).toBe(200);
+    const { versions } = await jsonOf<{ versions: Array<{ versionNumber: number; schemaVersion: string; createdAt: string; createdBy: string | null; content?: unknown }> }>(res);
+    expect(versions.map((v) => v.versionNumber)).toEqual([1, 2]);
+    for (const version of versions) {
+      expect(version.schemaVersion).toBe('1.0.0');
+      expect(typeof version.createdAt).toBe('string');
+      expect('content' in version).toBe(false);
+    }
+  });
+
+  it('serves a single immutable version snapshot including content; 404 on unknown', async () => {
+    const api = await makeUser('j4-detail@example.com');
+    const { pageId } = await makeTwoVersions(api);
+
+    const one = await api.call('GET', `/api/v1/pages/${pageId}/versions/1`);
+    expect(one.status).toBe(200);
+    const { version } = await jsonOf<{ version: { versionNumber: number; content: { page: { title: string }; sections: Array<{ id: string }> } } }>(one);
+    expect(version.versionNumber).toBe(1);
+    expect(version.content.page.title).toBe('Agence Bakhti');
+    expect(version.content.sections[0].id).toBe('hero-01');
+
+    const missing = await api.call('GET', `/api/v1/pages/${pageId}/versions/99`);
+    expect(missing.status).toBe(404);
+  });
+
+  it('compares two versions: metadata + section diff summary with changed slots', async () => {
+    const api = await makeUser('j4-compare@example.com');
+    const { pageId, editedContent } = await makeTwoVersions(api);
+
+    const res = await api.call('GET', `/api/v1/pages/${pageId}/versions/compare?from=1&to=2`);
+    expect(res.status).toBe(200);
+    const { from, to, diff } = await jsonOf<{
+      from: number;
+      to: number;
+      diff: { metadata: { title: { changed: boolean; previous: string | null; current: string | null }; locale: { changed: boolean }; direction: { changed: boolean }; theme: { changed: boolean } }; counts: { added: number; removed: number; changed: number; unchanged: number }; sections: Array<{ id: string; action: string; changedSlots?: string[] }> };
+    }>(res);
+    expect({ from, to }).toEqual({ from: 1, to: 2 });
+    expect(diff.metadata.title.changed).toBe(true);
+    expect(diff.metadata.locale.changed).toBe(false);
+    expect(diff.metadata.direction.changed).toBe(false);
+    expect(diff.metadata.theme.changed).toBe(false);
+    expect(diff.counts).toEqual({ added: 0, removed: 0, changed: 1, unchanged: 0 });
+    expect(diff.sections).toEqual([expect.objectContaining({ id: 'hero-01', action: 'changed', changedSlots: ['content.headline'] })]);
+    expect(editedContent).toBeTruthy();
+
+    // Reversed comparison reports the same slots.
+    const reversed = await api.call('GET', `/api/v1/pages/${pageId}/versions/compare?from=2&to=1`);
+    const rev = await jsonOf<{ diff: { sections: Array<{ id: string; action: string; changedSlots?: string[] }> } }>(reversed);
+    expect(rev.diff.sections[0]).toEqual(expect.objectContaining({ id: 'hero-01', action: 'changed', changedSlots: ['content.headline'] }));
+
+    const invalid = await api.call('GET', `/api/v1/pages/${pageId}/versions/compare?from=0&to=2`);
+    expect(invalid.status).toBe(400);
+  });
+
+  it('restores a previous version into a NEW version; history stays immutable', async () => {
+    const api = await makeUser('j4-restore@example.com');
+    const { pageId } = await makeTwoVersions(api);
+
+    const restored = await api.call('POST', `/api/v1/pages/${pageId}/versions/1/restore`);
+    expect(restored.status).toBe(200);
+    const body = await jsonOf<{ version: { versionNumber: number; restoredFrom: number } }>(restored);
+    expect(body.version.restoredFrom).toBe(1);
+    expect(body.version.versionNumber).toBe(3);
+
+    const after = await api.call('GET', `/api/v1/pages/${pageId}`);
+    const latest = (await jsonOf<{ page: { page: { versionCount: number }; latestVersion: { versionNumber: number; content: { page: { title: string }; sections: Array<{ id: string; content: Record<string, string> }> } } | null } }>(after)).page;
+    expect(latest.page.versionCount).toBe(3);
+    expect(latest.latestVersion!.versionNumber).toBe(3);
+    expect(latest.latestVersion!.content.page.title).toBe('Agence Bakhti');
+    expect(latest.latestVersion!.content.sections[0].content.headline).toBe('Bienvenue');
+
+    // The edited v2 is untouched: restore COPIES, it never rewrites history.
+    const two = await api.call('GET', `/api/v1/pages/${pageId}/versions/2`);
+    const v2 = await jsonOf<{ version: { content: { page: { title: string }; sections: Array<{ id: string; content: Record<string, string> }> } } }>(two);
+    expect(v2.version.content.page.title).toBe('Agence Bakhti — version éditée');
+    expect(v2.version.content.sections[0].content.headline).toBe('Bienvenue — nouvelle une');
+  });
+
+  it('restoring an unknown version 404s; foreign pages are 404 everywhere', async () => {
+    const api = await makeUser('j4-authz@example.com');
+    const { pageId } = await makeTwoVersions(api);
+
+    const missing = await api.call('POST', `/api/v1/pages/${pageId}/versions/99/restore`);
+    expect(missing.status).toBe(404);
+
+    const outsider = await makeUser('j4-outsider@example.com');
+    const list = await outsider.call('GET', `/api/v1/pages/${pageId}/versions`);
+    expect(list.status).toBe(404);
+    const detail = await outsider.call('GET', `/api/v1/pages/${pageId}/versions/1`);
+    expect(detail.status).toBe(404);
+    const compare = await outsider.call('GET', `/api/v1/pages/${pageId}/versions/compare?from=1&to=2`);
+    expect(compare.status).toBe(404);
+    const restore = await outsider.call('POST', `/api/v1/pages/${pageId}/versions/1/restore`);
+    expect(restore.status).toBe(404);
+  });
+});
+
 describe('guards', () => {
   it('rejects generation with a mismatched CSRF token', async () => {
     const api = await makeUser('csrf@example.com');

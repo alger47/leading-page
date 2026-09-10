@@ -336,3 +336,33 @@ This document records the implementation progress phase by phase, per master pro
 - No component tests for the editor (no jsdom/testing-library rig); verified by typecheck + next build + API/e2e suites.
 - L2 rules stay advisory (warnings); text slots are plain inputs, not a rich text editor.
 - Remaining: subdomain publication, XSS-safe server rendering of versions, production ops (secrets/TLS/rate limit/S3-backed assets, optional real Redis/BullMQ validation).
+
+---
+
+## Phase 9 — Versioning (history, compare, restore)
+
+**Date:** 2026-09-10  
+**Objective:** Make history first-class (J4): list every immutable version, save drafts (already Phase 8), compare any two versions (metadata + section diff summary), and restore a previous version — always as a NEW version, never an in-place rewrite (ADR-0005 §10.2).
+
+**Implemented (apps/web):**
+- API: `GET /pages/:id/versions` (ascending metadata list, content excluded), `GET /pages/:id/versions/:v` (full immutable snapshot), `GET /pages/:id/versions/compare?from=a&to=b` (server-computed diff), `POST /pages/:id/versions/:v/restore` (CSRF; copy of the target snapshot through the same L1 gate + OCC → new version, `{version, restoredFrom}`).
+- `lib/versions-diff.ts`: pure, structural (JSONB order-independent) diff — sections matched by stable `id` with `action: added|removed|unchanged|changed`, `previousPosition/currentPosition`, and `changedSlots` per changed section; metadata covers `title / locale / direction / theme`. Unit-tested directly and reused by the compare route + e2e.
+- UI: `components/versions-view.tsx` (client) — history list with "current" tag, two-version compare with a readable summary, and Restore; each mutation refreshes the route so the editor remounts on the new latest version.
+- Restore re-uses `PagesRepository.saveVersion` — zero new persistence logic: immutability, optimistic concurrency (409 → reload), and the L1 gate all apply to a restore exactly as to an editor save.
+
+**Created:**
+- `docs/adr/ADR-0008-versioning-history-restore.md`
+- `apps/web/lib/versions-diff.ts`, `apps/web/components/versions-view.tsx`
+- `apps/web/app/api/v1/pages/[pageId]/versions/{[versionNumber]/route.ts, compare/route.ts, [versionNumber]/restore/route.ts}` (GET list added to the existing versions route)
+- `apps/web/tests/{versions-diff.test.ts, j4-e2e.e2e.ts}`; api.integration.test.ts + harness.ts extended (route-for strips query strings; restore/compare param extraction)
+- walkthrough/CHANGELOG/NOTES/api-reference updated
+
+**Tests:**
+- web unit: 26 green (added versions-diff 7 — added/removed/changed/unchanged, symmetric slots, robustness, structural deepEqual).
+- web integration+e2e: 33 green (5 new Phase-9 API tests: list, snapshot+404, compare summary + reversed + invalid args, restore-into-new-version with v1/v2/v3 immutability, restore-404 + cross-tenant 404 matrix; plus the J4 e2e against the REAL engine + REAL worker: generate v1 → local edit v2 → compare reports title+hero changed → restore v1 → v3 byte-equal to v1, v1..v3 all present).
+- database 30 + page-schema 22 unchanged green; web typecheck clean; `next build` compiled successfully.
+
+**Known limitations / next:**
+- Diff summary reports top-level slot keys (not deep sub-slots) and is structural equality, not a token-level text diff — right-sized for section slots.
+- Restoring the latest version onto itself is allowed (produces an identical new version).
+- "Publish selected version" is deliberately the next phase: PHASE 10 owns the publish gate (invalid schema cannot publish), PublishedPage snapshot + subdomain, unpublish, draft/published separation, noindex on drafts, and zero dashboard/editor JS on published routes.

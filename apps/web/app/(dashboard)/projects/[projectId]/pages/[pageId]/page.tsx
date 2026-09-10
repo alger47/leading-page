@@ -3,6 +3,7 @@ import { requireServerUser } from '@/lib/auth/server';
 import { getPageDetailView } from '@/lib/data';
 import { GenerationView } from '@/components/generation-view';
 import { PageEditor } from '@/components/editor/page-editor';
+import { VersionsView } from '@/components/versions-view';
 
 export default async function PageDetailPage({ params }: { params: { projectId: string; pageId: string } }) {
   const { owner } = await requireServerUser();
@@ -43,6 +44,13 @@ export default async function PageDetailPage({ params }: { params: { projectId: 
             pageId={params.pageId}
             version={detail.latestVersion}
           />
+        </div>
+      )}
+
+      {hasVersion && detail.latestVersion && (
+        <div className="editor-section">
+          <h2>Versions</h2>
+          <VersionsView pageId={params.pageId} currentVersion={detail.latestVersion.versionNumber} />
         </div>
       )}
     </section>

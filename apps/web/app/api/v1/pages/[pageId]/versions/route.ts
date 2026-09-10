@@ -1,9 +1,35 @@
-import { getPrismaClient, InvalidContentError, PagesRepository, OptimisticConcurrencyError } from '@landing-ai/database';
+import { getPrismaClient, InvalidContentError, type PageVersion, PagesRepository, OptimisticConcurrencyError } from '@landing-ai/database';
 import { validateSemantic, validateStructural } from '@landing-ai/page-schema';
 import type { NextRequest } from 'next/server';
 import { ApiError, badRequest, jsonError, jsonOk, requireCsrf } from '@/lib/api';
 import { requireAuth } from '@/lib/auth/context';
 import { config } from '@/lib/env';
+
+const toView = (v: PageVersion): { versionNumber: number; schemaVersion: string; createdAt: string; createdBy: string | null } => ({
+  versionNumber: v.versionNumber,
+  schemaVersion: v.schemaVersion,
+  createdAt: v.createdAt.toISOString(),
+  createdBy: v.createdBy,
+});
+
+/**
+ * GET /api/v1/pages/:pageId/versions
+ * Version history (Phase 9 — J4): immutable, ascending metadata list.
+ * Content is excluded; fetch a single version for the full envelope.
+ */
+export async function GET(request: NextRequest, { params }: { params: { pageId: string } }) {
+  try {
+    const { owner } = await requireAuth(request);
+    const pages = new PagesRepository(getPrismaClient());
+    const owned = await pages.findOwnedPage(owner, params.pageId);
+    if (!owned) throw new ApiError('page not found', 404, 'NOT_FOUND');
+
+    const versions = await pages.listVersions(owner, owned.projectId, owned.pageId);
+    return jsonOk({ versions: versions.map(toView) });
+  } catch (error) {
+    return jsonError(error);
+  }
+}
 
 /**
  * POST /api/v1/pages/:pageId/versions

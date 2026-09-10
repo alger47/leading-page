@@ -253,3 +253,21 @@
 **Regression numbers (Phase 8 gate):** database 30 · page-schema 22 · ui-components N/A · worker 18 unit + 2 integration (real engine full + section regen) + 2 skipped (bullmq, no Redis) · web 19 unit + 25 integration (J2 e2e + J3) · engine 72 pytest. Web typecheck clean + next build compiled successfully.
 
 **Remaining:** subdomain publication, XSS-safe server rendering of versions, production ops (secrets/TLS/rate limit/S3 assets), optional real Redis/BullMQ validation.
+
+---
+
+## Phase 9 Notes (Versioning — history, compare, restore; J4):
+
+**Zero new persistence logic for restore.** `POST /pages/:id/versions/:v/restore` just reads the target snapshot and calls `PagesRepository.saveVersion({ baseVersion: latest, content: snapshot })` — immutability (new row), optimistic concurrency (409 → reload), and the L1 gate all apply exactly like an editor save. `restoredFrom` tells the UI what it came from. Restoring the latest onto itself is allowed (harmless identical new version). DB company rule from ADR-0005: versions are append-only; restore COPIES, never rewrites — verified end-to-end (v1..v3 all present, edited v2 untouched).
+
+**Compare = pure `lib/versions-diff.ts`.** Structural deepEqual (JSONB re-orders keys, so string compare is WRONG — same lesson as the DB immutability tests). Sections matched by stable `id` (position is not identity — reorders would report everything "changed"); entries carry `action: added|removed|unchanged|changed`, `previousPosition/currentPosition`, and `changedSlots` (`content.title`, `variant`, …). Metadata diffs `title/locale/direction/theme` as `{previous, current, changed}`. The compare ROUTE reuses the same function, so API/e2e and UI agree; unit tests cover the function directly (incl. pathological non-envelope input without throwing).
+
+**Harness bug worth remembering (test-only).** The web test harness builds NextRequest from `http://localhost${path}` and dispatches by regex. Query strings were NOT stripped before matching: `versions/compare?from=1&to=2` fell through to the `:v` detail route (`versionNumber='compare?...'` → 400), and restore/compare never got their `params`. Fix: `routeFor`/`paramsFor` match on `path.split('?')[0]` and extract compare + restore params. nextUrl.searchParams itself DOES carry the query (probed with tsx) — the bug was pure dispatch.
+
+**First-version restore semantics.** The J4 e2e: generate v1 (real engine+worker), POST an edited envelope → v2 (same route the editor uses), compare 1 vs 2 → title + `content.title` changed, restore v1 → v3 byte-equal (toEqual structural) to v1's snapshot. This is the same edit path a user exercises in the Versions UI.
+
+**Version list is metadata-only** in the list endpoint (content excluded); use `GET /versions/:v` for the full snapshot. Compare is server-side; the UI just renders `{ from, to, diff }`.
+
+**Exit-gate numbers (Phase 9):** web unit 26 · web integration+e2e 33 (incl. J4) · database 30 · page-schema 22 — green; web typecheck + `next build` clean. No DB migration, no worker/engine change.
+
+**Next phase:** PHASE 10 — Publishing (validate → PublishedPage snapshot → subdomain → cache → unpublish; noindex on drafts; zero dashboard/editor JS on public routes; invalid schema cannot publish).

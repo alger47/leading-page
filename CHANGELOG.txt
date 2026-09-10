@@ -177,3 +177,21 @@
 - Subdomain publication, XSS-safe server rendering of versions, and production ops (secrets/TLS/rate-limit/S3 assets/real Redis) remain subsequent phases.
 
 **Awaiting:** "continue"
+
+### Phase 9 — Versioning (History, Compare, Restore) (2026-09-10)
+**Created** (apps/web, PART X §10.2 + master catalog PHASE 9 — J4):
+- API: `GET /api/v1/pages/:id/versions` (immutable ascending metadata list), `GET /api/v1/pages/:id/versions/:v` (full snapshot incl. content), `GET /api/v1/pages/:id/versions/compare?from=a&to=b` (server-computed metadata + section diff summary), `POST /api/v1/pages/:id/versions/:v/restore` (CSRF — copies the target snapshot through saveVersion's L1 gate + OCC → NEW version, `{version, restoredFrom}`).
+- `lib/versions-diff.ts` (pure, structural/JSONB-order-independent): sections matched by stable id → `added|removed|unchanged|changed` with `previousPosition/currentPosition/changedSlots` (`content.title`, `variant`, …); metadata diffs title/locale/direction/theme.
+- UI `components/versions-view.tsx` (client): history list with "current" tag, two-version compare (metadata + section summary), Restore; routes refresh so the editor remounts on the new latest.
+- Tests: `versions-diff.test.ts` (7 unit), `j4-e2e.e2e.ts` (REAL engine + REAL worker: generate v1 → edit → v2 → compare reports title+hero changed → restore v1 → v3 byte-equal to v1, v1..v3 present); api.integration + harness extended (5 new API tests: list, snapshot/404, compare+reversed+400, restore-immutability, restore-404 + cross-tenant 404 matrix).
+- Docs: ADR-0008, api-reference, walkthrough, CHANGELOG, NOTES.
+
+**Fixed:**
+- Test harness route dispatch: `routeFor`/`paramsFor` did not strip query strings, so `compare?from=a&to=b` fell through to the `:v` detail route (and restore/compare never got their params) — fixed by matching on the query-stripped path + adding compare/restore param extraction.
+
+**Status:** web unit 26 + integration/e2e 33 (incl. J4) green; typecheck clean; `next build` compiled successfully; database 30 + page-schema 22 unchanged green (no schema change).
+
+**Known limitations / next:**
+- Diff reports top-level slot keys only; structural equality, not token-level text diff.
+- Restoring the latest version onto itself is allowed (identical new version).
+- PHASE 10 (publishing) owns the publish gate, PublishedPage snapshot + subdomain, unpublish, draft/published separation, noindex, zero dashboard/editor JS on published routes.

@@ -105,7 +105,35 @@ Auth required. Owner-scoped. Returns the theme preset registry.
 Auth required. Owner-scoped stock media.
 - `200` `{ assets: Asset[] }`, each `{ id, kind, source, url, alt }`.
 
-## Versions (editor saves)
+## Versions (editor saves + Phase 9 history/restore)
+
+### `GET /pages/[pageId]/versions`
+Auth required. Immutable version history, ascending metadata only (content is
+excluded).
+- `200` `{ versions: [{ versionNumber, schemaVersion, createdAt, createdBy }] }`.
+- `404` foreign/missing page.
+
+### `GET /pages/[pageId]/versions/[versionNumber]`
+Auth required. Full snapshot of one immutable version.
+- `200` `{ version: { versionNumber, schemaVersion, createdAt, createdBy, content } }`.
+- `404` unknown version / foreign page.
+
+### `GET /pages/[pageId]/versions/compare?from=:a&to=:b`
+Auth required. Server-computed comparison (metadata + section diff summary),
+safe to render and never mutating.
+- `200` `{ from, to, diff: { metadata, sections, counts } }` where
+  `metadata` covers `title` / `locale` / `direction` / `theme`
+  (`{ previous, current, changed }`), `sections` is one entry per section id —
+  `{ id, type, action: 'added'|'removed'|'unchanged'|'changed',
+  previousPosition, currentPosition, changedSlots? }` — and `counts` tallies
+  added/removed/changed/unchanged.
+- `400` missing/invalid `from`/`to`; `404` foreign page or unknown version.
+
+### `POST /pages/[pageId]/versions/[versionNumber]/restore`
+Auth/CSRF required. Restores a previous version as a **new** immutable version
+(`§10.2` — restore copies, never rewrites; the snapshot re-passes the L1 gate).
+- `200` `{ version: { versionNumber, restoredFrom } }`.
+- `404` unknown version / foreign page; `409` if the page changed concurrently.
 
 ### `POST /pages/[pageId]/versions`
 Auth/CSRF required. Persists a **new immutable draft version** from a validated

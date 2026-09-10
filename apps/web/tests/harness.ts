@@ -171,6 +171,7 @@ export function makeApiClient(initial?: Partial<ParsedCookies>): ApiClient {
 }
 
 async function routeFor(method: string, path: string) {
+  const routePath = path.split('?')[0];
   const mods = {
     register: '../app/api/v1/auth/register/route',
     login: '../app/api/v1/auth/login/route',
@@ -181,6 +182,9 @@ async function routeFor(method: string, path: string) {
     pages: '../app/api/v1/projects/[projectId]/pages/route',
     pageId: '../app/api/v1/pages/[pageId]/route',
     versions: '../app/api/v1/pages/[pageId]/versions/route',
+    versionId: '../app/api/v1/pages/[pageId]/versions/[versionNumber]/route',
+    compare: '../app/api/v1/pages/[pageId]/versions/compare/route',
+    restore: '../app/api/v1/pages/[pageId]/versions/[versionNumber]/restore/route',
     regenerate: '../app/api/v1/pages/[pageId]/sections/[sectionId]/regenerate/route',
     themes: '../app/api/v1/themes/route',
     assets: '../app/api/v1/assets/route',
@@ -188,17 +192,20 @@ async function routeFor(method: string, path: string) {
     jobId: '../app/api/v1/generation-jobs/[jobId]/route',
   };
   let mod = '';
-  if (path.match(/^\/api\/v1\/auth\/(register|login|logout|me)$/)) mod = mods[path.split('/').pop()! as keyof typeof mods];
-  else if (path === '/api/v1/projects') mod = mods.projects;
-  else if (path.match(/^\/api\/v1\/projects\/[^/]+(\/pages)?$/)) mod = path.endsWith('/pages') ? mods.pages : mods.projectId;
-  else if (path.match(/^\/api\/v1\/pages\/[^/]+\/sections\/[^/]+\/regenerate$/)) mod = mods.regenerate;
-  else if (path.match(/^\/api\/v1\/pages\/[^/]+\/versions$/)) mod = mods.versions;
-  else if (path.match(/^\/api\/v1\/pages\/[^/]+$/)) mod = mods.pageId;
-  else if (path === '/api/v1/themes') mod = mods.themes;
-  else if (path === '/api/v1/assets') mod = mods.assets;
-  else if (path === '/api/v1/generate') mod = mods.generate;
-  else if (path.match(/^\/api\/v1\/generation-jobs\/[^/]+$/)) mod = mods.jobId;
-  if (!mod) throw new Error(`no route mapping for ${method} ${path}`);
+  if (routePath.match(/^\/api\/v1\/auth\/(register|login|logout|me)$/)) mod = mods[routePath.split('/').pop()! as keyof typeof mods];
+  else if (routePath === '/api/v1/projects') mod = mods.projects;
+  else if (routePath.match(/^\/api\/v1\/projects\/[^/]+(\/pages)?$/)) mod = routePath.endsWith('/pages') ? mods.pages : mods.projectId;
+  else if (routePath.match(/^\/api\/v1\/pages\/[^/]+\/sections\/[^/]+\/regenerate$/)) mod = mods.regenerate;
+  else if (routePath.match(/^\/api\/v1\/pages\/[^/]+\/versions\/compare$/)) mod = mods.compare;
+  else if (routePath.match(/^\/api\/v1\/pages\/[^/]+\/versions\/[^/]+\/restore$/)) mod = mods.restore;
+  else if (routePath.match(/^\/api\/v1\/pages\/[^/]+\/versions\/[^/]+$/)) mod = mods.versionId;
+  else if (routePath.match(/^\/api\/v1\/pages\/[^/]+\/versions$/)) mod = mods.versions;
+  else if (routePath.match(/^\/api\/v1\/pages\/[^/]+$/)) mod = mods.pageId;
+  else if (routePath === '/api/v1/themes') mod = mods.themes;
+  else if (routePath === '/api/v1/assets') mod = mods.assets;
+  else if (routePath === '/api/v1/generate') mod = mods.generate;
+  else if (routePath.match(/^\/api\/v1\/generation-jobs\/[^/]+$/)) mod = mods.jobId;
+  if (!mod) throw new Error(`no route mapping for ${method} ${routePath}`);
 
   const m = await import(mod);
   if (method === 'GET') return m.GET;
@@ -208,17 +215,24 @@ async function routeFor(method: string, path: string) {
 }
 
 async function paramsFor(path: string): Promise<Record<string, string>> {
-  const projects = path.match(/^\/api\/v1\/projects\/([^/]+)$/);
+  const routePath = path.split('?')[0];
+  const projects = routePath.match(/^\/api\/v1\/projects\/([^/]+)$/);
   if (projects) return { projectId: projects[1] };
-  const pages = path.match(/^\/api\/v1\/projects\/([^/]+)\/pages$/);
+  const pages = routePath.match(/^\/api\/v1\/projects\/([^/]+)\/pages$/);
   if (pages) return { projectId: pages[1] };
-  const pageId = path.match(/^\/api\/v1\/pages\/([^/]+)$/);
+  const pageId = routePath.match(/^\/api\/v1\/pages\/([^/]+)$/);
   if (pageId) return { pageId: pageId[1] };
-  const versions = path.match(/^\/api\/v1\/pages\/([^/]+)\/versions$/);
+  const versions = routePath.match(/^\/api\/v1\/pages\/([^/]+)\/versions$/);
   if (versions) return { pageId: versions[1] };
-  const regenerate = path.match(/^\/api\/v1\/pages\/([^/]+)\/sections\/([^/]+)\/regenerate$/);
+  const compare = routePath.match(/^\/api\/v1\/pages\/([^/]+)\/versions\/compare$/);
+  if (compare) return { pageId: compare[1] };
+  const restore = routePath.match(/^\/api\/v1\/pages\/([^/]+)\/versions\/([^/]+)\/restore$/);
+  if (restore) return { pageId: restore[1], versionNumber: restore[2] };
+  const versionId = routePath.match(/^\/api\/v1\/pages\/([^/]+)\/versions\/([^/]+)$/);
+  if (versionId) return { pageId: versionId[1], versionNumber: versionId[2] };
+  const regenerate = routePath.match(/^\/api\/v1\/pages\/([^/]+)\/sections\/([^/]+)\/regenerate$/);
   if (regenerate) return { pageId: regenerate[1], sectionId: regenerate[2] };
-  const jobId = path.match(/^\/api\/v1\/generation-jobs\/([^/]+)$/);
+  const jobId = routePath.match(/^\/api\/v1\/generation-jobs\/([^/]+)$/);
   if (jobId) return { jobId: jobId[1] };
   return {};
 }
