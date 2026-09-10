@@ -153,3 +153,27 @@
 **Status:** web unit 19 + integration 13 + J1 e2e 3 green; typecheck clean; `next build` green (full route table); database 29 green (typecheck/build clean); worker 16 green. Requires packages/{database,page-schema,design-system} built. Full J1: register -> dashboard -> project -> page -> brief -> real engine -> L1 schema persisted -> preview served, idempotent replay same jobId.
 
 **Awaiting:** "continue" - Phase 8 (editor/publish, XSS-safe rendering, production ops)
+
+### Phase 8 — Editor (Schema-Level Editing, Regeneration, Validated Drafts) (2026-09-10)
+**Created** (ALL PART-eligible tasks):
+- Editor UI (apps/web, `'use client'`): `components/editor/{editor-utils,content-editor,theme-picker,page-editor}.tsx` — generic shape-driven JSON envelope editor (strings/numbers/booleans, array add/remove/reorder, `assetRef` objects with stock-image browser + URL/alt), theme picker (preset swatches from `/api/v1/themes`), section list with selection + ↑/↓ reorder + regenerate, live preview rendered from the same production renderer, L1 issue display, save as new version vs discard, 409-stale reload prompt. Server page mounts `<PageEditor key={'v'+versionNumber} ...>` so saves/regens remount a fresh editor via `router.refresh()`.
+- Versions API: `POST /api/v1/pages/:id/versions` — 200 `{version:{versionNumber},warnings}`; 409 E-CONFLICT (stale base → reload); 422 E-VAL-L1 `error.details.issues` `[{path,message}]` (L1-invalid envelopes never persisted; `saveVersion` optimistic concurrency + version immutability).
+- Theme/assets read APIs: `GET /api/v1/themes` (preset registry; `preset` is top-level, NOT inside `theme`); `GET /api/v1/assets` (owner-scoped stock media). Both behind requireAuth.
+- Section regeneration: `POST /api/v1/pages/:id/regenerate` `{versionNumber,targetSectionId,mode:'section'}` -> 202 jobId; a normal worker generation-jobs row (idempotency, liveSync, error codes). On completion, a NEW L1-validated version is persisted whose non-target sections are byte-identical to the target version; failures leave the target version intact (never a half-edited page).
+- Worker: real-engine recurring section-regen test added (`tests/real-engine.integration.test.ts`, 2nd `it`) — full gen then hero regen with byte-stable untouched sections + `page_validation.valid` + preserved ids.
+- Engine contract: regen = per-layout targeted re-run against the same brief context; no new provider stages.
+
+**Fixed:**
+- Root-caused the "hanging" RegenerateJob / queued-jobs race: `apps/worker/src/jobs/enqueue.ts` store.put() AFTER queue.add(); the in-memory driver's synchronous drain() starts the processor mid-add, and the later QUEUED put clobbered the processor's RUNNING/COMPLETED record back to QUEUED. Fix: store.put BEFORE add + try/catch on add failure -> status FAILED, errorCode E-JOB-001, and rethrow.
+- Removed debug instrumentation added while chasing that race (PROCDBG in processor.ts, MEMDBG in memory.ts, J2 console.log, regen tick/ENQ-RECORD logging in the e2e).
+- Web integration regression (regenerate + themes + assets suites) — assertions aligned to the real theme envelope (`theme.preset` top-level) and first-draft-is-v1 convention.
+
+**Status:** web typecheck clean; `next build` green; regression green — database 30, page-schema 22, worker 18 unit + 2 integration (real engine: full + section regen) + 2 skipped (real-bullmq, no Redis), web 19 unit + 25 integration (incl. J2 e2e + J3 themes/assets/versions/regenerate), engine 72 pytest. J2 + J3 acceptance suites green.
+
+**Known limitations / next:**
+- Regenerating a section saves a new version and discards unsaved local edits (MVP; dirty-merge reconciliation future work — the editor remounts on the new version).
+- No component tests for the editor (no jsdom/testing-library rig); verified via typecheck + next build + API/e2e suites.
+- L2 semantics remain advisory warnings in the editor; text slots are plain inputs (L0-ish length guards), not a rich text editor.
+- Subdomain publication, XSS-safe server rendering of versions, and production ops (secrets/TLS/rate-limit/S3 assets/real Redis) remain subsequent phases.
+
+**Awaiting:** "continue"

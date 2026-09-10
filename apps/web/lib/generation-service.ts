@@ -12,6 +12,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import {
   getPrismaClient,
   JobsRepository,
@@ -34,6 +35,24 @@ export interface StartGenerationInput {
   locale: 'ar' | 'fr' | 'en';
   tone: string;
   clientIdempotencyKey?: string;
+}
+
+/** Phase 8 J2: regenerate ONE section. The `page` is the current draft
+ * (latest version content) and `targetSectionId` names the section whose
+ * content the pipeline will rebuild; the worker streams back a full spliced
+ * Page Schema that is persisted as a NEW draft version. */
+export interface StartSectionGenerationInput {
+  owner: Owner;
+  projectId: string;
+  pageId: string;
+  targetSectionId: string;
+  /** Current Page Schema (latestVersion.content). */
+  page: unknown;
+  /** Latest version number — encodes the source version into the key. */
+  baseVersion: number;
+  brief: string;
+  locale: 'ar' | 'fr' | 'en';
+  tone: string;
 }
 
 export interface StartGenerationResult {
@@ -157,6 +176,74 @@ export class GenerationService {
   /** Ask the worker to cancel an in-flight job (best effort, mirrors after). */
   async cancel(jobId: string): Promise<boolean> {
     return this.worker.cancel(jobId);
+  }
+
+  /**
+   * Enqueue a SECTION regeneration job (Phase 8 J2). Mirrors {@link start}
+   * but the idempotency key is namespaced `regen:...` and encodes the source
+   * version, so re-clicking the same "regenerate" produces the same job while
+   * a regeneration over a NEWER draft is a brand-new job.
+   */
+  async startSection(input: StartSectionGenerationInput): Promise<StartGenerationResult> {
+    const { projects, pages, jobs } = repos();
+    await projects.get(input.owner, input.projectId);
+    await pages.get(input.owner, input.projectId, input.pageId);
+
+    const page = (input.page ?? {}) as { sections?: Array<{ id?: string }> };
+    const hit = (page.sections ?? []).some((s) => s.id === input.targetSectionId);
+    if (!hit) throw new SectionNotFoundError(input.targetSectionId);
+
+    const key = `regen:${input.owner.userId}:${input.pageId}:${input.baseVersion}:${input.targetSectionId}:${createHash('sha256').update(input.brief).digest('hex').slice(0, 8)}`;
+    const jobId = jobIdForIdempotencyKey(key);
+
+    const existing = await jobs.getByKey(input.owner, input.projectId, key);
+    if (existing) {
+      return { jobId: existing.id, created: false, status: existing.status };
+    }
+
+    const now = new Date();
+    const request = { mode: 'section', brief: input.brief, locale: input.locale, tone: input.tone, targetSectionId: input.targetSectionId };
+    const created = await jobs.create(input.owner, input.projectId, {
+      id: jobId,
+      label: labelForFeedback(input.brief),
+      brief: input.brief,
+      locale: input.locale,
+      tone: input.tone,
+      kind: 'SECTION',
+      targetSectionId: input.targetSectionId,
+      requestJson: request,
+      idempotencyKey: key,
+      fingerprint: key,
+      traceId: `web_${randomUUID()}`,
+      pageId: input.pageId,
+      status: 'QUEUED',
+    });
+    await jobs.appendEvent(input.owner, input.projectId, jobId, { type: 'job.queued', at: now.toISOString() });
+
+    try {
+      const res = await this.worker.create({
+        idempotencyKey: key,
+        brief: input.brief,
+        locale: input.locale,
+        tone: input.tone,
+        mode: 'section',
+        targetSectionId: input.targetSectionId,
+        page: input.page,
+      });
+      return { jobId: created.id, created: res.created, status: 'QUEUED' };
+    } catch (error) {
+      const code = error instanceof WorkerCallError ? error.code : 'E-INTERNAL-001';
+      const message = error instanceof Error ? error.message : String(error);
+      await jobs
+        .transition(input.owner, input.projectId, jobId, {
+          from: 'QUEUED',
+          to: 'FAILED',
+          fields: { errorCode: code, errorMessage: message, completedAt: new Date() },
+          event: { type: 'job.failed', at: new Date().toISOString(), code, detail: message },
+        })
+        .catch(() => undefined);
+      throw error;
+    }
   }
 
   /**
@@ -309,5 +396,13 @@ export class GenerationInputError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'GenerationInputError';
+  }
+}
+
+export class SectionNotFoundError extends Error {
+  readonly code = 'SECTION_NOT_FOUND';
+  constructor(sectionId: string) {
+    super(`section "${sectionId}" does not exist in the current draft`);
+    this.name = 'SectionNotFoundError';
   }
 }

@@ -60,6 +60,22 @@ export interface GenerateRequest {
   budget_usd?: number;
 }
 
+/** Single-section regeneration (Phase 8 J2): the engine splices the rebuilt
+ * target section into the supplied current Page Schema. */
+export interface RegenerateSectionRequest {
+  brief: string;
+  target_section_id: string;
+  page: Record<string, unknown>;
+  locale?: string;
+  tone?: string;
+  job_id?: string;
+  budget_usd?: number;
+}
+
 export interface GenerateResponse {
+  job: EngineJobPayload;
+}
+
+export interface RegenerateSectionResponse {
   job: EngineJobPayload;
 }

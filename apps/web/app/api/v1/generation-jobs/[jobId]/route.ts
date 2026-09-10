@@ -9,6 +9,8 @@ function jobView(job: Awaited<ReturnType<JobsRepository['get']>>) {
   return {
     jobId: job.id,
     status: job.status,
+    kind: job.kind,
+    targetSectionId: job.targetSectionId,
     attemptsMade: job.attemptsMade,
     errorCode: job.errorCode,
     errorMessage: job.errorMessage,

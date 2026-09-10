@@ -24,6 +24,8 @@ export interface WorkerJobView {
   attemptsMade: number;
   engineJobId: string | null;
   engineStatus: string | null;
+  mode: 'full' | 'section';
+  targetSectionId: string | null;
   error: { code: string; message: string } | null;
   /** EngineJobPayload once the pipeline produced one (result.page = the Page Schema). */
   result: Record<string, unknown> | null;
@@ -42,6 +44,11 @@ export interface CreateJobInput {
   locale?: 'ar' | 'fr' | 'en';
   tone?: string;
   budgetUsd?: number;
+  /** 'section' regenerates only one section (Phase 8 J2); requires
+   * `targetSectionId` and the current `page`. */
+  mode?: 'full' | 'section';
+  targetSectionId?: string;
+  page?: unknown;
 }
 
 export interface WorkerClient {
@@ -76,7 +83,7 @@ export class HttpWorkerClient implements WorkerClient {
     const res = await this.request('/api/jobs', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'idempotency-key': input.idempotencyKey },
-      body: JSON.stringify({ brief: input.brief, locale: input.locale, tone: input.tone, budgetUsd: input.budgetUsd }),
+      body: JSON.stringify({ brief: input.brief, locale: input.locale, tone: input.tone, budgetUsd: input.budgetUsd, mode: input.mode, targetSectionId: input.targetSectionId, page: input.page }),
     }, CREATE_TIMEOUT_MS);
 
     const body = (await res.json()) as { jobId?: string; status?: string; error?: { code?: string; message?: string } };

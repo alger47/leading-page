@@ -299,3 +299,40 @@ This document records the implementation progress phase by phase, per master pro
 - Web honesty: if the worker is down, enqueue fails and the DB records the real code; a job whose worker lost it fails E-JOB-004 - never a fake completion.
 - Production ops still to land: secrets, TLS, rate limiting, S3-backed assets, optional real Redis/BullMQ validation, session rotation.
 - The e2e requires the ai-engine venv (skips cleanly otherwise); real-engine costs in CI would need an engine fixture or stub-only mode.
+
+---
+
+## Phase 8 — Editor (Schema-Level Editing, Regeneration, Validated Drafts)
+
+**Date:** 2026-09-10  
+**Objective:** Turn generated pages into editable drafts: tune text/images/theme/order, re-roll individual sections through the real engine pipeline, and persist every change as a new immutable, L1-validated version — never a corrupted schema.
+
+**Implemented (apps/web + worker + engine):**
+- `components/editor/` (`'use client'`): `editor-utils.ts` (cloning/draft/JSON-path ops, slot type labels), `content-editor.tsx` (generic recursive JSON editor: text/number/boolean, array add-remove-reorder, `assetRef` objects with a stock-image browser + URL/alt), `theme-picker.tsx` (`GET /api/v1/themes` → swatch picker applying `{preset, font, primaryColor, radius, density}`), `page-editor.tsx` (theme panel + section list with select/↑↓/↻ and regen status, inspector with L1 issues + L2 warnings, `PagePreview` of the *draft* via the same renderer as production, save-vs-discard). The server page mounts `<PageEditor key={'v'+versionNumber} …>` so both SAVE and regen-completion `router.refresh()` into a fresh editor for the new version.
+- Routes: `POST /api/v1/pages/:id/versions` (200 new version; 409 E-CONFLICT stale base → reload; 422 E-VAL-L1 with `details.issues`; never persists an invalid envelope), `GET /api/v1/themes`, `GET /api/v1/assets`, `POST /api/v1/pages/:id/regenerate` (`{versionNumber, targetSectionId, mode:'section'}` → 202 + jobId).
+- **Section regeneration:** a normal worker `generation-jobs` row. On COMPLETED a new L1-validated version is persisted whose non-target sections are **byte-identical** to the version being edited; engine/validation failures leave the target version intact (no half-edited pages, ever).
+- Worker: permanent real-engine section-regen integration test (full gen → hero regen → byte-stable untouched sections, valid L1, ids preserved).
+
+**Fixed (Phase 8):**
+- The "hanging" RegenerateJob root cause: `apps/worker/src/jobs/enqueue.ts` put the store record AFTER `queue.add()`; the in-memory driver's synchronous `drain()` inside `add()` started the processor, whose RUNNING/COMPLETED writes were then clobbered by the QUEUED put. Fix: put before add + `E-JOB-001` FAILED guard on add failure.
+- Debug instrumentation (PROCDBG/MEMDBG/logging) added while chasing the race — removed.
+- J3 test fixes: real theme envelope shape (`preset` top-level, not inside `theme`) and first-draft-is-v1.
+
+**Created:**
+- `docs/adr/ADR-0007-section-regeneration-and-editing.md`
+- `apps/web/components/editor/*` (4 files), updated `app/(dashboard)/projects/[projectId]/pages/[pageId]/page.tsx`, `app/globals.css` (`.editor-section`)
+- docs/api-reference.md (themes/assets/versions/regenerate), this file, CHANGELOG.txt, NOTES.txt
+
+**Tests:**
+- worker: 18 unit + 2 integration (real engine: full pipeline **and** section regen) + 2 skipped (real-BullMQ, no Redis).
+- web: 19 unit + 25 integration (includes J2 e2e + new themes/assets/versions/regenerate suites).
+- database 30, page-schema 22 (dist rebuilt), engine 72 pytest — all green.
+- web typecheck clean; `next build` compiled successfully.
+
+**Frontend:** `'use client'` PageEditor wired into the page-detail server route; drafts render through the same ui-components renderer used in production preview.
+
+**Known limitations / next:**
+- Regenerating discards unsaved local edits (editor remounts on the new version); dirty-merge reconciliation is future work.
+- No component tests for the editor (no jsdom/testing-library rig); verified by typecheck + next build + API/e2e suites.
+- L2 rules stay advisory (warnings); text slots are plain inputs, not a rich text editor.
+- Remaining: subdomain publication, XSS-safe server rendering of versions, production ops (secrets/TLS/rate limit/S3-backed assets, optional real Redis/BullMQ validation).

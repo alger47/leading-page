@@ -46,11 +46,19 @@ export const E_JOB = {
   crashRecovery: 'E-JOB-005', // worker died mid-job; processing is being resumed
 } as const;
 
+export type GenerationMode = 'full' | 'section';
+
 export interface GenerationRequest {
   brief: string;
   locale?: 'ar' | 'fr' | 'en';
   tone?: string;
   budgetUsd?: number;
+  /** 'full' generates the whole page; 'section' regenerates one section from
+   * the supplied current Page Schema (Phase 8 J2). */
+  mode?: GenerationMode;
+  targetSectionId?: string;
+  /** Current Page Schema, required when mode === 'section'. */
+  page?: unknown;
 }
 
 /** Serialized onto the BullMQ job. */

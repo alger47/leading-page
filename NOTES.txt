@@ -231,3 +231,25 @@
 **E2E bridge gotchas:** worker's in-memory driver drains on add(); the enqueue route store.put()s the QUEUED record AFTER add() resolves -> start the bridge paused and `resume()` AFTER the web enqueue commits (same reason the worker harness resumes post-enqueue). Engine spawned with `AI_PROVIDER=stub AI_INTERNAL_TOKEN=test-token AI_ENV=test`; worker EngineClient token 'test-token'.
 
 **Awaiting:** Phase 8 (editor/publish) - publication flows, editor UX, XSS-safe server rendering, production ops (secrets/TLS/rate-limit/assets), optional real Redis/BullMQ validation.
+
+---
+
+## Phase 8 Notes (Editor, section regeneration, validated drafts):
+
+**Root-caused the "hanging" RegenerateJob — it was a store write race, NOT the engine.** Direct engine repro with the exact worker payload (ar brief, locale ar, tone warm-professional, budget 0.05, token test-token): GEN 200 @0.52s and REGEN 200 @0.41s COMPLETED. The bug: `apps/worker/src/jobs/enqueue.ts` did `await deps.queue.add(payload, { jobId })` THEN `deps.store.put(record)`. The in-memory driver's `void drain()` inside `add()` runs the processor *synchronously during add()*; the processor's `ensureRecord`/completion wrote RUNNING/COMPLETED, and enqueue's later `put` clobbered the same object (MemoryJobStore.byId returns live references) back to QUEUED → the status poll loop never saw terminal. **Fix: `store.put(record)` BEFORE `add()`, and try/catch on `add` failure → status FAILED, errorCode E-JOB-001, rethrow.** This is why the J2 e2e and web regen tests had to "look like they hang" — same root cause across stacks. The worker harness avoids it by resuming the paused bridge post-enqueue.
+
+**Regen is a first-class job, not a special path.** `POST /api/v1/pages/:id/regenerate {versionNumber, targetSectionId, mode:'section'}` → a normal worker generation-jobs row (idempotent, liveSync, same error codes). The web builds a per-target payload; the engine runs the layout for just that section against the brief context. On COMPLETED, web persists a NEW version (saveVersion optimistic concurrency) whose non-target sections are byte-identical (asserted in the real-engine worker test). Failures → no version at all; the target stays intact.
+
+**Editor architecture.** Generic shape-driven JSON editor over `latestVersion.content` (no per-section forms): string→input/textarea, number/boolean, arrays (add/remove/reorder, string or nested object items), objects→groups, `assetRef` objects (≤2 keys) → asset field with stock thumbnail grid + URL/alt inputs. `theme-picker` applies `{preset, font, primaryColor, radius, density}`. Preview renders the *draft* with the same ui-components Renderer as production.
+
+**Keyed remount trick.** Server page: `<PageEditor key={'v'+versionNumber} ... />`. SAVE and regen-completion both call `router.refresh()`; the key change remounts a fresh editor on the new version. Trade-off: **regenerating a section discards unsaved local edits** (MVP, documented in ADR-0007).
+
+**Themes/assets read shape gotcha.** `GET /api/v1/themes` returns presets where `preset` is TOP-LEVEL, not nested under `theme` (the theme preset object is `{preset, label, description, theme:{...}, swatches}`). A test asserting `theme.theme.preset` fails. Also: engine hero content is `{title, subtitle, primaryCta, secondaryCta, image:{assetRef,alt}}`, persisted as `media` after `_clean_hero` — real pages read `media.assetRef`. The web tests/harness.ts `samplePageSchema` uses `headline/subheadline` — TEST-ONLY fixture, never the real shape.
+
+**Validation gates.** Save route: L1 structural check (same validator as generation finalize) → 422 `{error:{code:'E-VAL-L1', details:{issues:[{path,message}]}}}`; invalid envelopes never hit the DB. 409 E-CONFLICT when `baseVersion` is stale (optimistic concurrency; client must reload). Section type `Section.content` is an open object (no additionalProperties), so generic edits are L1-safe as long as hero title non-empty + CTA in the first two content sections + footer last — L2 issues are advisory warnings only.
+
+**No component tests for the editor.** The repo has no jsdom/testing-library rig; editor verified by tsc + `next build` + the API/e2e suites. Adding component tests would need a new vitest setup (listed as future work).
+
+**Regression numbers (Phase 8 gate):** database 30 · page-schema 22 · ui-components N/A · worker 18 unit + 2 integration (real engine full + section regen) + 2 skipped (bullmq, no Redis) · web 19 unit + 25 integration (J2 e2e + J3) · engine 72 pytest. Web typecheck clean + next build compiled successfully.
+
+**Remaining:** subdomain publication, XSS-safe server rendering of versions, production ops (secrets/TLS/rate limit/S3 assets), optional real Redis/BullMQ validation.

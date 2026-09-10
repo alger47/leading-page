@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-labelledby="t">
+  <title id="t">Illustration of a bright modern office</title>
+  <rect width="1200" height="675" fill="#dbeafe"/>
+  <rect x="180" y="180" width="640" height="360" fill="#ffffff" rx="24"/>
+  <rect x="260" y="300" width="480" height="120" fill="#93c5fd" rx="16"/>
+  <circle cx="920" cy="280" r="90" fill="#60a5fa"/>
+  <rect x="300" y="480" width="180" height="24" fill="#bfdbfe" rx="12"/>
+  <rect x="520" y="480" width="240" height="24" fill="#bfdbfe" rx="12"/>
+</svg>

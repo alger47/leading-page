@@ -112,5 +112,59 @@ if (PYTHON === undefined) {
         await h.close();
       }
     }, 120_000);
+
+    it('regenerates a single section (mode=section) against the real engine', async () => {
+      const h = await makeHarness({ engineBaseOverride: BASE, queueName: `e2e-regen-${Math.random().toString(36).slice(2, 8)}` });
+      try {
+        // 1. Full generation to obtain a page document.
+        const brief = 'عيادة بيطرية حديثة في الجزائر العاصمة: مواعيد دقيقة، رعاية القطط والكلاب، فريق اختصاصيين.';
+        const created = await h.app.inject({
+          method: 'POST',
+          url: '/api/jobs',
+          headers: { 'content-type': 'application/json', 'idempotency-key': `real-engine-full-${Date.now()}` },
+          payload: JSON.stringify({ brief, locale: 'ar', tone: 'warm-professional', budgetUsd: 0.25 }),
+        });
+        expect(created.statusCode).toBe(202);
+        const fullJobId = created.json<{ jobId: string }>().jobId;
+        await h.resumeWorker();
+        await waitFor(async () => h.store.get(fullJobId)?.status === 'COMPLETED', 120_000);
+        const page = (h.store.get(fullJobId)!.result!.page as { sections: Array<{ id: string; type: string; content: Record<string, unknown> }> });
+        const heroId = page.sections.find((s) => s.type === 'hero')!.id;
+
+        // 2. Section regeneration over that page.
+        const regen = await h.app.inject({
+          method: 'POST',
+          url: '/api/jobs',
+          headers: { 'content-type': 'application/json', 'idempotency-key': `real-engine-regen-${Date.now()}` },
+          payload: JSON.stringify({ brief, mode: 'section', targetSectionId: heroId, page, locale: 'ar', tone: 'warm-professional', budgetUsd: 0.05 }),
+        });
+        expect(regen.statusCode).toBe(202);
+        const regenJobId = regen.json<{ jobId: string }>().jobId;
+        await waitFor(async () => {
+          const rec = h.store.get(regenJobId);
+          if (rec?.status === 'FAILED') {
+            // eslint-disable-next-line no-console
+            console.error('REAL-ENGINE REGEN FAILED:', rec.errorCode, rec.errorMessage);
+          }
+          return rec?.status === 'COMPLETED';
+        }, 120_000);
+
+        const record = h.store.get(regenJobId)!;
+        expect(record.status).toBe('COMPLETED');
+        const result = record.result!;
+        expect(result.page_validation).toEqual(expect.objectContaining({ valid: true }));
+        const spliced = result.page as { sections: Array<{ id: string; type: string; content: Record<string, unknown> }> };
+        expect(spliced.sections.map((s) => s.id)).toEqual(page.sections.map((s) => s.id));
+        // Every section except the target must be byte-identical.
+        for (let i = 0; i < page.sections.length; i += 1) {
+          if (page.sections[i].id === heroId) continue;
+          expect(spliced.sections[i]).toEqual(page.sections[i]);
+        }
+        const heroAfter = spliced.sections.find((s) => s.id === heroId)!;
+        expect(heroAfter.type).toBe('hero');
+      } finally {
+        await h.close();
+      }
+    }, 120_000);
   });
 }

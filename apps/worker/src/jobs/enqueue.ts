@@ -18,6 +18,12 @@ export function fingerprintOf(request: GenerationRequest): string {
     request.locale ?? '',
     request.tone ?? '',
     request.budgetUsd ?? '',
+    request.mode ?? 'full',
+    // The idempotency key must encode the *source version*, not the page
+    // document: a section regeneration over an older/newer page is a new
+    // request with a new key. Including the page content would conflate the
+    // two (and blow up the key), so `page` is deliberately excluded here.
+    request.targetSectionId ?? '',
   ].join('\n');
   return createHash('sha256').update(canonical).digest('hex');
 }
@@ -74,11 +80,21 @@ export async function enqueue(deps: EnqueueDeps, request: GenerationRequest, ide
     locale: request.locale,
     tone: request.tone,
     budgetUsd: request.budgetUsd,
+    mode: request.mode,
+    targetSectionId: request.targetSectionId,
+    page: request.page,
     idempotencyKey,
     fingerprint,
   };
 
-  await deps.queue.add(payload, { jobId: id });
   deps.store.put(record);
+  try {
+    await deps.queue.add(payload, { jobId: id });
+  } catch (cause) {
+    record.status = 'FAILED';
+    record.errorCode = 'E-JOB-001';
+    record.errorMessage = cause instanceof Error ? cause.message : String(cause);
+    throw cause;
+  }
   return { record, created: true };
 }

@@ -2,6 +2,7 @@
 
 - GET  /healthz                        public liveness + readiness probes
 - POST /internal/v1/generate           run the generation pipeline (authenticated)
+- POST /internal/v1/regenerate-section run ONE-section regeneration (authenticated)
 - GET  /internal/v1/ledger/{job_id}    job report incl. per-stage attempts/cost (authenticated)
 - GET  /internal/v1/prompts            registered prompt assets (authenticated)
 """
@@ -20,6 +21,19 @@ router = APIRouter()
 
 class JobRequest(BaseModel):
     brief: str = Field(min_length=1, max_length=1_000_000)
+    locale: str | None = Field(default=None, pattern="^(ar|fr|en)$")
+    tone: str | None = None
+    job_id: str | None = Field(default=None, pattern="^[a-zA-Z0-9-_]{1,64}$")
+    budget_usd: float | None = Field(default=None, gt=0)
+
+
+class RegenerateSectionRequest(BaseModel):
+    """Phase 8 / §11.3 section-level regeneration (J2). Carries the CURRENT
+    Page Schema from the web DB; only the target section is regenerated."""
+
+    brief: str = Field(min_length=1, max_length=1_000_000)
+    target_section_id: str = Field(min_length=1, max_length=64)
+    page: dict
     locale: str | None = Field(default=None, pattern="^(ar|fr|en)$")
     tone: str | None = None
     job_id: str | None = Field(default=None, pattern="^[a-zA-Z0-9-_]{1,64}$")
@@ -59,6 +73,23 @@ async def generate(request: Request, body: JobRequest) -> dict:
         )
     except BriefValidationError as exc:
         raise HTTPException(status_code=422, detail={"code": exc.code, "message": str(exc)}) from exc
+    payload = job.to_dict()
+    container.jobs.put(job.job_id, payload)
+    return {"job": payload}
+
+
+@router.post("/internal/v1/regenerate-section", dependencies=[Depends(require_internal_token)])
+async def regenerate_section(request: Request, body: RegenerateSectionRequest) -> dict:
+    container = _container(request)
+    job = await container.regenerator.run(
+        job_id=body.job_id,
+        brief=body.brief,
+        page=body.page,
+        target_section_id=body.target_section_id,
+        locale=body.locale,
+        tone=body.tone,
+        budget_usd=body.budget_usd,
+    )
     payload = job.to_dict()
     container.jobs.put(job.job_id, payload)
     return {"job": payload}

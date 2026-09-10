@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { requireServerUser } from '@/lib/auth/server';
 import { getPageDetailView } from '@/lib/data';
 import { GenerationView } from '@/components/generation-view';
-import { PagePreview } from '@/components/page-preview';
+import { PageEditor } from '@/components/editor/page-editor';
 
 export default async function PageDetailPage({ params }: { params: { projectId: string; pageId: string } }) {
   const { owner } = await requireServerUser();
@@ -35,9 +35,14 @@ export default async function PageDetailPage({ params }: { params: { projectId: 
       />
 
       {hasVersion && detail.latestVersion && (
-        <div className="preview-section">
-          <h2>Preview</h2>
-          <PagePreview schema={detail.latestVersion.content as Record<string, unknown>} />
+        <div className="editor-section">
+          <h2>Editor</h2>
+          <PageEditor
+            key={`v${detail.latestVersion.versionNumber}`}
+            projectId={params.projectId}
+            pageId={params.pageId}
+            version={detail.latestVersion}
+          />
         </div>
       )}
     </section>

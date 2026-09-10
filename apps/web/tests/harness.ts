@@ -23,6 +23,8 @@ interface FakeJob {
   attemptsMade: number;
   engineJobId: string | null;
   engineStatus: string | null;
+  mode: 'full' | 'section';
+  targetSectionId: string | null;
   error: { code: string; message: string } | null;
   result: Record<string, unknown> | null;
   events: WorkerJobEvent[];
@@ -31,7 +33,7 @@ interface FakeJob {
 export class FakeWorkerClient implements WorkerClient {
   private readonly jobs = new Map<string, FakeJob>();
 
-  create(input: { idempotencyKey: string; brief: string; locale?: 'ar' | 'fr' | 'en'; tone?: string; budgetUsd?: number }) {
+  create(input: { idempotencyKey: string; brief: string; locale?: 'ar' | 'fr' | 'en'; tone?: string; budgetUsd?: number; mode?: 'full' | 'section'; targetSectionId?: string; page?: unknown }) {
     const jobId = fakeJobId(input.idempotencyKey);
     const existing = this.jobs.get(jobId);
     if (existing) return Promise.resolve({ jobId: existing.id, created: false });
@@ -46,6 +48,8 @@ export class FakeWorkerClient implements WorkerClient {
       attemptsMade: 0,
       engineJobId: null,
       engineStatus: null,
+      mode: input.mode ?? 'full',
+      targetSectionId: input.targetSectionId ?? null,
       error: null,
       result: null,
       events: [{ type: 'job.created', at: now }],
@@ -97,6 +101,8 @@ export class FakeWorkerClient implements WorkerClient {
       attemptsMade: job.attemptsMade,
       engineJobId: job.engineJobId,
       engineStatus: job.engineStatus,
+      mode: job.mode,
+      targetSectionId: job.targetSectionId,
       error: job.error,
       result: job.result,
     };
@@ -174,6 +180,10 @@ async function routeFor(method: string, path: string) {
     projectId: '../app/api/v1/projects/[projectId]/route',
     pages: '../app/api/v1/projects/[projectId]/pages/route',
     pageId: '../app/api/v1/pages/[pageId]/route',
+    versions: '../app/api/v1/pages/[pageId]/versions/route',
+    regenerate: '../app/api/v1/pages/[pageId]/sections/[sectionId]/regenerate/route',
+    themes: '../app/api/v1/themes/route',
+    assets: '../app/api/v1/assets/route',
     generate: '../app/api/v1/generate/route',
     jobId: '../app/api/v1/generation-jobs/[jobId]/route',
   };
@@ -181,7 +191,11 @@ async function routeFor(method: string, path: string) {
   if (path.match(/^\/api\/v1\/auth\/(register|login|logout|me)$/)) mod = mods[path.split('/').pop()! as keyof typeof mods];
   else if (path === '/api/v1/projects') mod = mods.projects;
   else if (path.match(/^\/api\/v1\/projects\/[^/]+(\/pages)?$/)) mod = path.endsWith('/pages') ? mods.pages : mods.projectId;
+  else if (path.match(/^\/api\/v1\/pages\/[^/]+\/sections\/[^/]+\/regenerate$/)) mod = mods.regenerate;
+  else if (path.match(/^\/api\/v1\/pages\/[^/]+\/versions$/)) mod = mods.versions;
   else if (path.match(/^\/api\/v1\/pages\/[^/]+$/)) mod = mods.pageId;
+  else if (path === '/api/v1/themes') mod = mods.themes;
+  else if (path === '/api/v1/assets') mod = mods.assets;
   else if (path === '/api/v1/generate') mod = mods.generate;
   else if (path.match(/^\/api\/v1\/generation-jobs\/[^/]+$/)) mod = mods.jobId;
   if (!mod) throw new Error(`no route mapping for ${method} ${path}`);
@@ -200,6 +214,10 @@ async function paramsFor(path: string): Promise<Record<string, string>> {
   if (pages) return { projectId: pages[1] };
   const pageId = path.match(/^\/api\/v1\/pages\/([^/]+)$/);
   if (pageId) return { pageId: pageId[1] };
+  const versions = path.match(/^\/api\/v1\/pages\/([^/]+)\/versions$/);
+  if (versions) return { pageId: versions[1] };
+  const regenerate = path.match(/^\/api\/v1\/pages\/([^/]+)\/sections\/([^/]+)\/regenerate$/);
+  if (regenerate) return { pageId: regenerate[1], sectionId: regenerate[2] };
   const jobId = path.match(/^\/api\/v1\/generation-jobs\/([^/]+)$/);
   if (jobId) return { jobId: jobId[1] };
   return {};

@@ -94,6 +94,45 @@ CSRF-required. Best-effort cancel.
   terminal jobs are returned unchanged (`cancelled: false`).
 - `404` foreign/missing; `409` handled as `cancelled:false`.
 
+## Themes & assets (editor)
+
+### `GET /themes`
+Auth required. Owner-scoped. Returns the theme preset registry.
+- `200` `{ themes: ThemePreset[] }`, each
+  `{ preset, label, description, theme: { font, primaryColor, radius, density }, swatches }`.
+
+### `GET /assets`
+Auth required. Owner-scoped stock media.
+- `200` `{ assets: Asset[] }`, each `{ id, kind, source, url, alt }`.
+
+## Versions (editor saves)
+
+### `POST /pages/[pageId]/versions`
+Auth/CSRF required. Persists a **new immutable draft version** from a validated
+envelope. Body: `{ baseVersion, content }` where `content` is a full Page
+Schema envelope.
+- `200` `{ version: { versionNumber }, warnings }` — new version saved
+  (`baseVersion + 1`).
+- `409` `E-CONFLICT` — the `baseVersion` is no longer the latest (someone else
+  saved first); the client must reload and re-apply.
+- `422` `E-VAL-L1` with `error.details.issues` —
+  `[{ path, message }]` from the L1 structural validator. Invalid envelopes are
+  never persisted.
+
+## Section regeneration
+
+### `POST /pages/[pageId]/regenerate`
+Auth/CSRF required. Re-rolls a single section of a chosen version through the
+engine. Body: `{ versionNumber, targetSectionId, mode: 'section' }`.
+- `202` `{ jobId, status: 'QUEUED' }` — regeneration job handed to the worker.
+- `404` foreign page / target section missing; `422` bad body or unknown mode.
+- On COMPLETED the job's `result` is
+  `{ pageId, versionNumber }` — a new L1-validated version whose non-target
+  sections are byte-identical to the version being edited is persisted.
+  Failures never produce a half-edited page: the target version stays intact.
+- Poll with `GET /generation-jobs/[jobId]`; the editor refreshes (remounts)
+  on completion.
+
 ## Ops
 
 ### `GET /healthz`

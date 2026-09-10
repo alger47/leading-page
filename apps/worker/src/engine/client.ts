@@ -7,7 +7,7 @@
  * - malformed envelope (non-JSON, wrong shape)  -> E-JOB-004, not retryable
  */
 
-import type { GenerateRequest, GenerateResponse, EngineJobPayload } from './types.js';
+import type { GenerateRequest, GenerateResponse, RegenerateSectionRequest, EngineJobPayload } from './types.js';
 
 export interface EngineErrorOptions {
   code: string;
@@ -77,7 +77,15 @@ export class EngineClient {
   }
 
   async generate(req: GenerateRequest): Promise<EngineJobPayload> {
-    const res = await this.request('/internal/v1/generate', {
+    return this.postJob('/internal/v1/generate', 'generate', req);
+  }
+
+  async regenerateSection(req: RegenerateSectionRequest): Promise<EngineJobPayload> {
+    return this.postJob('/internal/v1/regenerate-section', 'regenerate-section', req);
+  }
+
+  private async postJob(path: string, label: string, req: GenerateRequest | RegenerateSectionRequest): Promise<EngineJobPayload> {
+    const res = await this.request(path, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(req),
@@ -87,7 +95,7 @@ export class EngineClient {
     try {
       parsed = (await res.json()) as unknown;
     } catch (cause) {
-      throw new EngineError(`engine returned non-JSON from generate`, {
+      throw new EngineError(`engine returned non-JSON from ${label}`, {
         code: 'E-JOB-004',
         retryable: false,
         statusCode: res.status,
@@ -97,7 +105,7 @@ export class EngineClient {
 
     if (!res.ok) {
       const detail = this.extractDetail(parsed);
-      const message = detail.message ?? `engine generate failed with HTTP ${res.status}`;
+      const message = detail.message ?? `engine ${label} failed with HTTP ${res.status}`;
       if (res.status >= 500) {
         // Service unreachable / overloaded: transient, retried by the queue.
         throw new EngineError(message, { code: 'E-JOB-001', retryable: true, statusCode: res.status });
@@ -108,7 +116,7 @@ export class EngineClient {
 
     const payload = (parsed as GenerateResponse).job;
     if (!isEngineJobPayload(payload)) {
-      throw new EngineError('engine generate returned an unexpected envelope', {
+      throw new EngineError(`engine ${label} returned an unexpected envelope`, {
         code: 'E-JOB-004',
         retryable: false,
         statusCode: res.status,

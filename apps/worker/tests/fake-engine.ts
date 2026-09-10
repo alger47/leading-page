@@ -21,19 +21,22 @@ export interface EngineCall {
   locale?: string;
   tone?: string;
   budget_usd?: number;
+  target_section_id?: string;
+  page?: Record<string, unknown>;
 }
 
 export interface FakeEngine {
   app: FastifyInstance;
   scenario: Scenario;
   calls: EngineCall[];
+  paths: string[];
   setScenario(s: Scenario): void;
   start(): Promise<string>;
   stop(): Promise<void>;
 }
 
-function okPayload(jobId?: string): Record<string, unknown> {
-  const stage = (name: string, ok = true): Record<string, unknown> => ({
+function stage(name: string, ok = true): Record<string, unknown> {
+  return {
     stage: name,
     ok,
     attempts: ok ? 1 : 0,
@@ -43,7 +46,10 @@ function okPayload(jobId?: string): Record<string, unknown> {
     error_code: ok ? null : 'E-AI-005',
     cost_usd: ok ? 0.001 : 0,
     issues: [],
-  });
+  };
+}
+
+function okPayload(jobId?: string): Record<string, unknown> {
   return {
     job: {
       job_id: jobId ?? 'engine-job-1',
@@ -94,6 +100,20 @@ function okPayload(jobId?: string): Record<string, unknown> {
   };
 }
 
+function sectionOkPayload(request: EngineCall, jobId?: string): Record<string, unknown> {
+  const payload = okPayload(jobId);
+  const job = payload.job as { stages: Array<Record<string, unknown>>; page: { sections: Array<Record<string, unknown>> }; brief_flags: Record<string, unknown> };
+  const page = request.page as { sections: Array<Record<string, unknown>> } | undefined;
+  const sections = page?.sections ?? [{ type: 'header' }, { type: 'hero' }, { type: 'footer' }];
+  job.brief_flags = { mode: 'section', target_section_id: request.target_section_id, source_l1_valid: true };
+  job.stages = [stage('content-generator')];
+  job.page = {
+    ...job.page,
+    sections: sections.map((section) => ({ ...section, content: { title: `${section.type ?? 'section'} regenerated` } })),
+  };
+  return payload;
+}
+
 function businessFailPayload(jobId: string | undefined, errorCode: string, message: string): Record<string, unknown> {
   return {
     job: {
@@ -116,12 +136,14 @@ function businessFailPayload(jobId: string | undefined, errorCode: string, messa
 export function makeFakeEngine(): FakeEngine {
   const scenario: Scenario = { mode: 'ok' };
   const calls: EngineCall[] = [];
+  const paths: string[] = [];
   const app = Fastify({ logger: false });
 
   app.get('/healthz', async () => ({ status: 'ok' }));
 
   app.post<{ Body: EngineCall }>('/internal/v1/generate', async (request, reply) => {
     calls.push(request.body);
+    paths.push('/internal/v1/generate');
     const body = request.body;
 
     switch (scenario.mode) {
@@ -160,6 +182,23 @@ export function makeFakeEngine(): FakeEngine {
     }
   });
 
+  app.post<{ Body: EngineCall }>('/internal/v1/regenerate-section', async (request, reply) => {
+    calls.push(request.body);
+    paths.push('/internal/v1/regenerate-section');
+    const body = request.body;
+    switch (scenario.mode) {
+      case 'business-fail':
+        reply.send(businessFailPayload(body.job_id, 'E-AI-005', 'provider refused the request'));
+        return reply;
+      case 'l0-reject':
+        reply.status(422).send({ detail: { code: 'E-AI-001', message: 'brief rejected: injection detected' } });
+        return reply;
+      default:
+        reply.send(sectionOkPayload(body, body.job_id));
+        return reply;
+    }
+  });
+
   app.get<{ Params: { id: string } }>('/internal/v1/ledger/:id', async (request) => ({ job_id: request.params.id }));
 
   app.get<{ Params: { id: string } }>('/internal/v1/pages/:id', async (request, reply) => {
@@ -175,6 +214,7 @@ export function makeFakeEngine(): FakeEngine {
     app,
     scenario,
     calls,
+    paths,
     setScenario(s: Scenario) {
       this.scenario.mode = s.mode;
       this.scenario.transientRemaining = s.transientRemaining;

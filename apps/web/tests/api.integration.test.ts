@@ -195,6 +195,145 @@ describe('generation lifecycle (fake worker)', () => {
   });
 });
 
+describe('phase8 editor (J3)', () => {
+  it('exposes the theme presets catalog', async () => {
+    const api = await makeUser('j3-themes@example.com');
+    const res = await api.call('GET', '/api/v1/themes');
+    expect(res.status).toBe(200);
+    const { themes } = await jsonOf<{ themes: Array<{ preset: string; theme: { font: string; radius: string; density: string; primaryColor: string } }> }>(res);
+    expect(themes.map((t) => t.preset)).toEqual(['warm-professional', 'cool-modern', 'bold-creative', 'minimal-clean']);
+    for (const theme of themes) {
+      expect(theme.theme.primaryColor.startsWith('role:')).toBe(true);
+      expect(['rubik', 'cairo', 'tajawal', 'inter', 'system']).toContain(theme.theme.font);
+    }
+  });
+
+  it('exposes the curated stock asset catalog', async () => {
+    const api = await makeUser('j3-assets@example.com');
+    const res = await api.call('GET', '/api/v1/assets');
+    expect(res.status).toBe(200);
+    const { assets } = await jsonOf<{ assets: Array<{ id: string; kind: string; source: string; url: string; alt: string }> }>(res);
+    expect(assets.length).toBeGreaterThan(0);
+    for (const asset of assets) {
+      expect(asset.id.startsWith('asset:')).toBe(true);
+      expect(asset.source).toBe('stock');
+      expect(asset.url.startsWith('/assets/stock/')).toBe(true);
+      expect(asset.alt.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('saves an editor edit as a new draft version (L1 blocks, L2 warns)', async () => {
+    const api = await makeUser('j3-save@example.com');
+    const { projectId, pageId } = await makeProjectAndPage(api);
+
+    const created = await generate(api, projectId, pageId);
+    const jobId = (await jsonOf<{ jobId: string }>(created)).jobId;
+    worker.setStatus(jobId, 'COMPLETED', { result: { page: samplePageSchema() } });
+    await waitFor(async () => (await fetchJob(api, jobId)).job?.status === 'COMPLETED');
+
+    const detail = await api.call('GET', `/api/v1/pages/${pageId}`);
+    const latest = (await jsonOf<{ page: { latestVersion: { versionNumber: number; content: Record<string, unknown> } | null } }>(detail)).page.latestVersion!;
+    expect(latest.versionNumber).toBe(1);
+
+    const edited = JSON.parse(JSON.stringify(latest.content)) as { page: { title: string } };
+    edited.page.title = 'Agence Bakhti — version éditée';
+
+    const save = await api.call('POST', `/api/v1/pages/${pageId}/versions`, { baseVersion: latest.versionNumber, schemaVersion: '1.0.0', content: edited });
+    expect(save.status).toBe(200);
+    const saved = await jsonOf<{ version: { versionNumber: number }; warnings: unknown[] }>(save);
+    expect(saved.version.versionNumber).toBe(2);
+    expect(Array.isArray(saved.warnings)).toBe(true);
+
+    const after = await api.call('GET', `/api/v1/pages/${pageId}`);
+    const afterLatest = (await jsonOf<{ page: { page: { versionCount: number }; latestVersion: { versionNumber: number; content: { page: { title: string } } } | null } }>(after)).page;
+    expect(afterLatest.page.versionCount).toBe(2);
+    expect(afterLatest.latestVersion!.content.page.title).toBe('Agence Bakhti — version éditée');
+  });
+
+  it('rejects an L1-invalid document with E-VAL-L1 (422) and saves nothing', async () => {
+    const api = await makeUser('j3-invalid@example.com');
+    const { projectId, pageId } = await makeProjectAndPage(api);
+
+    const created = await generate(api, projectId, pageId);
+    const jobId = (await jsonOf<{ jobId: string }>(created)).jobId;
+    worker.setStatus(jobId, 'COMPLETED', { result: { page: samplePageSchema() } });
+    await waitFor(async () => (await fetchJob(api, jobId)).job?.status === 'COMPLETED');
+
+    const broken = JSON.parse(JSON.stringify(samplePageSchema())) as Record<string, unknown>;
+    delete (broken.page as Record<string, unknown>).direction;
+
+    const save = await api.call('POST', `/api/v1/pages/${pageId}/versions`, { baseVersion: 1, schemaVersion: '1.0.0', content: broken });
+    expect(save.status).toBe(422);
+    expect((await jsonOf<{ error: { code: string } }>(save)).error.code).toBe('E-VAL-L1');
+
+    const after = await api.call('GET', `/api/v1/pages/${pageId}`);
+    expect((await jsonOf<{ page: { page: { versionCount: number } } }>(after)).page.page.versionCount).toBe(1);
+  });
+
+  it('rejects a stale base version with 409 OPTIMISTIC_CONCURRENCY', async () => {
+    const api = await makeUser('j3-concurrency@example.com');
+    const { projectId, pageId } = await makeProjectAndPage(api);
+
+    const created = await generate(api, projectId, pageId);
+    const jobId = (await jsonOf<{ jobId: string }>(created)).jobId;
+    worker.setStatus(jobId, 'COMPLETED', { result: { page: samplePageSchema() } });
+    await waitFor(async () => (await fetchJob(api, jobId)).job?.status === 'COMPLETED');
+
+    const stale = await api.call('POST', `/api/v1/pages/${pageId}/versions`, { baseVersion: 0, schemaVersion: '1.0.0', content: samplePageSchema() });
+    expect(stale.status).toBe(409);
+    expect((await jsonOf<{ error: { code: string } }>(stale)).error.code).toBe('OPTIMISTIC_CONCURRENCY');
+  });
+
+  it('regenerates one section: SECTION job queued, spliced result saved as a new version', async () => {
+    const api = await makeUser('j3-regen@example.com');
+    const { projectId, pageId } = await makeProjectAndPage(api);
+
+    const created = await generate(api, projectId, pageId);
+    const jobId = (await jsonOf<{ jobId: string }>(created)).jobId;
+    worker.setStatus(jobId, 'COMPLETED', { result: { page: samplePageSchema() } });
+    await waitFor(async () => (await fetchJob(api, jobId)).job?.status === 'COMPLETED');
+
+    const regen = await api.call('POST', `/api/v1/pages/${pageId}/sections/hero-01/regenerate`);
+    expect(regen.status).toBe(202);
+    const body = await jsonOf<{ job: { jobId: string; status: string; created: boolean } }>(regen);
+    expect(body.job.created).toBe(true);
+    expect(body.job.status).toBe('QUEUED');
+
+    // The DB job was created as a SECTION regeneration for the target section.
+    const dbView = await api.call('GET', `/api/v1/generation-jobs/${body.job.jobId}`);
+    expect(dbView.status).toBe(200);
+    const dbJob = await jsonOf<{ job: { kind: string; targetSectionId: string | null; status: string } }>(dbView);
+    expect(dbJob.job.kind).toBe('SECTION');
+    expect(dbJob.job.targetSectionId).toBe('hero-01');
+
+    // The worker completes with the fully spliced page; web persists version 2.
+    const spliced = JSON.parse(JSON.stringify(samplePageSchema())) as { sections: Array<{ id: string; content: Record<string, string> }> };
+    spliced.sections[0].content.headline = 'Bienvenue — régénéré';
+    worker.setStatus(body.job.jobId, 'COMPLETED', { result: { page: spliced } });
+    await waitFor(async () => (await fetchJob(api, body.job.jobId)).job?.status === 'COMPLETED');
+
+    const after = await api.call('GET', `/api/v1/pages/${pageId}`);
+    const latest = (await jsonOf<{ page: { page: { versionCount: number }; latestVersion: { versionNumber: number; content: { sections: Array<{ id: string; content: Record<string, string> }> } } | null } }>(after)).page;
+    expect(latest.page.versionCount).toBe(2);
+    expect(latest.latestVersion!.versionNumber).toBe(2);
+    expect(latest.latestVersion!.content.sections[0].content.headline).toBe('Bienvenue — régénéré');
+  });
+
+  it('rejects regeneration of a section that no longer exists (404 SECTION_NOT_FOUND)', async () => {
+    const api = await makeUser('j3-regen-missing-section@example.com');
+    const { projectId, pageId } = await makeProjectAndPage(api);
+
+    const created = await generate(api, projectId, pageId);
+    const jobId = (await jsonOf<{ jobId: string }>(created)).jobId;
+    worker.setStatus(jobId, 'COMPLETED', { result: { page: samplePageSchema() } });
+    await waitFor(async () => (await fetchJob(api, jobId)).job?.status === 'COMPLETED');
+
+    const res = await api.call('POST', `/api/v1/pages/${pageId}/sections/ghost-01/regenerate`);
+    expect(res.status).toBe(404);
+    expect((await jsonOf<{ error: { code: string } }>(res)).error.code).toBe('SECTION_NOT_FOUND');
+  });
+});
+
 describe('guards', () => {
   it('rejects generation with a mismatched CSRF token', async () => {
     const api = await makeUser('csrf@example.com');

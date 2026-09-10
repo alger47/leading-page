@@ -176,4 +176,50 @@ describe('worker -> engine integration', () => {
     expect(record.events.some((e) => e.type === 'job.cancelled' && e.code === 'E-JOB-003')).toBe(true);
     expect(h.fake!.calls).toHaveLength(0);
   });
+
+  it('regenerates a single section via the section job mode and splices the result', async () => {
+    const h = await newHarness({ scenario: { mode: 'ok' } });
+    const page = {
+      schemaVersion: '1.0.0',
+      page: { title: 'Driven clinic', locale: 'fr', direction: 'ltr' },
+      theme: { preset: 'warm-professional' },
+      sections: [
+        { id: 'header-1', type: 'header', variant: 'a', layoutHint: {} },
+        { id: 'hero-1', type: 'hero', variant: 'a', layoutHint: {} },
+        { id: 'footer-1', type: 'footer', variant: 'a', layoutHint: {} },
+      ],
+      assets: [],
+    };
+
+    const created = await h.app.inject({ method: 'POST', url: '/api/jobs', headers: { 'content-type': 'application/json', 'idempotency-key': 'regen-hero-1' }, payload: JSON.stringify({ brief: 'Driven clinic near the port.', mode: 'section', targetSectionId: 'hero-1', page }) });
+    expect(created.statusCode).toBe(202);
+    const { jobId } = created.json<{ jobId: string }>();
+
+    await h.resumeWorker();
+    await waitFor(async () => (await h.app.inject({ method: 'GET', url: `/api/jobs/${jobId}` })).json<{ status: string }>().status === 'COMPLETED');
+
+    const view = (await h.app.inject({ method: 'GET', url: `/api/jobs/${jobId}` })).json<{ status: string; mode: string; targetSectionId: string | null }>();
+    expect(view.status).toBe('COMPLETED');
+    expect(view.mode).toBe('section');
+    expect(view.targetSectionId).toBe('hero-1');
+
+    // The worker routed to the regen endpoint (not the full generate endpoint).
+    expect(h.fake!.paths).toContain('/internal/v1/regenerate-section');
+    expect(h.fake!.paths).not.toContain('/internal/v1/generate');
+    expect(h.fake!.calls[0].target_section_id).toBe('hero-1');
+    expect(h.fake!.calls[0].page).toEqual(page);
+  });
+
+  it('replays a section-mode job under the same Idempotency-Key', async () => {
+    const h = await newHarness({ scenario: { mode: 'ok' } });
+    const page = { schemaVersion: '1.0.0', page: { title: 'c', locale: 'en', direction: 'ltr' }, theme: {}, sections: [{ id: 'hero-1', type: 'hero', variant: 'a', layoutHint: {} }], assets: [] };
+    const body = JSON.stringify({ brief: 'regenerate hero', mode: 'section', targetSectionId: 'hero-1', page });
+
+    const first = await h.app.inject({ method: 'POST', url: '/api/jobs', headers: { 'content-type': 'application/json', 'idempotency-key': 'dup-regen' }, payload: body });
+    const second = await h.app.inject({ method: 'POST', url: '/api/jobs', headers: { 'content-type': 'application/json', 'idempotency-key': 'dup-regen' }, payload: body });
+    expect(first.statusCode).toBe(202);
+    expect(second.statusCode).toBe(200);
+    expect(second.json<{ jobId: string }>().jobId).toBe(first.json<{ jobId: string }>().jobId);
+    expect(h.fake!.calls).toHaveLength(0);
+  });
 });

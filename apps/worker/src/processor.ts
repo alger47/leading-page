@@ -50,7 +50,15 @@ function ensureRecord(deps: ProcessorDeps, jobId: string, payload: JobPayload): 
     idempotencyKey: payload.idempotencyKey,
     fingerprint: payload.fingerprint,
     label: labelFor(payload),
-    request: { brief: payload.brief, locale: payload.locale, tone: payload.tone, budgetUsd: payload.budgetUsd },
+    request: {
+      brief: payload.brief,
+      locale: payload.locale,
+      tone: payload.tone,
+      budgetUsd: payload.budgetUsd,
+      mode: payload.mode,
+      targetSectionId: payload.targetSectionId,
+      page: payload.page,
+    },
     traceId: createTraceId(),
     status: 'QUEUED',
     createdAt: nowIso(),
@@ -106,10 +114,26 @@ export async function processJob(deps: ProcessorDeps, job: JobLike, token?: stri
             kind: 'client',
             traceId: record.traceId,
             parentId: root.spanId,
-            attributes: { 'job.id': jobId, attempt: record.attemptsMade, locale: record.request.locale ?? 'auto' },
+            attributes: {
+              'job.id': jobId,
+              attempt: record.attemptsMade,
+              locale: record.request.locale ?? 'auto',
+              mode: record.request.mode ?? 'full',
+            },
           },
           async (engineSpan) => {
             try {
+              if (record.request.mode === 'section') {
+                return await deps.engine.regenerateSection({
+                  brief: record.request.brief,
+                  locale: record.request.locale,
+                  tone: record.request.tone,
+                  budget_usd: record.request.budgetUsd,
+                  job_id: jobId,
+                  target_section_id: record.request.targetSectionId ?? '',
+                  page: (record.request.page as Record<string, unknown>) ?? {},
+                });
+              }
               return await deps.engine.generate({
                 brief: record.request.brief,
                 locale: record.request.locale,

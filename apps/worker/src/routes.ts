@@ -49,6 +49,9 @@ const POST_JOB_SCHEMA = {
     locale: { type: 'string', enum: ['ar', 'fr', 'en'] },
     tone: { type: 'string', minLength: 1, maxLength: 64 },
     budgetUsd: { type: 'number', exclusiveMinimum: 0, maximum: 10 },
+    mode: { type: 'string', enum: ['full', 'section'] },
+    targetSectionId: { type: 'string', minLength: 1, maxLength: 64 },
+    page: { type: 'object' },
   },
 } as const;
 
@@ -134,7 +137,14 @@ export function registerRoutes(app: FastifyInstance, ctx: WorkerContext): void {
 function fingerprintFallback(request: GenerationRequest): string {
   // Deterministic derived key when the client sends no Idempotency-Key, so a
   // duplicate POST of the same payload does not spawn a second job.
-  const canonical = [request.brief, request.locale ?? '', request.tone ?? '', String(request.budgetUsd ?? '')].join('\n');
+  const canonical = [
+    request.brief,
+    request.locale ?? '',
+    request.tone ?? '',
+    String(request.budgetUsd ?? ''),
+    request.mode ?? 'full',
+    request.targetSectionId ?? '',
+  ].join('\n');
   return `derived:${createHash('sha256').update(canonical).digest('hex')}`;
 }
 
@@ -149,6 +159,8 @@ function jobView(record: import('./jobs/types.js').JobRecord): Record<string, un
     attemptsMade: record.attemptsMade,
     engineJobId: record.engineJobId ?? null,
     engineStatus: record.engineStatus ?? null,
+    mode: (record.request as GenerationRequest).mode ?? 'full',
+    targetSectionId: (record.request as GenerationRequest).targetSectionId ?? null,
     error: record.errorCode !== undefined ? { code: record.errorCode, message: record.errorMessage } : null,
     result: record.result ?? null,
   };

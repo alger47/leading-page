@@ -27,3 +27,7 @@ export { CURRENT_SCHEMA_VERSION, compareVersions, isValidSemver } from './versio
 // Migrations
 export { migrateDocument, getMigrationPath, needsMigration } from './migrations';
 export type { Migration, MigrationFunction } from './migrations';
+
+// Theme presets (Phase 8 J3 — editor theme picker single source of truth)
+export { THEME_PRESETS, THEME_PRESET_NAMES, getThemePreset } from './theme-presets';
+export type { ThemePreset, ThemePresetName } from './theme-presets';

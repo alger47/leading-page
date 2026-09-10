@@ -22,6 +22,8 @@ export interface CreateJobInput {
   budgetUsd?: number | string | null;
   requestJson: Prisma.InputJsonValue;
   status?: JobStatus;
+  kind?: 'FULL' | 'SECTION';
+  targetSectionId?: string | null;
   idempotencyKey: string;
   fingerprint: string;
   traceId: string;
@@ -98,6 +100,8 @@ export class JobsRepository {
           budgetUsd: input.budgetUsd ?? null,
           requestJson: input.requestJson,
           status: input.status ?? 'QUEUED',
+          kind: input.kind ?? 'FULL',
+          targetSectionId: input.targetSectionId ?? null,
           idempotencyKey: input.idempotencyKey,
           fingerprint: input.fingerprint,
           traceId: input.traceId,

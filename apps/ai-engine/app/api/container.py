@@ -13,6 +13,7 @@ from app.providers.factory import ProviderRegistry
 from app.providers.protocol import StructuredLLMProvider
 from app.routing.config import RoutingConfig
 from app.services.pipeline import Pipeline
+from app.services.regenerate import SectionRegenerator
 from app.services.stage_runner import StageRunner
 
 
@@ -45,6 +46,7 @@ class Container:
     providers: ProviderRegistry
     runner: StageRunner
     pipeline: Pipeline
+    regenerator: SectionRegenerator
     jobs: JobStore
 
 
@@ -62,6 +64,7 @@ def build_container(
             providers.force_for_tests(model_class, provider)
     runner = StageRunner(routing=routing, providers=providers, prompts=prompts, schemas=schemas)
     pipeline = Pipeline(runner=runner, routing=routing, settings=settings)
+    regenerator = SectionRegenerator(runner=runner, routing=routing, settings=settings)
     return Container(
         settings=settings,
         routing=routing,
@@ -70,5 +73,6 @@ def build_container(
         providers=providers,
         runner=runner,
         pipeline=pipeline,
+        regenerator=regenerator,
         jobs=JobStore(),
     )

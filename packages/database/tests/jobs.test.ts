@@ -16,9 +16,28 @@ describe('generation jobs', () => {
     expect(job.status).toBe('QUEUED');
     expect(job.idempotencyKey).toBe(`key-${tenant.jobId.split('_')[1]}`);
     expect(job.eventsJson).toEqual([]);
+    expect(job.kind).toBe('FULL');
+    expect(job.targetSectionId).toBeNull();
 
     const byKey = await repos.jobs.getByKey(tenant.owner, tenant.projectId, job.idempotencyKey);
     expect(byKey?.id).toBe(tenant.jobId);
+  });
+
+  it('persists SECTION regeneration jobs with their target section', async () => {
+    const regen = await repos.jobs.create(tenant.owner, tenant.projectId, {
+      id: `gen_regen_${Date.now()}`,
+      label: 'regen hero',
+      brief: 'context brief',
+      requestJson: { brief: 'context brief', targetSectionId: tenant.jobId.split('_')[1] },
+      idempotencyKey: `key-regen-${Date.now()}`,
+      fingerprint: 'f',
+      traceId: 't',
+      kind: 'SECTION',
+      targetSectionId: 'hero-01',
+      pageId: tenant.pageId,
+    });
+    expect(regen.kind).toBe('SECTION');
+    expect(regen.targetSectionId).toBe('hero-01');
   });
 
   it('rejects a duplicate idempotency key (dedupe at the database layer)', async () => {

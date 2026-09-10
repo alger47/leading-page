@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-labelledby="t">
+  <title id="t">Illustration of a boutique storefront</title>
+  <rect width="1200" height="675" fill="#fef3c7"/>
+  <rect x="160" y="180" width="880" height="390" fill="#ffffff" rx="24"/>
+  <rect x="160" y="180" width="880" height="180" fill="#fde68a" rx="24"/>
+  <rect x="240" y="420" width="220" height="150" fill="#fcd34d" rx="4"/>
+  <rect x="500" y="420" width="220" height="150" fill="#fcd34d" rx="4"/>
+  <rect x="760" y="420" width="220" height="150" fill="#fcd34d" rx="4"/>
+  <circle cx="1060" cy="250" r="46" fill="#f59e0b"/>
+</svg>

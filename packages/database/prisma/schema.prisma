@@ -47,6 +47,13 @@ enum GenerationStatus {
   CANCELLED
 }
 
+/// Job scope: FULL = whole-page generation (J1), SECTION = one-section
+/// regeneration (J2, Phase 8). Mirrors §11.3 section-level regeneration.
+enum GenerationKind {
+  FULL
+  SECTION
+}
+
 enum AttemptOutcome {
   SUCCESS
   FAILED
@@ -194,6 +201,8 @@ model GenerationJob {
   budgetUsd     Decimal?         @db.Decimal(12, 2)
   requestJson   Json             // full GenerationRequest snapshot
   status        GenerationStatus
+  kind          GenerationKind   @default(FULL) // FULL generation vs SECTION regeneration
+  targetSectionId String?        // set when kind = SECTION: the section awaiting regeneration
   idempotencyKey String          @unique
   fingerprint   String
   traceId       String
