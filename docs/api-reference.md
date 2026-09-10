@@ -147,6 +147,38 @@ Schema envelope.
   `[{ path, message }]` from the L1 structural validator. Invalid envelopes are
   never persisted.
 
+## Publishing (Phase 10 — J5)
+
+### `POST /pages/[pageId]/publish`
+Auth/CSRF required. Publishes an immutable version of the page to its public
+subdomain. Body: `{ versionNumber?, subdomainId? }` (both optional — empty body
+publishes the **latest** version; pointing at an already-published version is
+an idempotent republish). The **publish gate** requires L1 structural **and**
+L2 semantic to pass (L2 warnings are fine; L2 errors block).
+- `200` `{ published: { host, url, versionNumber, publishedAt } }` — the page
+  got its derived subdomain (`p-<pageId>.landing-ai.test` in dev), the chosen
+  version is snapshotted into the public row, and the pointer moves to it. The
+  `url` is `${PUBLIC_BASE_URL}/${host}` (dev base `http://localhost:3000`).
+- `404` unknown version / foreign page.
+- `422` `E-PUBLISH-001` with `error.details.issues`
+  (`[{ path, message }]`) — the target version fails the L2 semantic gate; an
+  invalid schema can never be published (still savable as a draft).
+- Republishing a newer version keeps the host stable (subdomain is
+  never recreated or given to another page).
+
+### `DELETE /pages/[pageId]/publish`
+Auth/CSRF required. Unpublishes the page (idempotent — deleting an unpublished
+page is a no-op `200`).
+- `200` `{ published: null }` — the subdomain is detached and the public route
+  starts returning 404.
+- `404` foreign page only.
+
+### `GET /[host]` (public route, no auth)
+Serves the currently-published snapshot of the page at its derived host.
+Server-rendered, `index: true` metadata; returns the page's rendered sections
+(`404` when nothing is published at that host). Drafts and the dashboard are
+noindex, so private pages never surface in search engines.
+
 ## Section regeneration
 
 ### `POST /pages/[pageId]/regenerate`

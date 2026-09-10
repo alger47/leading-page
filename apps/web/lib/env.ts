@@ -10,6 +10,10 @@ export interface WebConfig {
   csrfCookieName: string;
   sessionTtlMs: number;
   isProd: boolean;
+  /** Platform base URL for published pages (dev: http://localhost:3000). */
+  publicBaseUrl: string;
+  /** Host suffix auto-assigned to published pages ("username.platform.tld" equivalent). */
+  publicHostSuffix: string;
 }
 
 export function webConfig(env: NodeJS.ProcessEnv = process.env): WebConfig {
@@ -22,6 +26,8 @@ export function webConfig(env: NodeJS.ProcessEnv = process.env): WebConfig {
     csrfCookieName: env.CSRF_COOKIE_NAME ?? 'csrf',
     sessionTtlMs: ttlDays * 24 * 60 * 60 * 1000,
     isProd: env.NODE_ENV === 'production',
+    publicBaseUrl: (env.PUBLIC_BASE_URL ?? 'http://localhost:3000').replace(/\/+$/, ''),
+    publicHostSuffix: env.PUBLIC_HOST_SUFFIX ?? 'landing-ai.test',
   };
 }
 

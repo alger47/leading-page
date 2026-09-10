@@ -10,7 +10,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:integration": "vitest run --config vitest.integration.config.ts"
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:budget": "node scripts/published-budget.mjs"
   },
   "dependencies": {
     "@landing-ai/database": "workspace:*",

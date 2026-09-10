@@ -1,9 +1,10 @@
 import { notFound } from 'next/navigation';
 import { requireServerUser } from '@/lib/auth/server';
-import { getPageDetailView } from '@/lib/data';
+import { getPageDetailView, getPublishView } from '@/lib/data';
 import { GenerationView } from '@/components/generation-view';
 import { PageEditor } from '@/components/editor/page-editor';
 import { VersionsView } from '@/components/versions-view';
+import { PublishView } from '@/components/publish-view';
 
 export default async function PageDetailPage({ params }: { params: { projectId: string; pageId: string } }) {
   const { owner } = await requireServerUser();
@@ -19,6 +20,7 @@ export default async function PageDetailPage({ params }: { params: { projectId: 
     ? { id: detail.latestJob.id, status: detail.latestJob.status }
     : null;
   const hasVersion = detail.latestVersion !== null && detail.latestVersion.versionNumber >= 1;
+  const publishView = await getPublishView(owner, params.projectId, params.pageId);
 
   return (
     <section>
@@ -51,6 +53,13 @@ export default async function PageDetailPage({ params }: { params: { projectId: 
         <div className="editor-section">
           <h2>Versions</h2>
           <VersionsView pageId={params.pageId} currentVersion={detail.latestVersion.versionNumber} />
+        </div>
+      )}
+
+      {hasVersion && detail.latestVersion && (
+        <div className="editor-section">
+          <h2>Publishing</h2>
+          <PublishView pageId={params.pageId} initial={publishView} />
         </div>
       )}
     </section>

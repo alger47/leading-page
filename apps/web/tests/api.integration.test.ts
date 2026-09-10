@@ -9,7 +9,10 @@
 
 import { afterAll, describe, expect, it } from 'vitest';
 import { GenerationService, setGenerationServiceFactory } from '../lib/generation-service';
-import { FakeWorkerClient, makeApiClient, samplePageSchema, waitFor, type ApiClient } from './harness.js';
+import { config } from '../lib/env';
+import { getPublishedViewByHost } from '../lib/public';
+import { renderPublishedHtml } from './render-html.js';
+import { FakeWorkerClient, makeApiClient, publishableEnvelope, samplePageSchema, waitFor, type ApiClient } from './harness.js';
 
 const BRIEF = 'Une agence digitale qui bâtit des sites vitrine élégants : page de garde, services, témoignages, contact.';
 const LOCALE = 'fr' as const;
@@ -453,6 +456,130 @@ describe('phase9 versioning (J4)', () => {
     expect(compare.status).toBe(404);
     const restore = await outsider.call('POST', `/api/v1/pages/${pageId}/versions/1/restore`);
     expect(restore.status).toBe(404);
+  });
+});
+
+describe('phase10 publishing (J5)', () => {
+  /** Create a page whose v1 is L1+L2-clean (publishable) without an engine. */
+  async function makePublishablePage(api: ApiClient): Promise<{ projectId: string; pageId: string }> {
+    const { projectId, pageId } = await makeProjectAndPage(api);
+    const save = await api.call('POST', `/api/v1/pages/${pageId}/versions`, {
+      baseVersion: 0,
+      schemaVersion: '1.0.0',
+      content: publishableEnvelope(),
+    });
+    expect(save.status).toBe(200);
+    return { projectId, pageId };
+  }
+
+  it('publishes the latest validated version to a stable subdomain host', async () => {
+    const api = await makeUser('j5-publish@example.com');
+    const { pageId } = await makePublishablePage(api);
+
+    const res = await api.call('POST', `/api/v1/pages/${pageId}/publish`);
+    expect(res.status).toBe(200);
+    const { published } = await jsonOf<{ published: { host: string; url: string; versionNumber: number; publishedAt: string } }>(res);
+    expect(published.versionNumber).toBe(1);
+    expect(published.host.endsWith(`.${config.publicHostSuffix}`)).toBe(true);
+    expect(published.url).toBe(`${config.publicBaseUrl}/${published.host}`);
+
+    const live = await getPublishedViewByHost(published.host);
+    expect(live).not.toBeNull();
+    expect(live!.versionNumber).toBe(1);
+
+    // Deterministic HTML from the SAME renderer, with zero editor/dashboard markers.
+    const html = renderPublishedHtml(live!.content);
+    expect(html).toContain('Soins vétérinaires de confiance');
+    expect(html).not.toMatch(/Editor|Logout|Brief|Publish|Versions/);
+  });
+
+  it('republishing is idempotent and keeps the same host', async () => {
+    const api = await makeUser('j5-idem@example.com');
+    const { pageId } = await makePublishablePage(api);
+
+    const first = await api.call('POST', `/api/v1/pages/${pageId}/publish`);
+    const second = await api.call('POST', `/api/v1/pages/${pageId}/publish`);
+    expect(second.status).toBe(200);
+    const a = (await jsonOf<{ published: { host: string; versionNumber: number } }>(first)).published;
+    const b = (await jsonOf<{ published: { host: string; versionNumber: number } }>(second)).published;
+    expect(b.host).toBe(a.host);
+    expect(b.versionNumber).toBe(a.versionNumber);
+  });
+
+  it('republishing an older version moves the live pointer (history intact)', async () => {
+    const api = await makeUser('j5-pointer@example.com');
+    const { pageId } = await makePublishablePage(api);
+
+    const edited = publishableEnvelope({ title: 'Cabinet Vetrilleux — v2' }) as { page: { title: string }; sections: unknown[] };
+    const save = await api.call('POST', `/api/v1/pages/${pageId}/versions`, { baseVersion: 1, schemaVersion: '1.0.0', content: edited });
+    expect(save.status).toBe(200);
+    expect((await jsonOf<{ version: { versionNumber: number } }>(save)).version.versionNumber).toBe(2);
+
+    await api.call('POST', `/api/v1/pages/${pageId}/publish`);
+    const move = await api.call('POST', `/api/v1/pages/${pageId}/publish`, { versionNumber: 1 });
+    const { published } = await jsonOf<{ published: { versionNumber: number } }>(move);
+    expect(published.versionNumber).toBe(1);
+
+    const detail = await api.call('GET', `/api/v1/pages/${pageId}`);
+    expect((await jsonOf<{ page: { page: { versionCount: number } } }>(detail)).page.page.versionCount).toBe(2);
+  });
+
+  it('the publish gate rejects an L2-invalid version (422 E-PUBLISH-001)', async () => {
+    const api = await makeUser('j5-gate@example.com');
+    const { pageId } = await makePublishablePage(api);
+
+    // L1-valid but L2-invalid: page without a footer (SEM-004). Draft saves fine.
+    const broken = publishableEnvelope({ footer: false });
+    const save = await api.call('POST', `/api/v1/pages/${pageId}/versions`, { baseVersion: 1, schemaVersion: '1.0.0', content: broken });
+    expect(save.status).toBe(200);
+    expect((await jsonOf<{ version: { versionNumber: number } }>(save)).version.versionNumber).toBe(2);
+
+    const res = await api.call('POST', `/api/v1/pages/${pageId}/publish`);
+    expect(res.status).toBe(422);
+    const { error } = await jsonOf<{ error: { code: string; details: { issues: Array<{ layer: string; ruleId: string }> } } }>(res);
+    expect(error.code).toBe('E-PUBLISH-001');
+    expect(error.details.issues).toEqual(expect.arrayContaining([expect.objectContaining({ ruleId: 'SEM-004' })]));
+  });
+
+  it('publishing an unknown version returns 404', async () => {
+    const api = await makeUser('j5-404@example.com');
+    const { pageId } = await makePublishablePage(api);
+    const res = await api.call('POST', `/api/v1/pages/${pageId}/publish`, { versionNumber: 99 });
+    expect(res.status).toBe(404);
+  });
+
+  it('unpublish is an idempotent downgrade-to-draft that hides the live page', async () => {
+    const api = await makeUser('j5-unpub@example.com');
+    const { pageId } = await makePublishablePage(api);
+
+    await api.call('POST', `/api/v1/pages/${pageId}/publish`);
+    const host = (await jsonOf<{ published: { host: string } }>(await api.call('POST', `/api/v1/pages/${pageId}/publish`))).published.host;
+
+    const drop = await api.call('DELETE', `/api/v1/pages/${pageId}/publish`);
+    expect(drop.status).toBe(200);
+    expect((await jsonOf<{ published: null }>(drop)).published).toBeNull();
+    expect(await getPublishedViewByHost(host)).toBeNull();
+
+    // Second unpublish is a 200 no-op (already a draft).
+    const again = await api.call('DELETE', `/api/v1/pages/${pageId}/publish`);
+    expect(again.status).toBe(200);
+
+    // Republish after unpublish brings the page back on the SAME host.
+    const repub = await api.call('POST', `/api/v1/pages/${pageId}/publish`);
+    expect((await jsonOf<{ published: { host: string } }>(repub)).published.host).toBe(host);
+    expect(await getPublishedViewByHost(host)).not.toBeNull();
+  });
+
+  it('foreign tenants and anons cannot publish or unpublish', async () => {
+    const api = await makeUser('j5-owner@example.com');
+    const { pageId } = await makePublishablePage(api);
+
+    const outsider = await makeUser('j5-outsider@example.com');
+    expect((await outsider.call('POST', `/api/v1/pages/${pageId}/publish`)).status).toBe(404);
+    expect((await outsider.call('DELETE', `/api/v1/pages/${pageId}/publish`)).status).toBe(404);
+
+    const anon = makeApiClient();
+    expect((await anon.call('POST', `/api/v1/pages/${pageId}/publish`)).status).toBe(401);
   });
 });
 

@@ -271,3 +271,23 @@
 **Exit-gate numbers (Phase 9):** web unit 26 · web integration+e2e 33 (incl. J4) · database 30 · page-schema 22 — green; web typecheck + `next build` clean. No DB migration, no worker/engine change.
 
 **Next phase:** PHASE 10 — Publishing (validate → PublishedPage snapshot → subdomain → cache → unpublish; noindex on drafts; zero dashboard/editor JS on public routes; invalid schema cannot publish).
+
+----------------------------------------
+
+## Phase 10 Notes (publishing):
+
+**Publish gate is two-tier (L1 structural AND L2 semantic).** SEM errors (SEM-001..004) are advisory for DRAFTS (save gate = L1 only) but HARD for publishing. The gate lives in lib/publishing.ts (PublishGateError / E-PUBLISH-001, 422 + details.issues), not in a repository. Test trick used everywhere: the harness publishableEnvelope({footer:false}) fixture is L1-valid but L2-invalid (SEM-004) - it must save as a draft and then fail the publish gate.
+
+**Host stability.** deriveHostForPage(pageId) = p-<pageId-last-12-alnum-lowercase>.<PUBLIC_HOST_SUFFIX>; URL = PUBLIC_BASE_URL/<host>. Republishing a newer version moves the Page.subdomain pointer - the host NEVER changes (no new subdomain rows). DELETE (unpublish) detaches idempotently; republish after unpublish recreates at the SAME host.
+
+**React context vs Server Components (the build blocker).** The shared ui-components <Render/> needs ThemeProvider (React.createContext), and the react-server webpack build strips createContext -> `next build` fails with "TypeError: i(...).createContext is not a function ... Failed to collect page data for /[host]". The public route therefore renders through ONE thin client shell (components/published-page.tsx, 'use client', importing ONLY @landing-ai/ui-components). Everything else on the route stays server-side (getPublishedViewByHost + generateMetadata). The "zero dashboard/editor JS" guarantee = no dashboard/editor modules in the published bundle (two independent checks: unit isolation test on source + marker scan of the BUILT server bundle).
+
+**react-dom/server is banned in page-imported modules** ("You're importing a component that imports react-dom/server"). SSR assert helper lives in test-only tests/render-html.ts (renderPublishedHtml -> renderToStaticMarkup(<Render/>)).
+
+**Budget measurement is fetch-set, not all-chunks.** v1 of scripts/published-budget.mjs summed EVERY webpack-emitted chunk (incl. the dashboard page chunk, generation-view, editor lazy chunks) -> fake 208.8 KB fail. The real browser fetch-set for (published)/[host] is: webpack-{hash}.js + framework-{hash}.js + main-{hash}.js (entry; carries the renderer) + main-app-{hash}.js + the tiny page-{hash}.js chunk under app/(published)/[host]/ -> 79.5 KB gzipped (90 KB budget). Legacy polyfills-{hash}.js is browser-conditional (old Engine) - reported separately, excluded. Dashboard/editor modules land in separate numbered lazy chunks NOT fetched by the public page (verified: main contains no editor markers).
+
+**API quirks worth remembering:**
+- Empty-body POST publish returns 400 if you `await request.json()` unconditionally -> read `request.text()`, JSON.parse only when non-empty. Empty body means "publish/latest".
+- routeFor/paramsFor in the harness must match the FULL path including the publish segment (regex ^/api/v1/pages/[^/]+/publish$); the draft-validate helper writes versions ONLY via the publish gate's canPublish path so fixtures are honest.
+
+**Exit-gate numbers (Phase 10):** web unit 33 (6 files) Yo web integration+e2e 43 (5 files, incl J5 real-engine) Yo database 30 (7 files) Yo page-schema 22 unchanged Yo web typecheck + next build clean Yo pnpm test:budget = 79.5 KB gz / isolation OK. Commit 2441d0e was Phase 9 (closed); Phase 10 committed after this.

@@ -124,6 +124,79 @@ export const samplePageSchema = (): Record<string, unknown> => ({
   ],
 });
 
+/** L1 + L2 clean envelope (mirrors real engine output shape) — publishable. */
+export const publishableEnvelope = (overrides: { footer?: boolean; title?: string } = {}): Record<string, unknown> => ({
+  schemaVersion: '1.0.0',
+  page: {
+    title: overrides.title ?? 'Cabinet Vetrilleux',
+    locale: 'fr',
+    direction: 'ltr',
+    seo: { title: 'Cabinet Vetrilleux', description: 'Votre clinique vétérinaire de confiance.', robots: 'index, follow' },
+  },
+  theme: { preset: 'warm-professional', font: 'inter', primaryColor: 'role:primary', radius: 'medium', density: 'comfortable' },
+  sections: [
+    {
+      id: 'header-1',
+      type: 'header',
+      variant: 'with-cta',
+      content: {
+        brandName: 'Cabinet Vetrilleux',
+        nav: [
+          { label: 'Soins', href: '#services' },
+          { label: 'Contact', href: '#contact' },
+        ],
+        navCta: { label: 'Rendez-vous', href: '#contact' },
+      },
+    },
+    {
+      id: 'hero-1',
+      type: 'hero',
+      variant: 'split',
+      content: {
+        title: 'Soins vétérinaires de confiance',
+        subtitle: 'Une équipe dédiée au bien-être de vos compagnons.',
+        primaryCta: { label: 'Prendre rendez-vous', href: '#contact' },
+        secondaryCta: { label: 'Découvrir nos soins', href: '#services' },
+      },
+    },
+    {
+      id: 'features-1',
+      type: 'features',
+      variant: 'grid-3',
+      content: {
+        title: 'Nos services',
+        items: [
+          { headline: 'Consultation', body: 'Suivi complet de la santé de votre animal.' },
+          { headline: 'Vaccination', body: 'Protocoles à jour et personnalisés.' },
+          { headline: 'Urgences', body: 'Accueil rapide des urgences.' },
+        ],
+      },
+    },
+    {
+      id: 'cta-1',
+      type: 'cta',
+      variant: 'banner',
+      content: {
+        title: 'Prêt pour nous confier votre compagnon ?',
+        primaryCta: { label: 'Prendre rendez-vous', href: '#contact' },
+      },
+    },
+    ...(overrides.footer === false
+      ? []
+      : [
+          {
+            id: 'footer-1',
+            type: 'footer',
+            variant: 'basic',
+            content: {
+              brandName: 'Cabinet Vetrilleux',
+              links: [{ label: 'Contact', href: '#contact' }],
+            },
+          },
+        ]),
+  ],
+});
+
 export interface ParsedCookies {
   session: string;
   csrf: string;
@@ -185,6 +258,7 @@ async function routeFor(method: string, path: string) {
     versionId: '../app/api/v1/pages/[pageId]/versions/[versionNumber]/route',
     compare: '../app/api/v1/pages/[pageId]/versions/compare/route',
     restore: '../app/api/v1/pages/[pageId]/versions/[versionNumber]/restore/route',
+    publish: '../app/api/v1/pages/[pageId]/publish/route',
     regenerate: '../app/api/v1/pages/[pageId]/sections/[sectionId]/regenerate/route',
     themes: '../app/api/v1/themes/route',
     assets: '../app/api/v1/assets/route',
@@ -196,6 +270,7 @@ async function routeFor(method: string, path: string) {
   else if (routePath === '/api/v1/projects') mod = mods.projects;
   else if (routePath.match(/^\/api\/v1\/projects\/[^/]+(\/pages)?$/)) mod = routePath.endsWith('/pages') ? mods.pages : mods.projectId;
   else if (routePath.match(/^\/api\/v1\/pages\/[^/]+\/sections\/[^/]+\/regenerate$/)) mod = mods.regenerate;
+  else if (routePath.match(/^\/api\/v1\/pages\/[^/]+\/publish$/)) mod = mods.publish;
   else if (routePath.match(/^\/api\/v1\/pages\/[^/]+\/versions\/compare$/)) mod = mods.compare;
   else if (routePath.match(/^\/api\/v1\/pages\/[^/]+\/versions\/[^/]+\/restore$/)) mod = mods.restore;
   else if (routePath.match(/^\/api\/v1\/pages\/[^/]+\/versions\/[^/]+$/)) mod = mods.versionId;
@@ -222,6 +297,8 @@ async function paramsFor(path: string): Promise<Record<string, string>> {
   if (pages) return { projectId: pages[1] };
   const pageId = routePath.match(/^\/api\/v1\/pages\/([^/]+)$/);
   if (pageId) return { pageId: pageId[1] };
+  const publish = routePath.match(/^\/api\/v1\/pages\/([^/]+)\/publish$/);
+  if (publish) return { pageId: publish[1] };
   const versions = routePath.match(/^\/api\/v1\/pages\/([^/]+)\/versions$/);
   if (versions) return { pageId: versions[1] };
   const compare = routePath.match(/^\/api\/v1\/pages\/([^/]+)\/versions\/compare$/);

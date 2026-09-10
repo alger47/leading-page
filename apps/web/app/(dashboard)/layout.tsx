@@ -1,5 +1,11 @@
+import type { Metadata } from 'next';
 import { requireServerUser } from '@/lib/auth/server';
 import { LogoutButton } from '@/components/logout-button';
+
+/** Drafts and private project pages MUST be noindex (§5.7). */
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user } = await requireServerUser();

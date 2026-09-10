@@ -9,8 +9,10 @@ import {
   JobsRepository,
   PagesRepository,
   ProjectsRepository,
+  PublishingRepository,
   type Owner,
 } from '@landing-ai/database';
+import { config } from './env';
 
 function repos() {
   const prisma = getPrismaClient();
@@ -119,6 +121,34 @@ export async function createPageView(owner: Owner, projectId: string, input: { t
     versionCount: 0,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+export interface PublishView {
+  published: { host: string; url: string; versionNumber: number; publishedAt: string } | null;
+  versions: number[];
+  latestVersion: number | null;
+}
+
+export async function getPublishView(owner: Owner, projectId: string, pageId: string): Promise<PublishView> {
+  const { pages } = repos();
+  const versions = await pages.listVersions(owner, projectId, pageId);
+  const publishing = new PublishingRepository(getPrismaClient());
+  const live = await publishing.getForPageWithSubdomain(owner, projectId, pageId);
+
+  let published: PublishView['published'] = null;
+  if (live && live.unpublishedAt === null && live.host) {
+    published = {
+      host: live.host,
+      url: `${config.publicBaseUrl}/${live.host}`,
+      versionNumber: live.versionNumber,
+      publishedAt: live.publishedAt.toISOString(),
+    };
+  }
+  return {
+    published,
+    versions: versions.map((v) => v.versionNumber),
+    latestVersion: versions[versions.length - 1]?.versionNumber ?? null,
   };
 }
 

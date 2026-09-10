@@ -101,6 +101,33 @@ export class PublishingRepository {
     return this.prisma.publishedPage.findFirst({ where: { pageId, projectId } });
   }
 
+  /**
+   * Current published state with its live subdomain host and version number —
+   * used by the dashboard view and the publish service to keep the host stable
+   * across republishes.
+   */
+  async getForPageWithSubdomain(
+    owner: Owner,
+    projectId: string,
+    pageId: string,
+  ): Promise<{ host: string | null; versionNumber: number; publishedAt: Date; unpublishedAt: Date | null } | null> {
+    await requireOwnedProject(this.prisma, owner, projectId);
+    const row = await this.prisma.publishedPage.findFirst({
+      where: { pageId, projectId },
+      include: {
+        subdomain: { select: { host: true } },
+        pageVersion: { select: { versionNumber: true } },
+      },
+    });
+    if (!row) return null;
+    return {
+      host: row.subdomain?.host ?? null,
+      versionNumber: row.pageVersion.versionNumber,
+      publishedAt: row.publishedAt,
+      unpublishedAt: row.unpublishedAt,
+    };
+  }
+
   async events(owner: Owner, projectId: string, pageId: string): Promise<PublicationEvent[]> {
     await requireOwnedProject(this.prisma, owner, projectId);
     return this.prisma.publicationEvent.findMany({

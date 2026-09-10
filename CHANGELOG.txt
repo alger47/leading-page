@@ -195,3 +195,46 @@
 - Diff reports top-level slot keys only; structural equality, not token-level text diff.
 - Restoring the latest version onto itself is allowed (identical new version).
 - PHASE 10 (publishing) owns the publish gate, PublishedPage snapshot + subdomain, unpublish, draft/published separation, noindex, zero dashboard/editor JS on published routes.
+
+----------------------------------------
+
+## Date: 2026-09-10
+
+### Phase 10 - Publishing (validate -> snapshot -> subdomain)
+
+**Objective:** J5 - publish only a *valid* immutable version to a public subdomain, unpublish it, keep drafts noindex, and prove the measured budget: zero dashboard/editor JS on published pages, <= ~90 KB gzipped (S5.7).
+
+**Implemented (apps/web + one database repo method):**
+- Publish gate (two-tier, S8/S11) in lib/publishing.ts: L1 structural AND L2 semantic must pass (warnings ok, errors block -> 422 E-PUBLISH-001 with details.issues). Drafts still save with L2 errors; a published page must be clean. Gate tested by publishing a footer:false envelope (SEM-004) - saves as draft, publish rejects.
+- POST /pages/:id/publish (auth+CSRF, empty body -> latest version, idempotent republish keeps stable host) snapshots the chosen immutable version into the PublishedPage row and moves the pointer; DELETE /pages/:id/publish unpublishes idempotently (route 404s after).
+- Host/URL: p-<pageId-last-12>.<suffix> (suffix landing-ai.test, base http://localhost:3000) in lib/env.ts.
+- Public route app/(published)/[host]/page.tsx: server-only, getPublishedViewByHost, generateMetadata indexable, notFound() when unpublished; dashboard layout noindex. Because React context is unsupported in Server Components (the shared ui-components renderer needs ThemeProvider), the snapshot renders through one allowed client shell components/published-page.tsx importing ONLY @landing-ai/ui-components (enforced by isolation test).
+- UI: components/publish-view.tsx (client) - version select, Publish/Unpublish, router.refresh(); third .editor-section "Publishing".
+- New database method getForPageWithSubdomain (packages/database/src/repositories/published.ts, dist rebuilt).
+
+**Performance budget (measured, S5.7):**
+- scripts/published-budget.mjs (pnpm test:budget, after next build) sums gzipped client JS a published page fetches: webpack runtime + framework + main entry (carries the public renderer) + main-app + the 0.3 KB [host] page chunk.
+- Result: 79.5 KB gzipped (budget 90 KB) - OK. Legacy polyfills (+38.7 KB, browser-conditional) reported separately.
+- Isolation verified two ways: tests/published-isolation.test.ts (server-only route, client shell imports only ui-components, index/noindex) AND the built [host]/page.js server bundle is scanned for dashboard/editor markers.
+
+**Fixed (Phase 10):**
+- next build failure #1: lib/public.ts importing react-dom/server (banned in page-imported modules) -> SSR helper moved to test-only tests/render-html.ts.
+- next build failure #2: TypeError: i(...).createContext is not a function (context used in a Server Component) -> render through the clientized published-page shell; route now uses getPublishedViewByHost.
+- Empty-body publish returned 400 -> route reads via request.text() and JSON-parses only a non-empty string (defaults to latest version).
+- Budget script v1 over-counted (summed ALL emitted chunks incl. dashboard) -> now measures only the published page's real fetch set.
+
+**Tests:**
+- web unit: 33 green (publishing 4 + published-isolation 3 added).
+- web integration+e2e: 43 green (7 new Phase-10 API tests + J5 e2e against REAL engine: generate v1 -> publish -> live HTML contains hero title -> edit v2 -> publish moves pointer -> unpublish/republish v1 same host).
+- database 30 green (dist rebuilt), page-schema 22 unchanged; web typecheck clean; next build compiled successfully.
+- pnpm test:budget -> 79.5 KB gz, isolation OK, exit 0.
+
+**Docs:** ADR-0009-publishing.md, docs/api-reference.md (publish endpoints + public route), docs/walkthrough.md (Phase 10), this file.
+
+**Status:** Phase 10 complete and committed.
+
+**Known limitations / next:**
+- Public shell hydrates because the shared renderer uses React context; "zero dashboard/editor JS" = no dashboard/editor modules in the published bundle (build-verified), not literally zero JS.
+- react-dom/server snapshot rendering stays in test helpers only (Next's import ban is by design).
+- Hosts are dev-derived (p-<id>.landing-ai.test); real PRIMARY_DOMAIN DNS/cert mapping is production ops.
+- Next: production ops (secrets/TLS/rate limit/S3-backed assets, real Redis/BullMQ validation, session rotation).
