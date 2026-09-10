@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "brief": { "type": "string", "description": "The original brief as the user wrote it." },
+    "locale": { "type": "string", "enum": ["ar", "fr", "en"] },
+    "page_json": { "type": "string", "description": "The assembled Page Schema envelope serialized as JSON." },
+    "rubric_json": { "type": "string", "description": "The rubric criteria + anchors serialized as JSON." }
+  },
+  "required": ["brief", "locale", "page_json", "rubric_json"]
+}

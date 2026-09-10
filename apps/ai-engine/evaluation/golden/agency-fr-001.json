@@ -1,0 +1,12 @@
+{
+  "case_id": "agency-fr-001",
+  "brief": "Agence de marketing digital indépendante pour des PME francophones. Créer une page qui pousse les visiteurs à demander une étude de nos prestations : publicité en ligne, création de contenu et référencement SEO.",
+  "locale": "fr",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["pricing"],
+    "content_must_include": ["Commencer", "notre agence"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: cool-modern", "pas de numéro de téléphone inventé"]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "case_id": "gym-fr-001",
+  "brief": "Salle de sport de quartier : cours collectifs et coaching personnel. L'objectif de la page est de faire réserver une première séance gratuite et de rassurer les débutants sur l'ambiance accueillante.",
+  "locale": "fr",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["pricing"],
+    "content_must_include": ["Commencer", "notre salle de sport"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: bold-creative", "aucun équipement inventé"]
+  }
+}

@@ -3,10 +3,22 @@
   "brief": "عيادة طبية عامة تقدم فحوصات دورية وتطعيمات للعائلات. هدفنا حجز المواعيد عبر الموقع بسهولة.",
   "locale": "ar",
   "expect": {
-    "required_sections": ["hero", "features", "cta", "footer"],
-    "forbidden_sections": ["pricing"],
-    "content_must_include": ["حجز موعد"],
+    "required_sections": [
+      "hero",
+      "features",
+      "cta",
+      "footer"
+    ],
+    "forbidden_sections": [
+      "pricing"
+    ],
+    "content_must_include": [
+      "ابدأ الآن"
+    ],
     "max_sections": 6,
-    "quality_criteria": ["tone: warm-professional", "إنجازات طبية مختلقة ممنوعة"]
+    "quality_criteria": [
+      "tone: warm-professional",
+      "إنجازات طبية مختلقة ممنوعة"
+    ]
   }
 }

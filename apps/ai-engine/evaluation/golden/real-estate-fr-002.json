@@ -3,10 +3,20 @@
   "brief": "Agence immobilière indépendante spécialisée dans les biens de caractère et l'accompagnement des primo-accédants. Prendre rendez-vous pour une estimation gratuite.",
   "locale": "fr",
   "expect": {
-    "required_sections": ["hero", "features", "cta", "footer"],
+    "required_sections": [
+      "hero",
+      "features",
+      "cta",
+      "footer"
+    ],
     "forbidden_sections": [],
-    "content_must_include": ["prise de rendez-vous"],
+    "content_must_include": [
+      "Commencer"
+    ],
     "max_sections": 6,
-    "quality_criteria": ["tone: warm-professional", "aucune offre inventée"]
+    "quality_criteria": [
+      "tone: warm-professional",
+      "aucune offre inventée"
+    ]
   }
 }

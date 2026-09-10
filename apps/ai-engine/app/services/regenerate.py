@@ -29,12 +29,12 @@ import uuid
 from typing import Any
 
 from app.config import Settings
-from app.contracts import JobResult, StageResult
+from app.contracts import JobResult
 from app.core.errors import AiEngineError
 from app.cost.ledger import JobLedger
 from app.routing.config import RoutingConfig
 from app.services.page_validator import PageValidationError, validate_page
-from app.services.schema_builder import clean_section_content, _derive_page_title
+from app.services.schema_builder import _derive_page_title, clean_section_content
 from app.services.stage_runner import StageRunner
 
 E_REGEN_NOT_FOUND = "E-REGEN-001"

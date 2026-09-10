@@ -13,7 +13,7 @@ def test_healthz_public(client) -> None:
     assert body["service"] == "ai-engine"
     assert REQUIRED_CHECKS.issubset(body["checks"])
     assert body["checks"]["schemas"] == 5
-    assert body["checks"]["prompts"] == 5
+    assert body["checks"]["prompts"] == 6  # 5 stage prompts + judge-rubric
 
 
 def test_internal_endpoint_requires_token(client) -> None:

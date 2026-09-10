@@ -407,3 +407,30 @@ This document records the implementation progress phase by phase, per master pro
 - `react-dom/server` snapshot rendering stays in test helpers only (Next's import ban is by design); a static-render-at-deploy pipeline would need a non-Next SSR host.
 - Hosts are dev-derived (`p-<id>.landing-ai.test`); real `PRIMARY_DOMAIN` DNS/cert mapping is production ops.
 - Remaining: production ops (secrets/TLS/rate limit/S3-backed assets, real Redis/BullMQ validation, session rotation).
+
+---
+
+## Phase 11 — Evaluation & Quality Engine (golden, rubric, judge, regression)
+
+**Date:** 2026-09-10  
+**Objective:** Ship J6's quality surface: a full golden dataset (12 verticals × ar/fr/en + injection), a versioned rubric, an *advisory* calibrated judge, and a regression harness with before/after reports + a nightly run — acceptance = one full regression report produced, the metrics table live, thresholds documented.
+
+**Implemented (apps/ai-engine):**
+- **Golden dataset (37 cases):** `evaluation/golden/*.json` — 24 new cases complete the 12 verticals × {ar, fr, en} matrix on top of the 13 Phase-5 cases (12 verticals + `injection-en-006`). All 13 legacy cases were aligned to *achievable engine output*: `content_must_include` now uses the engine's deterministic strings (locale CTA label — "Get started"/"Commencer"/"ابدأ الآن" — plus a real noun where vertical detection is sound), so content-completeness measures the pipeline, not keyword luck.
+- **Verified every case against the engine:** all 37 → COMPLETED, page valid, `missing_required=[]` + `missing_must=[]`.
+- **Rubric v1:** `evaluation/rubrics/rubric-v1.json` + `app/evaluation/rubric.py` — 7 criteria (structural, coherence, copy, cta, visual, accessibility, seo) with anchored 1–5 scales, semver-validated `.ref = "landing-page-quality@1.0.0"`.
+- **Advisory judge:** `app/evaluation/judge.py` + `app/prompts/judge-rubric.yaml` + `app/schemas/judge_scoring.{input,output}.json` + routing model class `judge` (openai, `gpt-4o-mini`). Two implementations behind one `Judge.score(...)` seam: `LLMJudge` (pinned model + ref `<prompt>::<provider>::<model>`) used only when the provider has credentials, and a deterministic `StubJudge` (`stub:runtime?not-calibrated`) for dev/CI — `create_judge` falls back automatically; provider failures are recorded in the score, never fatal.
+- **Calibration (advisory):** `evaluation/calibration/human-labels.json` + `app/evaluation/calibration.py` — MAE + bias per criterion vs a small human-labeled sample; `advisory_ok` requires the LLM judge and MAE ≤ 0.5; stub mode is never "calibrated".
+- **Regression harness (§9.2):** `app/evaluation/regression.py` (CLI + library) — §9.2 metrics (schema validity ≥99%, render success ≥99%, first-try usable ≥90%, content completeness ≥90%, visual quality, repair rate, cost per successful page, stage/e2e latency p50/p95), writes `evaluation/reports/phase11-regression-<ts>.md/.json`, refreshes `metrics-live.md/.json`, and `compare` implements the §9.5 gate (block on gated-metric drop or a new `ruleId` failure class).
+- **Thresholds + nightly:** `evaluation/thresholds.md` documents every threshold and measurement note; `app/evaluation/nightly.py` — `python -m app.evaluation.nightly` runs the full regression, re-judges the human-labeled sample, writes `calibration-live.json`, exits non-zero on any breach (CI/scheduler ready).
+
+**Test/demo runs:**
+- Full suite **91 green** (was 72): +4 new test files (`test_evaluation_rubric`, `test_evaluation_judge`, `test_evaluation_calibration`, `test_evaluation_regression` = 19 tests) and updates for the new prompt asset: `test_mini_eval` lock **≥10 → ≥36**, `test_prompts`/`test_healthz` prompt counts 5 → 6.
+- `mypy app` clean (41 files), `ruff check .` clean (also fixed two pre-existing nits in `app/services/regenerate.py`).
+- **Full regression (37 cases, stub judge):** validity/render/usable/completeness all **1.0000** (targets ≥0.99/0.99/0.90/0.90), visual quality 4.0/5, repair rate 0, cost $0.39 total / $0.0106 per successful page, e2e p50 4 ms (stub), **zero gate breaches**. Report + `metrics-live` written to `evaluation/reports/`.
+
+**Known limitations / next:**
+- Judge + calibration are advisory by policy. In this environment the judge runs as the deterministic **stub** surrogate (no API key) — real-scores ≥ calibration trust require wiring `AI_OPENAI_API_KEY`; the LLM path is covered by fake-provider tests.
+- Stub latency is not representative of real providers; recorded anyway to keep charts honest. Replacing the stub with real models is expected to move content-completeness — the harness exists precisely to catch that.
+- `content_must_include` deliberately uses engine-deterministic strings; aligns expectations to the pipeline (Phase 4/5 stub substring-vertical quirks are documented, not re-engineered here).
+- Remaining: production ops (secrets/TLS/rate limit/S3-backed assets, real Redis/BullMQ validation, session rotation); optional real-LLM calibration pass + trend charts.

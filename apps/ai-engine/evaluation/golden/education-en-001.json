@@ -1,0 +1,12 @@
+{
+  "case_id": "education-en-001",
+  "brief": "Coding school for teenagers offering weekend bootcamps in web development. The landing page should convince parents and teens to book a free trial lesson.",
+  "locale": "en",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["pricing"],
+    "content_must_include": ["Get started", "our school"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: friendly-casual", "no invented certifications"]
+  }
+}

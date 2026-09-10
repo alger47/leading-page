@@ -1,0 +1,35 @@
+{
+  "run_at": "2026-09-10T09:54:47+00:00",
+  "rubric": "landing-page-quality@1.0.0",
+  "judge_mode": "stub",
+  "judge": "stub:runtime?not-calibrated",
+  "metrics": {
+    "schema_validity_rate": 1.0,
+    "render_success_rate": 1.0,
+    "first_try_usable_rate": 1.0,
+    "content_completeness": 1.0,
+    "visual_quality_score": 4.0,
+    "repair_rate": 0.0,
+    "cost_per_successful_page": 0.010619,
+    "cost_total_usd": 0.392898,
+    "e2e_latency_ms_p50": 4.0,
+    "e2e_latency_ms_p95": 7.0,
+    "latency_ms_p50:asset-planner": 0.1,
+    "latency_ms_p95:asset-planner": 0.1,
+    "latency_ms_p50:brief-analyzer": 0.1,
+    "latency_ms_p95:brief-analyzer": 0.2,
+    "latency_ms_p50:content-generator": 0.1,
+    "latency_ms_p95:content-generator": 0.2,
+    "latency_ms_p50:layout-planner": 0.1,
+    "latency_ms_p95:layout-planner": 0.1,
+    "latency_ms_p50:page-planner": 0.1,
+    "latency_ms_p95:page-planner": 0.1
+  },
+  "thresholds": {
+    "schema_validity_rate": 0.99,
+    "render_success_rate": 0.99,
+    "first_try_usable_rate": 0.9,
+    "content_completeness": 0.9
+  },
+  "gate_breaches": []
+}

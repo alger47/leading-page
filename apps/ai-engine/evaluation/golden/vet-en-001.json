@@ -1,0 +1,12 @@
+{
+  "case_id": "vet-en-001",
+  "brief": "Veterinary clinic providing complete care for cats and dogs. The page should help pet owners arrange a treatment or a consultation and explain preventive care basics.",
+  "locale": "en",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["pricing"],
+    "content_must_include": ["Get started", "our veterinary clinic"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: warm-professional", "no invented phone numbers"]
+  }
+}

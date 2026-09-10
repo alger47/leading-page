@@ -1,0 +1,12 @@
+{
+  "case_id": "saas-fr-001",
+  "brief": "Plateforme SaaS qui aide les équipes à organiser leurs tâches et à collaborer simplement. Créer une page convaincante qui invite à essayer gratuitement, sans excès de détails techniques.",
+  "locale": "fr",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["testimonials"],
+    "content_must_include": ["Commencer", "notre plateforme"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: cool-modern", "aucun tarif inventé"]
+  }
+}

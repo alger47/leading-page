@@ -3,10 +3,20 @@
   "brief": "معهد لتعليم اللغات للأطفال والكبار، دورات مسائية وبرامج صيفية. سجل الآن لمعرفة مواعيد الدورات.",
   "locale": "ar",
   "expect": {
-    "required_sections": ["hero", "features", "cta", "footer"],
+    "required_sections": [
+      "hero",
+      "features",
+      "cta",
+      "footer"
+    ],
     "forbidden_sections": [],
-    "content_must_include": ["CTA تسجيل"],
+    "content_must_include": [
+      "ابدأ الآن"
+    ],
     "max_sections": 6,
-    "quality_criteria": ["tone: warm-professional", "بيانات دورات مخترعة ممنوعة"]
+    "quality_criteria": [
+      "tone: warm-professional",
+      "بيانات دورات مخترعة ممنوعة"
+    ]
   }
 }

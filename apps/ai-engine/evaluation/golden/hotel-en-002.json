@@ -3,10 +3,21 @@
   "brief": "Boutique hotel near the old town, 14 rooms, rooftop breakfast. Target: couples looking for a relaxing weekend getaway.",
   "locale": "en",
   "expect": {
-    "required_sections": ["hero", "features", "cta", "footer"],
+    "required_sections": [
+      "hero",
+      "features",
+      "cta",
+      "footer"
+    ],
     "forbidden_sections": [],
-    "content_must_include": ["book a stay CTA"],
+    "content_must_include": [
+      "Get started",
+      "our hotel"
+    ],
     "max_sections": 6,
-    "quality_criteria": ["tone: warm-professional", "no invented rates"]
+    "quality_criteria": [
+      "tone: warm-professional",
+      "no invented rates"
+    ]
   }
 }

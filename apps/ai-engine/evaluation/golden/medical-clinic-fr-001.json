@@ -1,0 +1,12 @@
+{
+  "case_id": "medical-clinic-fr-001",
+  "brief": "Clinique médicale généraliste : consultations et bilans de base pour les familles. La page doit permettre de prendre rendez-vous et rassurer le patient sur le déroulement d'une première visite.",
+  "locale": "fr",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["pricing"],
+    "content_must_include": ["Commencer", "notre clinique médicale"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: warm-professional", "aucun diplôme inventé"]
+  }
+}

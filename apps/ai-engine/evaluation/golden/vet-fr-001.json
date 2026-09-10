@@ -1,0 +1,12 @@
+{
+  "case_id": "vet-fr-001",
+  "brief": "Clinique vétérinaire offrant des soins complets pour chiens et chats. La page doit aider les propriétaires d'animaux à réserver un traitement ou une consultation, et présenter les bases de la prévention.",
+  "locale": "fr",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["pricing"],
+    "content_must_include": ["Commencer", "notre clinique vétérinaire"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: warm-professional", "aucun numéro de téléphone inventé"]
+  }
+}

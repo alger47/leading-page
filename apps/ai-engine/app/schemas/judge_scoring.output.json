@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "scores": {
+      "type": "object",
+      "description": "criterion_id -> score 1..5 following the rubric anchors",
+      "additionalProperties": { "type": "integer", "minimum": 1, "maximum": 5 }
+    },
+    "reasons": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+    "overall": { "type": "integer", "minimum": 1, "maximum": 5 },
+    "usable": { "type": "boolean", "description": "Page is usable without human edits (PART IX 9.2)." },
+    "summary": { "type": "string", "minLength": 1 }
+  },
+  "required": ["scores", "reasons", "overall", "usable", "summary"]
+}

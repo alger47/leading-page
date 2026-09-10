@@ -1,0 +1,12 @@
+{
+  "case_id": "law-firm-fr-001",
+  "brief": "Cabinet d'avocats spécialisé en contrats pour les jeunes entreprises. La page doit inciter à demander une première consultation, avec un ton professionnel et sans promesses inventées.",
+  "locale": "fr",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["testimonials"],
+    "content_must_include": ["Commencer", "notre cabinet d'avocats"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: warm-professional", "aucune promesse juridique inventée"]
+  }
+}

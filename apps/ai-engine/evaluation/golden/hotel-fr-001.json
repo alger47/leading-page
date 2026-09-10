@@ -1,0 +1,12 @@
+{
+  "case_id": "hotel-fr-001",
+  "brief": "Un hôtel proche du centre-ville proposant des séjours confortables aux voyageurs. Objectif de la page : faire réserver une nuit d'essai et présenter les chambres sans inventer de tarifs.",
+  "locale": "fr",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["pricing"],
+    "content_must_include": ["Commencer", "notre hôtel"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: warm-professional", "aucun tarif inventé"]
+  }
+}

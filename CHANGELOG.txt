@@ -238,3 +238,17 @@
 - react-dom/server snapshot rendering stays in test helpers only (Next's import ban is by design).
 - Hosts are dev-derived (p-<id>.landing-ai.test); real PRIMARY_DOMAIN DNS/cert mapping is production ops.
 - Next: production ops (secrets/TLS/rate limit/S3-backed assets, real Redis/BullMQ validation, session rotation).
+
+## Date: 2026-09-10
+
+### Phase 11 - Evaluation & Quality Engine (J6)
+- Golden dataset expanded to 37 cases (12 verticals x {ar, fr, en} + injection-en-006): 24 new cases authored; 13 Phase-5 cases aligned to achievable engine output (content_must_include = deterministic locale CTA labels + real nouns; briefs cleaned: real-estate-fr-002 mojibake fixed, startup-en-004 + 4 new briefs reworded to avoid stub substring-detection quirks).
+- All 37 cases verified against the engine: COMPLETED, page valid, required_sections + content_must_include fully satisfied.
+- Rubric v1 (landing-page-quality@1.0.0): evaluation/rubrics/rubric-v1.json + app/evaluation/rubric.py (7 anchored 1-5 criteria, semver-validated ref).
+- Advisory judge: app/evaluation/judge.py (StubJudge deterministic surrogate + LLMJudge via pinned gpt-4o-mini + judge-rubric@1.0.0 prompt + judge_scoring schemas + routing model class 'judge'); create_judge auto-falls back to stub without credentials; failures recorded, never fatal.
+- Calibration (advisory): evaluation/calibration/human-labels.json + app/evaluation/calibration.py (MAE + bias; advisory_ok requires LLM judge + MAE <= 0.5; stub never calibrated).
+- Regression harness: app/evaluation/regression.py (section 9.2 metrics, datestamped reports, metrics-live md/json, compare with section 9.5 block gate).
+- Thresholds documented: evaluation/thresholds.md. Nightly runner: app/evaluation/nightly.py.
+- Exit gate: pytest 91 green (was 72; +4 evaluation test files; mini_eval lock >= 36; prompt count 5 -> 6), mypy app clean (41 files), ruff check . clean (incl. 2 pre-existing regenerate.py nits).
+- Full regression report (37 cases, stub judge): all gated metrics 1.0000 vs targets >= 0.99/0.99/0.90/0.90, visual quality 4.0/5, repair rate 0, cost .3929 total / .0106 per successful page, zero breaches. reports/metrics-live + phase11-regression-<ts> written.
+- Docs: ADR-0010-evaluation-engine.md, walkthrough Phase 11, this CHANGELOG, NOTES.txt.

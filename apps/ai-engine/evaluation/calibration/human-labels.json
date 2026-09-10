@@ -1,0 +1,49 @@
+{
+  "calibration": "classification-site-quality.v1",
+  "rubric": "landing-page-quality@1.0.0",
+  "note": "Human-labeled sample used to calibrate the judge (PART IX §9.4). Scores are 1-5 on the same rubric scales. Mismatch between judge and human is measured as MAE + bias and is ADVISORY: it never auto-blocks, but judge scores should not drive trend decisions while MAE stays high.",
+  "sample": [
+    {
+      "case_id": "saas-en-001",
+      "locale": "en",
+      "judge_version": "llm",
+      "labels": {
+        "structural": 5,
+        "coherence": 4,
+        "copy": 4,
+        "cta": 5,
+        "visual": 4,
+        "accessibility": 4,
+        "seo": 4
+      }
+    },
+    {
+      "case_id": "vet-ar-001",
+      "locale": "ar",
+      "judge_version": "llm",
+      "labels": {
+        "structural": 4,
+        "coherence": 4,
+        "copy": 4,
+        "cta": 4,
+        "visual": 4,
+        "accessibility": 4,
+        "seo": 4
+      }
+    },
+    {
+      "case_id": "restaurant-fr-001",
+      "locale": "fr",
+      "judge_version": "llm",
+      "labels": {
+        "structural": 5,
+        "coherence": 4,
+        "copy": 4,
+        "cta": 4,
+        "visual": 4,
+        "accessibility": 4,
+        "seo": 4
+      }
+    }
+  ]
+}

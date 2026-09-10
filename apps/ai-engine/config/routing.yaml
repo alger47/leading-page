@@ -17,6 +17,13 @@ models:
     model_id: "stub-premium"
     cost_per_1k_input: 0.003
     cost_per_1k_output: 0.015
+  # Pinned LLM-as-judge model (PART IX §9.4): advisory scorer. Falls back to
+  # the deterministic StubJudge when the provider has no credentials.
+  judge:
+    provider: openai
+    model_id: "gpt-4o-mini"
+    cost_per_1k_input: 0.00015
+    cost_per_1k_output: 0.0006
 
 stages:
   brief-analyzer:

@@ -1,0 +1,12 @@
+{
+  "case_id": "startup-fr-001",
+  "brief": "Start-up fintech à la recherche de ses premiers utilisateurs et partenaires. Créer une page qui présente la vision et invite à rejoindre une liste d'attente, sans promesses inventées.",
+  "locale": "fr",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["testimonials"],
+    "content_must_include": ["Commencer", "notre start-up"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: bold-creative", "aucune promesse inventée"]
+  }
+}

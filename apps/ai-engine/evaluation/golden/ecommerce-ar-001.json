@@ -1,0 +1,12 @@
+{
+  "case_id": "ecommerce-ar-001",
+  "brief": "متجر إلكتروني للعناية بالبشرة يبيع منتجات طبيعية ولا يحتاج سوى علامات تجارية عامة. نريد صفحة تجذب الزوار للاشتراك في النشرة البريدية والتسوق عبر المتجر.",
+  "locale": "ar",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["testimonials"],
+    "content_must_include": ["ابدأ الآن", "متجرنا"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: warm-professional", "لا أسعار مخترعة"]
+  }
+}

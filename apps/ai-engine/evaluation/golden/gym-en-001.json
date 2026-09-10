@@ -1,0 +1,12 @@
+{
+  "case_id": "gym-en-001",
+  "brief": "Small neighborhood fitness gym offering group classes and personal training. Landing page goal: book a free first session and show beginners the welcoming, judgment-free atmosphere.",
+  "locale": "en",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["pricing"],
+    "content_must_include": ["Get started", "our gym"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: bold-creative", "no fake equipment claims"]
+  }
+}

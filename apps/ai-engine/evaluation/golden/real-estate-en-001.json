@@ -1,0 +1,12 @@
+{
+  "case_id": "real-estate-en-001",
+  "brief": "Property agency listing flats for sale across the city. The landing page should drive visitors to request a viewing first — warmth and transparency before any pricing detail.",
+  "locale": "en",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["pricing"],
+    "content_must_include": ["Get started", "our property agency"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: minimal-clean", "no invented prices"]
+  }
+}

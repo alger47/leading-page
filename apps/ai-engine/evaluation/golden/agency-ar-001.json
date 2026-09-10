@@ -1,0 +1,12 @@
+{
+  "case_id": "agency-ar-001",
+  "brief": "وكالة تسويق رقمية صغيرة تخدم الشركات الناشئة في منطقة الشرق الأوسط. نريد صفحة تهبط بالزوار نحو طلب عرض سعر عن خدماتنا: إدارة الإعلانات، المحتوى، وتحسين محركات البحث.",
+  "locale": "ar",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["pricing"],
+    "content_must_include": ["ابدأ الآن", "وكالتنا"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: cool-modern", "لا أرقام هواتف مخترعة"]
+  }
+}

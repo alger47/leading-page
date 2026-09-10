@@ -1,0 +1,12 @@
+{
+  "case_id": "law-firm-ar-001",
+  "brief": "مكتب محاماة متخصص في العقود والشركات الناشئة. نريد صفحة تدفع الزائر لطلب استشارة أولية، مع التركيز على الاحترافية والعلن دون وعود قانونية مخترعة.",
+  "locale": "ar",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["testimonials"],
+    "content_must_include": ["ابدأ الآن", "مكتبنا القانوني"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: warm-professional", "لا شهادات مخترعة"]
+  }
+}

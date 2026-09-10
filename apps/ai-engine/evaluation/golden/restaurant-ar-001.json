@@ -1,0 +1,12 @@
+{
+  "case_id": "restaurant-ar-001",
+  "brief": "مطعم عائلي يقدم مأكولات محلية ويريد حجوزات على الطاولات في عطلات نهاية الأسبوع. نريد صفحة دافئة تعرض قائمة عامة وتدعو لحجز طاولة.",
+  "locale": "ar",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["pricing"],
+    "content_must_include": ["ابدأ الآن", "مطعمنا"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: warm-professional", "لا أسعار مخترعة"]
+  }
+}

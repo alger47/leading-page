@@ -1,0 +1,12 @@
+{
+  "case_id": "restaurant-en-001",
+  "brief": "Family-run restaurant serving local dishes that wants more weekend table bookings. A warm page with a general menu and a clear call to reserve a table.",
+  "locale": "en",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["pricing"],
+    "content_must_include": ["Get started", "our restaurant"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: warm-professional", "no invented prices"]
+  }
+}

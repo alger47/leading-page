@@ -1,0 +1,12 @@
+{
+  "case_id": "real-estate-ar-001",
+  "brief": "وكالة عقارية تعرض شققاً للبيع في المدينة. نريد صفحة تدفع الزوار لطلب معاينة أولاً دون إدراج أسعار، مع التركيز على الجدية والشفافية.",
+  "locale": "ar",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["pricing"],
+    "content_must_include": ["ابدأ الآن", "وكالتنا العقارية"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: minimal-clean", "لا أسعار مخترعة"]
+  }
+}

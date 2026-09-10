@@ -1,0 +1,12 @@
+{
+  "case_id": "ecommerce-en-001",
+  "brief": "Online store selling eco-friendly home goods. Goal: grow the mailing list and drive first purchases through a clean, trust-focused landing page for general audiences.",
+  "locale": "en",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["testimonials"],
+    "content_must_include": ["Get started", "our store"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: warm-professional", "no invented prices"]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "case_id": "startup-ar-001",
+  "brief": "شركة ناشئة في مجال التكنولوجيا المالية تبحث عن أولى التجارب والشركاء. نريد صفحة توضح الرؤية وتدعو للتسجيل في قائمة الانتظار دون وعود مخترعة.",
+  "locale": "ar",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["testimonials"],
+    "content_must_include": ["ابدأ الآن", "شركتنا الناشئة"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: bold-creative", "لا وعود مخترعة"]
+  }
+}

@@ -8,7 +8,7 @@ from app.core.errors import RoutingConfigError
 from app.prompts.assets import PromptAsset
 
 
-def test_registry_loads_all_five_versioned_assets(container) -> None:
+def test_registry_loads_all_six_versioned_assets(container) -> None:
     names = container.prompts.names()
     assert set(names) == {
         "stage1-brief-analyzer",
@@ -16,6 +16,7 @@ def test_registry_loads_all_five_versioned_assets(container) -> None:
         "stage3-layout-planner",
         "stage4-content-generator",
         "stage5-asset-planner",
+        "judge-rubric",
     }
     refs = container.prompts.refs()
     assert all("@1.0.0" in ref for ref in refs)

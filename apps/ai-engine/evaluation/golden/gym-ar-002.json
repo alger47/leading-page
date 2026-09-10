@@ -3,10 +3,20 @@
   "brief": "نادي لياقة بدنية للرجال والنساء مع مدربين معتمدين وحصص جماعية. نريد جذب أعضاء جدد للتسجيل في اشتراك شهري.",
   "locale": "ar",
   "expect": {
-    "required_sections": ["hero", "features", "cta", "footer"],
+    "required_sections": [
+      "hero",
+      "features",
+      "cta",
+      "footer"
+    ],
     "forbidden_sections": [],
-    "content_must_include": ["CTA للتسجيل"],
+    "content_must_include": [
+      "ابدأ الآن"
+    ],
     "max_sections": 6,
-    "quality_criteria": ["tone: friendly-casual", "اختلاق أسعار ممنوع"]
+    "quality_criteria": [
+      "tone: friendly-casual",
+      "اختلاق أسعار ممنوع"
+    ]
   }
 }

@@ -1,0 +1,12 @@
+{
+  "case_id": "hotel-ar-001",
+  "brief": "فندق صغير قريب من وسط المدينة يقدم إقامة مريحة للمسافرين. نريد صفحة تفيد الزوار باحتجاز ليلة التجربة وتقديم معلومات عامة عن الأجنحة دون أسعار مخترعة.",
+  "locale": "ar",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["pricing"],
+    "content_must_include": ["ابدأ الآن", "فندقنا"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: warm-professional", "لا أسعار مخترعة"]
+  }
+}

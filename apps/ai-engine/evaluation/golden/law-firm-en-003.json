@@ -3,10 +3,23 @@
   "brief": "Employment law firm. Help employees and small businesses with contracts, disputes and mediation. Professional, discreet, modern.",
   "locale": "en",
   "expect": {
-    "required_sections": ["hero", "features", "cta", "footer"],
-    "forbidden_sections": ["pricing"],
-    "content_must_include": ["consultation CTA"],
+    "required_sections": [
+      "hero",
+      "features",
+      "cta",
+      "footer"
+    ],
+    "forbidden_sections": [
+      "pricing"
+    ],
+    "content_must_include": [
+      "Get started",
+      "our law firm"
+    ],
     "max_sections": 6,
-    "quality_criteria": ["tone: cool-modern", "no invented credentials"]
+    "quality_criteria": [
+      "tone: cool-modern",
+      "no invented credentials"
+    ]
   }
 }

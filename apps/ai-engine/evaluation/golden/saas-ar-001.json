@@ -1,0 +1,12 @@
+{
+  "case_id": "saas-ar-001",
+  "brief": "منصة برمجية سحابية (SaaS) تساعد الفرق على إدارة مهامها والتعاون بفعالية. نريد صفحة عربية مقنعة تدعو لتجربة مجانية دون تفاصيل فنية مفرطة.",
+  "locale": "ar",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["testimonials"],
+    "content_must_include": ["ابدأ الآن", "منصتنا"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: cool-modern", "لا أسعار مخترعة"]
+  }
+}

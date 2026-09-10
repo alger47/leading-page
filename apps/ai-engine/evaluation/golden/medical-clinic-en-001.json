@@ -1,0 +1,12 @@
+{
+  "case_id": "medical-clinic-en-001",
+  "brief": "General medical clinic offering consultations and basic check-ups for families. Landing page goal: allow patients to schedule a first visit and learn what to expect.",
+  "locale": "en",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["pricing"],
+    "content_must_include": ["Get started", "our medical clinic"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: warm-professional", "no invented credentials"]
+  }
+}

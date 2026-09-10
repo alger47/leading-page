@@ -1,0 +1,12 @@
+{
+  "case_id": "education-fr-001",
+  "brief": "École de code pour adolescents : éducation au développement web le week-end. La page doit convaincre parents et ados de réserver un cours d'essai gratuit.",
+  "locale": "fr",
+  "expect": {
+    "required_sections": ["hero", "features", "cta", "footer"],
+    "forbidden_sections": ["pricing"],
+    "content_must_include": ["Commencer", "notre école"],
+    "max_sections": 6,
+    "quality_criteria": ["tone: friendly-casual", "aucune certification inventée"]
+  }
+}

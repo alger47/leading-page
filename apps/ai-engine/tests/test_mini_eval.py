@@ -18,7 +18,7 @@ def test_golden_briefs_all_complete(container) -> None:
 
     report = asyncio.run(go())
 
-    assert len(report.cases) >= 10
+    assert len(report.cases) >= 36
     assert all(c.status == "COMPLETED" for c in report.cases)
     assert all(c.passed for c in report.cases)
     assert all(c.page_valid for c in report.cases)

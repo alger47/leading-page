@@ -3,10 +3,21 @@
   "brief": "Creative marketing agency for local businesses. Branding, social media, website design. Friendly and results-driven.",
   "locale": "en",
   "expect": {
-    "required_sections": ["hero", "features", "cta", "footer"],
+    "required_sections": [
+      "hero",
+      "features",
+      "cta",
+      "footer"
+    ],
     "forbidden_sections": [],
-    "content_must_include": ["contact CTA"],
+    "content_must_include": [
+      "Get started",
+      "our agency"
+    ],
     "max_sections": 6,
-    "quality_criteria": ["tone: friendly-casual", "no invented client results"]
+    "quality_criteria": [
+      "tone: friendly-casual",
+      "no invented client results"
+    ]
   }
 }

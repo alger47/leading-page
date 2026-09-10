@@ -1,0 +1,84 @@
+{
+  "rubric": "landing-page-quality",
+  "version": "1.0.0",
+  "scale": "1 (poor) - 5 (excellent)",
+  "criteria": [
+    {
+      "id": "structural",
+      "label": "structural_correctness",
+      "anchors": {
+        "1": "Missing or misplaced required sections; invalid schema",
+        "2": "All key sections present but ordering/duplication problems",
+        "3": "Complete, correctly ordered section set for the brief",
+        "4": "Complete and well-sequenced; clean section transitions",
+        "5": "Impeccable structure; every section earns its place for the intent"
+      }
+    },
+    {
+      "id": "coherence",
+      "label": "semantic_coherence",
+      "anchors": {
+        "1": "Content contradicts the brief or is unrelated",
+        "2": "Mostly on-brief but with irrelevant or generic filler",
+        "3": "Consistent with the brief; every section addresses the stated goal",
+        "4": "Strongly aligned with brief and audience; no irrelevant sections",
+        "5": "Page reads as a single coherent argument toward the goal"
+      }
+    },
+    {
+      "id": "copy",
+      "label": "copy_quality",
+      "anchors": {
+        "1": "Machine-like or wrong-language copy",
+        "2": "Understandable but flat or awkward in the target locale",
+        "3": "Natural, locale-appropriate copy with a consistent tone",
+        "4": "Compelling copy with authentic tone and concrete, non-invented detail",
+        "5": "Distinct, memorable copy that feels human and on-brand"
+      }
+    },
+    {
+      "id": "cta",
+      "label": "cta_strength",
+      "anchors": {
+        "1": "No clear call to action anywhere",
+        "2": "A single weak or generic CTA",
+        "3": "A clear primary CTA aligned with the brief's conversion goal",
+        "4": "Primary + supportive CTAs, well-placed and specific",
+        "5": "CTA hierarchy drives the exact desired action; secondary paths included"
+      }
+    },
+    {
+      "id": "visual",
+      "label": "visual_composition",
+      "anchors": {
+        "1": "Broken or chaotic composition",
+        "2": "Functional but unbalanced spacing/contrast",
+        "3": "Clean composition with consistent rhythm and hierarchy",
+        "4": "Polished composition; deliberate contrast, spacing, and focal points",
+        "5": "Visually striking; every viewport placement considered"
+      }
+    },
+    {
+      "id": "accessibility",
+      "label": "accessibility",
+      "anchors": {
+        "1": "Missing text alternatives, poor contrast, no semantics",
+        "2": "Alternatives/contrast present but inconsistent",
+        "3": "Baseline accessible: alt text, sufficient contrast, semantic HTML",
+        "4": "Consistent accessible patterns (focus, labels, landmarks)",
+        "5": "Fully accessible flows verified across inputs and screen readers"
+      }
+    },
+    {
+      "id": "seo",
+      "label": "seo_completeness",
+      "anchors": {
+        "1": "No title or description; unstructured content",
+        "2": "Generic title/description not tuned to the brief",
+        "3": "Unique title + description; sensible heading hierarchy",
+        "4": "Title, description, and headings optimized for the intent and locale",
+        "5": "Complete on-page SEO: metadata, headings, alt text, clean URL semantics"
+      }
+    }
+  ]
+}
