@@ -28,6 +28,46 @@ export interface RenderProps {
   schema: Record<string, unknown>;
   /** Optional log sink for E-RENDER-001 and other diagnostics (telemetry). */
   onLog?: (entry: RenderLogEntry) => void;
+  /**
+   * Presentation-time resolver for logical `asset:` refs. The envelope stores
+   * LOGICAL refs (`asset:hero-saas`, §SEM-011); an `asset:` scheme cannot be
+   * loaded by browsers and would trip CSP. Default maps to the self-hosted
+   * placeholder route (/assets/asset/{ref}); hosts with an object store
+   * override it with their public CDN URL.
+   */
+  assetUrlFor?: (assetRef: string) => string;
+}
+
+/** Default asset-ref resolution (self-hosted placeholder, CSP `img-src 'self'`-safe). */
+export function defaultAssetUrlFor(assetRef: string): string {
+  return typeof assetRef === 'string' && assetRef.startsWith('asset:')
+    ? `/assets/asset/${encodeURIComponent(assetRef)}`
+    : assetRef;
+}
+
+function mapAssetRefs(value: unknown, resolver: (ref: string) => string): unknown {
+  if (Array.isArray(value)) return value.map((v) => mapAssetRefs(v, resolver));
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
+      if (key === 'assetRef' && typeof v === 'string') out[key] = resolver(v);
+      else out[key] = mapAssetRefs(v, resolver);
+    }
+    return out;
+  }
+  return value;
+}
+
+/** Pure deep-rewrite of assetRef slots across sections (content only, never the assets manifest). */
+export function resolveAssetRefs(
+  sections: Array<Record<string, unknown>>,
+  resolver: (ref: string) => string,
+): Array<Record<string, unknown>> {
+  return sections.map((section) =>
+    section && typeof section === 'object'
+      ? { ...section, content: mapAssetRefs(section.content, resolver) }
+      : section,
+  );
 }
 
 class SectionErrorBoundary extends React.Component<
@@ -79,14 +119,16 @@ function FallbackSection({ type, id }: { type: string; id?: string }) {
   );
 }
 
-export function Render({ schema, onLog }: RenderProps) {
+export function Render({ schema, onLog, assetUrlFor = defaultAssetUrlFor }: RenderProps) {
   const page = (schema?.page ?? {}) as { title?: string; locale?: string; direction?: string; seo?: unknown };
   const locale = page.locale ?? 'en';
   const direction =
     page.direction === 'rtl' || page.direction === 'ltr' ? page.direction : directionFromLocale(locale);
   const theme = resolveTheme(schema);
 
-  const sections = Array.isArray(schema?.sections) ? (schema.sections as Array<Record<string, unknown>>) : [];
+  const sections = Array.isArray(schema?.sections)
+    ? resolveAssetRefs(schema.sections as Array<Record<string, unknown>>, assetUrlFor)
+    : [];
 
   return (
     <ThemeProvider theme={theme} locale={locale} direction={direction}>

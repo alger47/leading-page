@@ -86,4 +86,27 @@ describe('Renderer', () => {
     // native accordion markup
     expect(container.querySelector('summary')?.textContent).toBe('[Question]');
   });
+
+  it('resolves logical asset refs before they reach an <img> (CSP-safe, default + override)', () => {
+    const schema = {
+      page: { title: 'Assets', locale: 'en', direction: 'ltr' },
+      theme: { preset: 'cool-modern' },
+      sections: [
+        { id: 'hero-1', type: 'hero', content: { title: 'H', media: { assetRef: 'asset:hero-saas', alt: 'hero alt' } } },
+        { id: 'gallery-1', type: 'gallery', content: { items: [{ image: { assetRef: 'asset:gallery-hotel-1', alt: 'room' } }] } },
+      ],
+    };
+    const defaults = render(<Render schema={schema} />);
+    const heroSrc = defaults.container.querySelector('img[alt="hero alt"]')?.getAttribute('src');
+    const gallerySrc = defaults.container.querySelector('img[alt="room"]')?.getAttribute('src');
+    expect(heroSrc).toBe('/assets/asset/asset%3Ahero-saas');
+    expect(gallerySrc).toBe('/assets/asset/asset%3Agallery-hotel-1');
+
+    const overridden = render(
+      <Render schema={schema} assetUrlFor={(ref) => `https://cdn.example.com/${encodeURIComponent(ref)}`} />,
+    );
+    expect(overridden.container.querySelector('img[alt="hero alt"]')?.getAttribute('src')).toBe(
+      'https://cdn.example.com/asset%3Ahero-saas',
+    );
+  });
 });
