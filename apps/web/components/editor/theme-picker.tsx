@@ -13,7 +13,7 @@ export interface ThemePresetView {
   label: string;
   description?: string;
   theme: { font: string; primaryColor: string; radius: string; density: string };
-  swatches: string[];
+  swatches: { primary: string; surface: string; text: string; muted: string };
 }
 
 export interface ThemePickerProps {
@@ -54,7 +54,7 @@ export function ThemePicker({ current, onApply }: ThemePickerProps) {
             aria-pressed={active}
           >
             <span className="swatches" aria-hidden="true">
-              {theme.swatches.slice(0, 3).map((c) => (
+              {Object.values(theme.swatches).slice(0, 3).map((c) => (
                 <i key={c} style={{ backgroundColor: c }} />
               ))}
             </span>

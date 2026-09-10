@@ -75,9 +75,15 @@ function stageEventsFor(payload: EngineJobPayload): Array<{ type: string; detail
   const events: Array<{ type: string; detail?: string }> = [];
   for (const stage of payload.stages) {
     const mapped = STAGE_EVENT_BY_ENGINE_STAGE[stage.stage];
-    if (mapped !== undefined) {
-      events.push({ type: mapped, detail: stage.ok ? undefined : `stage ${stage.stage} not ok` });
+    if (mapped === undefined) continue;
+    if (!stage.ok) {
+      events.push({ type: mapped, detail: `stage ${stage.stage} not ok` });
+      continue;
     }
+    // The engine surfaces the small brief-analysis payload so the web can show
+    // an honest "brief incomplete" signal alongside the job status.
+    const analysis = stage.stage === 'brief-analyzer' ? stage.data : undefined;
+    events.push({ type: mapped, detail: analysis ? JSON.stringify(analysis) : undefined });
   }
   return events;
 }

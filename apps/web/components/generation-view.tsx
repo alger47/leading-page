@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/client-api';
+import { extractBriefAnalysis, isIncompleteBrief } from '@/lib/brief-analysis';
 
 const LOCALES = [
   { value: 'fr', label: 'Français' },
@@ -34,16 +35,19 @@ interface JobView {
   attemptsMade: number;
   errorCode: string | null;
   errorMessage: string | null;
-  events?: Array<{ type: string; at: string }>;
+  events?: Array<{ type: string; at: string; detail?: string }>;
   result?: unknown;
+  briefIncomplete?: boolean;
 }
 
 export interface GenerationViewProps {
   projectId: string;
   pageId: string;
   hasVersion: boolean;
-  activeJob: { id: string; status: string } | null;
+  activeJob: { id: string; status: string; briefIncomplete?: boolean } | null;
 }
+
+const BRIEF_MIN_LENGTH = 10;
 
 export function GenerationView({ projectId, pageId, hasVersion, activeJob }: GenerationViewProps) {
   const router = useRouter();
@@ -52,7 +56,7 @@ export function GenerationView({ projectId, pageId, hasVersion, activeJob }: Gen
   const [tone, setTone] = useState('warm-professional');
   const [job, setJob] = useState<JobView | null>(() =>
     activeJob
-      ? { jobId: activeJob.id, status: activeJob.status, attemptsMade: 0, errorCode: null, errorMessage: null }
+      ? { jobId: activeJob.id, status: activeJob.status, attemptsMade: 0, errorCode: null, errorMessage: null, briefIncomplete: activeJob.briefIncomplete }
       : null,
   );
   const [error, setError] = useState<string | null>(null);
@@ -70,8 +74,9 @@ export function GenerationView({ projectId, pageId, hasVersion, activeJob }: Gen
       `/api/v1/generation-jobs/${encodeURIComponent(job.jobId)}`,
     );
     if (res.status === 200 && res.body.job) {
-      setJob(res.body.job);
-      if (res.body.job.status === 'COMPLETED') {
+      const next = res.body.job as JobView;
+      setJob({ ...next, briefIncomplete: isIncompleteBrief(next.events) });
+      if (next.status === 'COMPLETED') {
         router.refresh();
       }
     } else {
@@ -124,6 +129,7 @@ export function GenerationView({ projectId, pageId, hasVersion, activeJob }: Gen
   }
 
   const lastEvent = job?.events?.slice(-1)[0]?.type;
+  const analysis = job?.events ? extractBriefAnalysis(job.events) : null;
 
   return (
     <section className="generation">
@@ -163,11 +169,30 @@ export function GenerationView({ projectId, pageId, hasVersion, activeJob }: Gen
               required
             />
           </label>
+          {brief.trim().length > 0 && brief.trim().length < BRIEF_MIN_LENGTH && (
+            <p className="hint hint--warn" role="note">
+              Brief looks short — add the business name, category and audience for a tailored page.
+            </p>
+          )}
           {error && <p className="error" role="alert">{error}</p>}
-          <button type="submit" disabled={busy || brief.trim().length < 10}>
+          <button
+            type="submit"
+            disabled={busy || brief.trim().length < BRIEF_MIN_LENGTH}
+            title={brief.trim().length < BRIEF_MIN_LENGTH ? `Write at least ${BRIEF_MIN_LENGTH} characters` : undefined}
+          >
             {busy ? 'Preparing…' : 'Generate'}
           </button>
         </form>
+      )}
+
+      {job && (job.briefIncomplete || analysis?.has_enough_facts === false) && (
+        <div className="incomplete" role="note">
+          <strong>Brief incomplet.</strong>
+          <span>
+            The engine refuses to invent facts it is not given (no hallucination): it generated
+            generic content with placeholders. Fill them in the editor below for a complete page.
+          </span>
+        </div>
       )}
 
       {job && !completed && (
@@ -208,6 +233,8 @@ export function GenerationView({ projectId, pageId, hasVersion, activeJob }: Gen
         .brief-form button:disabled { opacity: 0.6; cursor: default; }
         .error { color: #b91c1c; font-size: 0.875rem; margin: 0; }
         .hint { color: var(--color-text-muted); font-size: 0.875rem; }
+        .hint--warn { color: #92400e; }
+        .incomplete { display: grid; gap: 4px; border: 1px solid #fcd34d; background: #fffbeb; border-radius: var(--radius-md); padding: 12px 16px; font-size: 0.875rem; color: #78350f; max-width: 640px; }
         .status { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 16px; background: var(--color-surface); max-width: 640px; }
         .status-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
         .cancel { border: 1px solid var(--color-border); background: var(--color-surface); border-radius: var(--radius-sm); padding: 6px 12px; cursor: pointer; font-size: 0.875rem; }

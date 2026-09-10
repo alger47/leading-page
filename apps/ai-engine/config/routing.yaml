@@ -24,6 +24,16 @@ models:
     model_id: "gpt-4o-mini"
     cost_per_1k_input: 0.00015
     cost_per_1k_output: 0.0006
+  # Optional LLM for the brief-analyzer ONLY (opt in with AI_BRIEF_ANALYZER_LLM
+  # set AND AI_OPENAI_API_KEY — Phase 13, LLM-aware vertical/tone/facts
+  # detection). The runner's fallback list still degrades to the stub analyzer
+  # on a hard provider error. Point `provider` at "anthropic" (and set
+  # AI_ANTHROPIC_API_KEY) to use Claude instead.
+  brief-llm:
+    provider: openai
+    model_id: "gpt-4o-mini"
+    cost_per_1k_input: 0.00015
+    cost_per_1k_output: 0.0006
 
 stages:
   brief-analyzer:

@@ -94,7 +94,7 @@ class StageResult:
         return sum(a.cost_usd for a in self.attempts)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        stage: dict[str, Any] = {
             "stage": self.stage,
             "ok": self.ok,
             "attempts": self.attempts_count,
@@ -105,6 +105,12 @@ class StageResult:
             "cost_usd": round(self.cost_usd, 6),
             "issues": self.issues,
         }
+        # The brief-analysis output is small and drives honest UX signals
+        # (vertical / tone / has_enough_facts); surface it so the worker can
+        # relay it into job events. Other stage payloads stay internal.
+        if self.stage == "brief-analyzer" and self.data is not None:
+            stage["data"] = self.data
+        return stage
 
 
 @dataclass

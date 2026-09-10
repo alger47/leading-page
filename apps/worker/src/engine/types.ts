@@ -28,6 +28,10 @@ export interface EngineStage {
   error_code: string | null;
   cost_usd: number;
   issues: unknown[];
+  /** Structured stage output. The engine currently surfaces it only for
+   * `brief-analyzer` (vertical/tone/has_enough_facts — small and honest UX
+   * signal); other stages keep their payload internal. */
+  data?: Record<string, unknown> | null;
 }
 
 export interface EngineLedger {

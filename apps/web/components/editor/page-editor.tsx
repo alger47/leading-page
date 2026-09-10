@@ -15,6 +15,7 @@ import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/client-api';
 import { PagePreview } from '@/components/page-preview';
 import { ContentEditor } from './content-editor';
+import { PlaceholdersPanel } from './placeholders-panel';
 import { ThemePicker, type ThemePresetView } from './theme-picker';
 import {
   draftFromContent,
@@ -258,6 +259,8 @@ export function PageEditor({ pageId, version }: PageEditorProps) {
             })}
           </ul>
         </div>
+
+        <PlaceholdersPanel content={draft} onUpdate={update} />
       </aside>
 
       <main className="editor-canvas">

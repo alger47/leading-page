@@ -41,6 +41,11 @@ class RoutingConfig:
     stages: dict[str, StageRoute]
     job_max_total_attempts: int
     job_default_budget_usd: float
+    # When enabled, the brief-analyzer alone is routed through an LLM model
+    # class (keyword matching is a weak detector). Default off: the classic
+    # deterministic analyzer runs until credentials exist and the operator
+    # opts in via enable_brief_analyzer_llm().
+    _brief_analyzer_llm_model_class: str | None = None
 
     @classmethod
     def from_path(cls, path: Path = DEFAULT_ROUTING) -> RoutingConfig:
@@ -85,7 +90,27 @@ class RoutingConfig:
         route = self.stages.get(stage)
         if route is None:
             raise RoutingConfigError(f"no route for stage {stage!r} (E-AI-006)")
+        if (
+            stage == "brief-analyzer"
+            and self._brief_analyzer_llm_model_class is not None
+            and self._brief_analyzer_llm_model_class in self.models
+        ):
+            llm = self._brief_analyzer_llm_model_class
+            return StageRoute(
+                prompt=route.prompt,
+                model_class=llm,
+                temperature=route.temperature,
+                max_attempts=route.max_attempts,
+                fallbacks=(llm, *tuple(f for f in route.fallbacks if f != llm)),
+            )
         return route
+
+    def enable_brief_analyzer_llm(self, model_class: str) -> None:
+        """Route ONLY the brief-analyzer through `model_class` (an LLM) while
+        the rest of the pipeline stays on its configured routing. No-op (and
+        stored) even if the model class is unknown; `route()` re-checks.
+        Safe default stays the deterministic analyzer when unset."""
+        self._brief_analyzer_llm_model_class = model_class
 
     def model(self, model_class: str) -> ModelDef:
         model = self.models.get(model_class)

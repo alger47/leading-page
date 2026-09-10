@@ -17,7 +17,7 @@ export default async function PageDetailPage({ params }: { params: { projectId: 
   }
 
   const activeJob = detail.latestJob
-    ? { id: detail.latestJob.id, status: detail.latestJob.status }
+    ? { id: detail.latestJob.id, status: detail.latestJob.status, briefIncomplete: detail.latestJob.briefAnalysis?.has_enough_facts === false }
     : null;
   const hasVersion = detail.latestVersion !== null && detail.latestVersion.versionNumber >= 1;
   const publishView = await getPublishView(owner, params.projectId, params.pageId);
@@ -28,6 +28,9 @@ export default async function PageDetailPage({ params }: { params: { projectId: 
       <h1>{detail.page.title}</h1>
       <p className="meta">
         {detail.latestJob ? `Latest generation: ${detail.latestJob.status}` : 'No generation started yet.'}
+        {detail.latestJob && detail.latestJob.briefAnalysis?.has_enough_facts === false && (
+          <span className="meta-warn">⚠️ Brief incomplet — generic content expected</span>
+        )}
       </p>
 
       <GenerationView

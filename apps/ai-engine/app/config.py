@@ -46,6 +46,12 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     anthropic_base_url: str = "https://api.anthropic.com"
 
+    # Phase 13: route ONLY the brief-analyzer through an LLM (LLM-aware
+    # vertical/tone/facts detection) instead of keyword matching. Requires the
+    # matching provider credential too; the runner still degrades to the stub
+    # analyzer on a hard provider error.
+    brief_analyzer_llm: bool = False
+
 
 @lru_cache
 def get_settings() -> Settings:
