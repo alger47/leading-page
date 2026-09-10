@@ -207,3 +207,27 @@
 **Tests:** 24 DB tests green (migrate-clean + §10.2 constraint/introspection, isolation matrix, immutability, optimistic concurrency, jobs state machine + idempotency-key dedupe + attempt idempotency, publishing snapshot move + append-only events). Typecheck + build clean; dev DB seeded idempotently (1 user, 2 projects, 2 jobs, 5 prompt versions, 1 published page).
 
 **Next phase:** Web application (auth, dashboard, projects, brief form, generation UX, preview) — worker durable JobStore swap lands there with real project context.
+
+## Date: 2026-09-10
+
+### Phase 7 Notes (Web Application):
+
+**Auth (zero-dep):** scrypt (node:crypto) `scrypt$N$r$p$saltB64$hashB64` + constant-time compare; named session token in httpOnly `sid` cookie (30d) with a DB Session row; CSRF double-submit = readable `csrf` cookie + `x-csrf-token` header on every mutation (only the API enforces it; UI form posts auto-carry it). `requireAuth` resolves `Owner{userId}` for the §10.5 tenant-scoped repos.
+
+**Generation UX / orchestration:** one POST /api/v1/generate -> `GenerationService.start()` derives `doc:userId:pageId:retryNonce` (nonce = count of prior terminal FAILED+CANCELLED), creates/dedupes the DB job with the SAME `gen_sha256(key)[0:24]` id the worker computes, then enqueues via §11 POST /api/jobs. `liveSync()` (runs on GET /generation-jobs/:id) appends unseen worker events, mirrors in-flight status, and on terminal calls one guarded `finalize()`: persist L1-valid PageVersion + COMPLETED, or record the worker's REAL error.code. `runExclusive` per job serializes poll-vs-finalize.
+
+**State machine patch:** QUEUED now allows VALIDATING and COMPLETED (fast real worker completes before the first web poll). Terminal lock + backwards transitions unchanged; QUEUED -> RENDERING still illegal. WITHOUT this, the swallowed finalize left the job QUEUED AND re-saved a duplicate PageVersion on every poll (fixed + regression test updated).
+
+**versionNumber semantics:** saveVersion = current + 1, so the FIRST draft is version 1 (assert `1`, never `0`). baseVersion = listVersions().length is correct.
+
+**Idempotency:** same body re-POST -> 200 + same jobId; new attempt after FAILED/CANCELLED -> fresh nonce -> fresh jobId. Worker-loss mid-flight (view 404/empty) -> honest E-JOB-004 in the DB. Enqueue failure -> DB FAILED with the real code. jsonError: 4xx keep their code, 5xx collapse to E-INTERNAL-001 (never leaks).
+
+**Next/styled-jsx (App Router):** `<style jsx>` is client-only; dashboard/project-detail views are `'use client'`; the (dashboard) layout + page-detail server components moved styles into one globals.css (inline styles everywhere, zero runtime CSS imports). Build output: all routes server-rendered (ƒ) except static /_not-found + /api/v1/healthz.
+
+**Package boundary (build must pass):** apps/web imports workspaces via node_modules dist ONLY (tsconfig has just `@/*`). A stale .next cache after a tsconfig change mimics a "cannot resolve" bug — rm -rf .next first. Vitest aliases workspace packages to src (vite maps .js->.ts), so tests run against source.
+
+**Test world (web):** unit (19): password, csrf, generation-key. Integration (13, DB + FakeWorkerClient): auth flows, projects/pages, generation lifecycle incl. idempotent replay + retry nonce + worker-loss, CSRF 403, validation 422, authz, healthz. E2E J1 (3, REAL ai-engine + REAL worker via in-process bridge): enqueue->engine->L1 schema persisted -> preview; replays (200, same jobId). E2E auto-skips without apps/ai-engine/.venv. globalSetup drops schema + `prisma migrate deploy` on landing_ai_test (uses @landing-ai/database client, NOT a web @prisma/client copy).
+
+**E2E bridge gotchas:** worker's in-memory driver drains on add(); the enqueue route store.put()s the QUEUED record AFTER add() resolves -> start the bridge paused and `resume()` AFTER the web enqueue commits (same reason the worker harness resumes post-enqueue). Engine spawned with `AI_PROVIDER=stub AI_INTERNAL_TOKEN=test-token AI_ENV=test`; worker EngineClient token 'test-token'.
+
+**Awaiting:** Phase 8 (editor/publish) - publication flows, editor UX, XSS-safe server rendering, production ops (secrets/TLS/rate-limit/assets), optional real Redis/BullMQ validation.

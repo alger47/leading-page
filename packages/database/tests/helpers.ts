@@ -113,6 +113,6 @@ export async function makeTenant(client: PrismaClient = prisma): Promise<Tenant>
 export async function resetDb(client: PrismaClient = prisma): Promise<void> {
   await client.$executeRawUnsafe(
     `TRUNCATE TABLE publication_event, published_page, subdomain, generation_attempt, generation_job,
-     asset, page_version, page, project, "user", prompt_version RESTART IDENTITY CASCADE`,
+     asset, page_version, page, project, auth_session, "user", prompt_version RESTART IDENTITY CASCADE`,
   );
 }

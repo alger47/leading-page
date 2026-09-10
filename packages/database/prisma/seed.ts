@@ -71,7 +71,7 @@ async function main(): Promise<void> {
     'utf8',
   );
   const vetJob = JSON.parse(vetBrief);
-  const hasVetJob = await jobs.get(owner, vetProject.id, 'gen_seed_vet_001').then((j) => true).catch(() => false);
+  const hasVetJob = await jobs.get(owner, vetProject.id, 'gen_seed_vet_001').then(() => true).catch(() => false);
   if (!hasVetJob) {
     await jobs.create(owner, vetProject.id, {
     id: 'gen_seed_vet_001',
@@ -109,7 +109,7 @@ async function main(): Promise<void> {
   // --- SaaS project (en) with a queued job -----------------------------
   let saasProject = await projects.list(owner).then((rows) => rows.find((p) => p.name === 'NovaCloud'));
   if (!saasProject) saasProject = await projects.create(owner, { name: 'NovaCloud', defaultLocale: 'en', tone: 'bold-minimal' });
-  const hasSaasJob = await jobs.get(owner, saasProject.id, 'gen_seed_saas_001').then((j) => true).catch(() => false);
+  const hasSaasJob = await jobs.get(owner, saasProject.id, 'gen_seed_saas_001').then(() => true).catch(() => false);
   if (!hasSaasJob) {
     await jobs.create(owner, saasProject.id, {
         id: 'gen_seed_saas_001',

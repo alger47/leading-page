@@ -59,9 +59,10 @@ describe('generation jobs', () => {
   });
 
   it('enforces the state machine and locks terminal statuses', async () => {
-    // illegal transition
+    // illegal transition (QUEUED may fast-path to RUNNING/VALIDATING/COMPLETED,
+    // but never straight to RENDERING — that requires the engine pipeline)
     await expect(
-      repos.jobs.transition(tenant.owner, tenant.projectId, tenant.jobId, { to: 'COMPLETED' }),
+      repos.jobs.transition(tenant.owner, tenant.projectId, tenant.jobId, { to: 'RENDERING' }),
     ).rejects.toBeInstanceOf(StateTransitionError);
 
     // from-mismatch

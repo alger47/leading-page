@@ -262,3 +262,40 @@ This document records the implementation progress phase by phase, per master pro
 - Production `DATABASE_URL` provisioning + password rotation are deployment-phase concerns
 
 ---
+## Phase 7 - Web Application (App Router, Session+CSRF Auth, Generation UX)
+
+**Date:** 2026-09-10
+**Objective:** User-facing surface per master catalog Phase 6 role (auth, dashboard, projects, brief form, generation UX, preview) with the DB as source of truth (ADR-0005) and the worker as the async executor (ADR-0004). Acceptance J1: the happy path works e2e against the REAL engine (dev) - no fake data anywhere in the flow.
+
+**Implemented (apps/web, Next 14.2.35 App Router + RSC):**
+- Routes: `/(root)` + `(dashboard)` group, `/login`, `/register`, `/dashboard`, `/projects/[projectId]`, `/projects/[projectId]/pages/[pageId]` (preview), plus the /api/v1 API. `next build` green: full route table, all app routes dynamic (ƒ), /_not-found + /healthz static.
+- Auth: scrypt password hashing (zero-dep `node:crypto`, `scrypt$N$r$p$saltB64$hashB64`, constant-time compare); named session tokens (httpOnly `sid`, 30-day TTL, DB Session row); CSRF double-submit (readable cookie + `x-csrf-token` on mutations) enforced by `requireCsrf`; `requireAuth` yields the `Owner { userId }` every repository call is scoped by (ADR-0005 §10.5 - cross-tenant reads are 404s).
+- Generation UX: brief form (FR/AR/EN + tone), `POST /api/v1/generate` -> 202 + jobId; progress via polled status; honest error codes; preview served from the latest `PageVersion` through the same renderer components. No fake states: the DB only mirrors the worker.
+- Orchestration (`lib/generation-service.ts`): idempotency key `doc:userId:pageId:retryNonce` (nonce = count of prior terminal FAILED+CANCELLED jobs for the page); DB job id = `gen_<sha256(key)[0:24]>` = the worker's computed id; `liveSync()` appends unseen worker events and mirrors in-flight status; `finalize()` persists an L1-validated PageVersion (COMPLETED) or records the worker's REAL error.code; `runExclusive` per-job mutex so polling never races finalize/saveVersion. Worker-loss mid-flight -> honest E-JOB-004. jsonError: 4xx keep their code, 5xx collapse to E-INTERNAL-001.
+- State machine (packages/database): QUEUED now allows VALIDATING and COMPLETED - a real worker may complete before the web's first poll (fast-path arc). Terminal lock, backwards-transition rejection, and QUEUED->RENDERING illegality unchanged; the DB suite's state-machine test updated accordingly.
+- Components: `components/dashboard-view.tsx`, `components/project-detail-view.tsx` are `'use client'` (styled-jsx is Server-Component-hostile); the `(dashboard)` layout and page-detail server components use one `globals.css` (inline styles everywhere, no runtime CSS imports).
+- Test seams: `setGenerationServiceFactory`/`buildGenerationService()` swap the WorkerClient for (a) FakeWorkerClient in integration and (b) the real worker pipeline (fastify + processor + in-memory queue driver) wired to a spawned real ai-engine (stub provider) in the J1 e2e. Routes unchanged under both.
+- E2E: starts the worker bridge PAUSED and `resume()`s after the web enqueue commits (in-memory driver drains on add(); enqueue store.put()s QUEUED after add resolves - the same race the worker harness avoids by resuming post-enqueue). Real engine spawned with `AI_PROVIDER=stub AI_INTERNAL_TOKEN=test-token AI_ENV=test`.
+
+**Created:**
+- apps/web: `app/**` (routes + forms + UI), `components/*`, `lib/{api,data,env,generation-key,generation-service,validation,worker-client}.ts`, `lib/auth/{context,csrf,password,server,session}.ts`, `app/globals.css`, `next.config.mjs` (transpilePackages), tsconfig/vitest configs
+- apps/web/tests: `harness.ts` (FakeWorkerClient, samplePageSchema, makeApiClient with auto-CSRF/session cookies), `global-setup.ts` (drop schema + replay migrations via `@landing-ai/database` `createPrismaClient`), unit tests (password 5, csrf 5, generation-key 9 = 19), `api.integration.test.ts` (13, DB-backed), `j1-e2e.e2e.ts` (3, REAL engine + worker), `e2e/worker-bridge.ts`
+- docs/adr/ADR-0006-web-application.md, docs/api-reference.md
+- Root `.env.example` now documents `WORKER_URL` (web -> worker API, default http://localhost:8080)
+
+**Tests:**
+- web unit: 19 green (password scrypt format + constant-time, CSRF cookie/header parity + 403s, generation-key derivation/idempotency/uniqueness).
+- web integration: 13 green on real Postgres (`landing_ai_test` replayed each run). Aligned `versionNumber` assertions to the repo convention (first draft = v1).
+- J1 e2e: 3 green - auth -> project -> page -> generate -> real engine -> L1-validated PageVersion persisted -> API preview serves it; replay returns 200 with the same jobId. Skipped when `apps/ai-engine/.venv` is absent.
+- database: 29 green (state-machine fast-path added; typecheck + build clean). worker: 16 green, typecheck clean (untouched).
+- Full regression: web typecheck + `next build` + unit + integration + e2e all green; database build/test green.
+
+**Database:** PostgreSQL - `landing_ai` (dev) and `landing_ai_test` (tests, schema replayed per run). One schema change: QUEUED->{VALIDATING, COMPLETED} fast-path arcs (migration-less; pure repository transition map).
+**API:** web /api/v1 (auth, projects, pages, generate, generation-jobs, pages preview, healthz) - see docs/api-reference.md. Worker API unchanged (§11).
+**Frontend:** App Router with RSC; dashboard, project detail (brief form + job status), page preview; inline styles via globals.css; no runtime CSS framework.
+
+**Known limitations / next:**
+- Publication flows, editor UX, and XSS-safe server rendering of versions are Phase 8+.
+- Web honesty: if the worker is down, enqueue fails and the DB records the real code; a job whose worker lost it fails E-JOB-004 - never a fake completion.
+- Production ops still to land: secrets, TLS, rate limiting, S3-backed assets, optional real Redis/BullMQ validation, session rotation.
+- The e2e requires the ai-engine venv (skips cleanly otherwise); real-engine costs in CI would need an engine fixture or stub-only mode.

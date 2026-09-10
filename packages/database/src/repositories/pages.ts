@@ -58,6 +58,23 @@ export class PagesRepository {
     return page;
   }
 
+  /**
+   * Route-resolver: page-by-id WITH the ownership chain in the predicate
+   * (§10.5). Returns the owning projectId so web routes can scope downstream
+   * calls; cross-tenant ids resolve to null, never data.
+   */
+  async findOwnedPage(owner: Owner, pageId: string): Promise<{ pageId: string; projectId: string; page: Page } | null> {
+    const page = await this.prisma.page.findFirst({
+      where: {
+        id: pageId,
+        archivedAt: null,
+        project: { userId: owner.userId, archivedAt: null },
+      },
+    });
+    if (!page) return null;
+    return { pageId: page.id, projectId: page.projectId, page };
+  }
+
   async list(owner: Owner, projectId: string): Promise<Page[]> {
     await requireOwnedProject(this.prisma, owner, projectId);
     return this.prisma.page.findMany({

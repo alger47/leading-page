@@ -21,6 +21,9 @@ export type { Owner, ProjectRow } from './owner.js';
 
 export { ProjectsRepository, findOwnedProject, requireOwnedProject } from './repositories/projects.js';
 export type { ProjectInput, ProjectUpdate } from './repositories/projects.js';
+export { UsersRepository } from './repositories/users.js';
+export type { UserInput, UserUpdate } from './repositories/users.js';
+export { AuthSessionRepository } from './repositories/sessions.js';
 export { PagesRepository } from './repositories/pages.js';
 export type { PageInput, SaveVersionInput } from './repositories/pages.js';
 export { JobsRepository, canTransition } from './repositories/jobs.js';

@@ -132,3 +132,24 @@
 **Status:** 24 DB tests green (migrate clean + constraints, isolation matrix, immutability, optimistic concurrency, jobs state machine + dedupe, publishing); typecheck + build clean; seed verified idempotent against local PostgreSQL 18. Requires `packages/page-schema` built.
 
 **Awaiting:** "continue" → Phase 7 — Web application
+
+### Phase 7 - Web Application (App Router, Session+CSRF Auth, Generation UX) (2026-09-10)
+**Created** (apps/web, PART XI web app + §11 API client):
+- Auth: scrypt hashing (zero-dep node:crypto, `scrypt$N$r$p$saltB64$hashB64`, timing-safe compare); session token in httpOnly `sid` (30d) + DB Session row; CSRF double-submit cookie+header enforced by requireCsrf; requireAuth -> Owner{userId} scoping for all repos (cross-tenant = 404)
+- Routes (/api/v1): auth register/login/logout/me; projects + pages CRUD; generate (202 + jobId); generation-jobs/:id (liveSync + status + events); pages/:id preview (latest Version); healthz. UI: /, /login, /register, /dashboard, /projects/[projectId], /projects/[projectId]/pages/[pageId]
+- GenerationService (lib/generation-service.ts): idempotency key `doc:userId:pageId:retryNonce`; DB job id == worker's gen_sha256(key)[0:24]; liveSync mirrors worker events/status; finalize persists L1-valid PageVersion or the worker's real error.code; runExclusive per-job finalize mutex; E-JOB-004 on worker loss; jsonError: 4xx real code, 5xx E-INTERNAL-001
+- Test seams: setGenerationServiceFactory / buildGenerationService (routes unchanged); FakeWorkerClient (integration) and real worker+engine in-process bridge (J1 e2e)
+- Tests (19 unit + 16 integration+e2e green): password, csrf, generation-key; DB-backed API integration; J1 happy path e2e against the REAL ai-engine (stub provider) via the real worker pipeline
+- Docs: ADR-0006, docs/api-reference.md, root .env.example (+WORKER_URL); NOTES + walkthrough updated
+
+**Fixed:**
+- QUEUED -> COMPLETED fast path missing (real worker completes before the web's first poll): added QUEUED->{VALIDATING, COMPLETED} arcs + DB state-machine test updated (terminal lock/backwards transitions unchanged); without it the swallowed finalize left the job QUEUED and re-saved a duplicate PageVersion each poll
+- styled-jsx in Server Components (Next 14 RSC): views are `'use client'`; server layouts/page styles moved to one globals.css
+- Stale .next cache after a tsconfig path change masqueraded as a package-resolution bug (rm -rf .next; build green)
+- Cross-package imports: web consumes workspace dist (tsconfig only `@/*`); vitest aliases workspace src
+- E2E in-memory driver write race: worker bridge starts paused, resume() after web enqueue commits
+- web @prisma/client copy removed again: tests use @landing-ai/database's createPrismaClient (no un-generated client)
+
+**Status:** web unit 19 + integration 13 + J1 e2e 3 green; typecheck clean; `next build` green (full route table); database 29 green (typecheck/build clean); worker 16 green. Requires packages/{database,page-schema,design-system} built. Full J1: register -> dashboard -> project -> page -> brief -> real engine -> L1 schema persisted -> preview served, idempotent replay same jobId.
+
+**Awaiting:** "continue" - Phase 8 (editor/publish, XSS-safe rendering, production ops)

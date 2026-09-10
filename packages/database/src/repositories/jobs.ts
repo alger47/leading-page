@@ -48,7 +48,9 @@ export interface TransitionOptions {
 
 /** §10.2 job state machine. Terminal statuses are final. */
 const ALLOWED_TRANSITIONS: Record<JobStatus, readonly JobStatus[]> = {
-  QUEUED: ['RUNNING', 'FAILED', 'CANCELLED'],
+  // A worker may complete before the web's first sync, so QUEUED -> COMPLETED
+  // (and QUEUED -> FAILED) are legitimate fast-path transitions.
+  QUEUED: ['RUNNING', 'VALIDATING', 'COMPLETED', 'FAILED', 'CANCELLED'],
   RUNNING: ['VALIDATING', 'RENDERING', 'COMPLETED', 'FAILED', 'CANCELLED'],
   VALIDATING: ['RENDERING', 'COMPLETED', 'FAILED', 'CANCELLED'],
   RENDERING: ['COMPLETED', 'FAILED', 'CANCELLED'],
@@ -118,9 +120,33 @@ export class JobsRepository {
     return job;
   }
 
+  /**
+   * Route-resolver: job-by-id WITH the ownership chain in the predicate
+   * (§10.5). Returns the owning projectId so web routes can scope downstream
+   * calls; cross-tenant ids resolve to null, never data.
+   */
+  async findOwnedJob(owner: Owner, jobId: string): Promise<{ jobId: string; projectId: string; job: GenerationJob } | null> {
+    const job = await this.prisma.generationJob.findFirst({
+      where: {
+        id: jobId,
+        project: { userId: owner.userId, archivedAt: null },
+      },
+    });
+    if (!job) return null;
+    return { jobId: job.id, projectId: job.projectId, job };
+  }
+
   async getByKey(owner: Owner, projectId: string, idempotencyKey: string): Promise<GenerationJob | null> {
     return this.prisma.generationJob.findFirst({
       where: { idempotencyKey, project: { id: projectId, userId: owner.userId, archivedAt: null } },
+    });
+  }
+
+  async listByPage(owner: Owner, projectId: string, pageId: string): Promise<GenerationJob[]> {
+    await requireOwnedProject(this.prisma, owner, projectId);
+    return this.prisma.generationJob.findMany({
+      where: { projectId, pageId },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
   }
 

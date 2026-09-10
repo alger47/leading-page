@@ -2,11 +2,8 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "jsx": "react-jsx",
-    "baseUrl": ".",
-    "paths": {
-      "@landing-ai/design-system": ["../design-system/src/index.ts"]
-    }
+    "rootDir": "./src",
+    "jsx": "react-jsx"
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

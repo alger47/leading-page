@@ -66,13 +66,32 @@ model User {
   id            String    @id @default(cuid())
   email         String    @unique
   name          String?
+  passwordHash  String? // scrypt (Phase 7 auth); null until a password is set
   deactivatedAt DateTime? @db.Timestamptz // soft delete (§10.4)
   createdAt     DateTime  @default(now()) @db.Timestamptz
   updatedAt     DateTime  @updatedAt @db.Timestamptz
 
-  projects Project[]
+  projects  Project[]
+  sessions  AuthSession[]
 
   @@map("user")
+}
+
+/// Server-side session store. Only the SHA-256 of the opaque session token is
+/// persisted; lookups are by tokenHash (the auth boundary), never by user
+/// without a session. Expiry is enforced at read time.
+model AuthSession {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime @db.Timestamptz
+  lastUsedAt DateTime? @db.Timestamptz
+  createdAt  DateTime @default(now()) @db.Timestamptz
+  revokedAt  DateTime? @db.Timestamptz // soft revoke: token dies, audit trail stays
+
+  @@index([userId])
+  @@map("auth_session")
 }
 
 model Project {

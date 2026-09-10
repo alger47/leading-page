@@ -1,0 +1,313 @@
+/**
+ * Generation orchestration from the web side (PD-07: DB is source of truth;
+ * the worker is the async executor). Flow per request:
+ *   1. Create/atomically dedupe the database GenerationJob row (QUEUED) with a
+ *      job id that matches the worker's (see generation-key.ts).
+ *   2. Enqueue through the worker API with the SAME idempotency key.
+ *   3. liveSync() mirrors worker status/events into the DB; on COMPLETED it
+ *      persists the returned Page Schema as an immutable PageVersion and points
+ *      the job result at (pageId, versionNumber).
+ * No fake states: the DB only ever reflects the worker; failures are recorded
+ * with their real error codes.
+ */
+
+import { randomUUID } from 'node:crypto';
+import {
+  getPrismaClient,
+  JobsRepository,
+  PagesRepository,
+  ProjectsRepository,
+  type GenerationJob,
+  type Owner,
+} from '@landing-ai/database';
+import { labelForFeedback } from './validation';
+import { deriveIdempotencyKey, jobIdForIdempotencyKey } from './generation-key';
+import { HttpWorkerClient, WorkerCallError, type WorkerClient } from './worker-client';
+import { webConfig } from './env';
+import { validateBriefInput } from './validation';
+
+export interface StartGenerationInput {
+  owner: Owner;
+  projectId: string;
+  pageId: string;
+  brief: string;
+  locale: 'ar' | 'fr' | 'en';
+  tone: string;
+  clientIdempotencyKey?: string;
+}
+
+export interface StartGenerationResult {
+  jobId: string;
+  created: boolean;
+  status: string;
+}
+
+export interface GenerationServiceDeps {
+  worker?: WorkerClient;
+  now?: () => Date;
+}
+
+function repos() {
+  const prisma = getPrismaClient();
+  return {
+    projects: new ProjectsRepository(prisma),
+    pages: new PagesRepository(prisma),
+    jobs: new JobsRepository(prisma),
+  };
+}
+
+/**
+ * Per-job serialization for the finalize path: liveSync may be called
+ * concurrently (polling + immediate reads). Without it two overlapping
+ * finalize passes would persist duplicate versions and fight over the final
+ * result. The DB transition guards stay as the backstop.
+ */
+const finalizeRunners = new Map<string, Promise<unknown>>();
+function runExclusive<T>(key: string, task: () => Promise<T>): Promise<T> {
+  const previous = finalizeRunners.get(key) ?? Promise.resolve();
+  const next = previous.then(task, task);
+  finalizeRunners.set(key, next.catch(() => undefined));
+  const cleanup = () => {
+    if (finalizeRunners.get(key) === next) finalizeRunners.delete(key);
+  };
+  void next.then(cleanup, cleanup);
+  return next;
+}
+
+let serviceFactory: ((deps?: GenerationServiceDeps) => GenerationService) | null = null;
+
+/** Test seam: the harness injects a custom WorkerClient (in-process real-engine bridge in e2e). */
+export function setGenerationServiceFactory(fn: ((deps?: GenerationServiceDeps) => GenerationService) | null): void {
+  serviceFactory = fn;
+}
+
+export function buildGenerationService(): GenerationService {
+  return serviceFactory ? serviceFactory() : new GenerationService();
+}
+
+export class GenerationService {
+  private readonly worker: WorkerClient;
+
+  constructor(deps: GenerationServiceDeps = {}, _cfg = webConfig()) {
+    this.worker = deps.worker ?? new HttpWorkerClient(_cfg.workerUrl);
+  }
+
+  async start(input: StartGenerationInput): Promise<StartGenerationResult> {
+    const briefError = validateBriefInput(input.brief);
+    if (briefError) throw new GenerationInputError(briefError);
+
+    const { projects, pages, jobs } = repos();
+    await projects.get(input.owner, input.projectId);
+    await pages.get(input.owner, input.projectId, input.pageId);
+
+    // Retry nonce: how many terminal failed/cancelled attempts exist for this page.
+    const priorJobs = await jobs.listByPage(input.owner, input.projectId, input.pageId);
+    const terminalCount = priorJobs.filter((j) => j.status === 'FAILED' || j.status === 'CANCELLED').length;
+    const key = deriveIdempotencyKey(input.owner.userId, input.pageId, terminalCount, input.clientIdempotencyKey);
+    const jobId = jobIdForIdempotencyKey(key);
+
+    // Already have a job for this exact key? Return it (idempotent re-submit, §11.1).
+    const existing = await jobs.getByKey(input.owner, input.projectId, key);
+    if (existing) {
+      return { jobId: existing.id, created: false, status: existing.status };
+    }
+
+    const now = new Date();
+    const request = { brief: input.brief, locale: input.locale, tone: input.tone };
+    const created = await jobs.create(input.owner, input.projectId, {
+      id: jobId,
+      label: labelForFeedback(input.brief),
+      brief: input.brief,
+      locale: input.locale,
+      tone: input.tone,
+      requestJson: request,
+      idempotencyKey: key,
+      fingerprint: key,
+      traceId: `web_${randomUUID()}`,
+      pageId: input.pageId,
+      status: 'QUEUED',
+    });
+    await jobs.appendEvent(input.owner, input.projectId, jobId, { type: 'job.queued', at: now.toISOString() });
+
+    try {
+      const res = await this.worker.create({
+        idempotencyKey: key,
+        brief: input.brief,
+        locale: input.locale,
+        tone: input.tone,
+      });
+      return { jobId: created.id, created: res.created, status: 'QUEUED' };
+    } catch (error) {
+      // Honest failure: the job could not be handed to the executor. Record it
+      // in the DB and surface the real code to the caller.
+      const code = error instanceof WorkerCallError ? error.code : 'E-INTERNAL-001';
+      const message = error instanceof Error ? error.message : String(error);
+      await jobs
+        .transition(input.owner, input.projectId, jobId, {
+          from: 'QUEUED',
+          to: 'FAILED',
+          fields: { errorCode: code, errorMessage: message, completedAt: new Date() },
+          event: { type: 'job.failed', at: new Date().toISOString(), code, detail: message },
+        })
+        .catch(() => undefined);
+      throw error;
+    }
+  }
+
+  /** Ask the worker to cancel an in-flight job (best effort, mirrors after). */
+  async cancel(jobId: string): Promise<boolean> {
+    return this.worker.cancel(jobId);
+  }
+
+  /**
+   * Mirror the worker's live state onto the database record. Idempotent and
+   * race-safe: transitions are guarded, and once the job is terminal the DB is
+   * the source of truth (further calls become no-ops unless the worker still
+   * reports a conflicting terminal state, which we ignore).
+   */
+  async liveSync(owner: Owner, projectId: string, jobId: string): Promise<GenerationJob> {
+    const { jobs } = repos();
+    const job = await jobs.get(owner, projectId, jobId);
+    const terminal: ReadonlySet<string> = new Set(['COMPLETED', 'FAILED', 'CANCELLED']);
+    if (terminal.has(job.status)) return job;
+
+    let view;
+    let events: Array<{ type: string; at: string; code?: string; detail?: string }> = [];
+    try {
+      view = await this.worker.get(jobId);
+      events = (await this.worker.getEvents(jobId).catch(() => [])) ?? [];
+    } catch (error) {
+      // Worker momentarily unreachable: keep the last-known state (honest).
+      return job;
+    }
+    if (!view) {
+      await jobs
+        .transition(owner, projectId, jobId, {
+          from: job.status,
+          to: 'FAILED',
+          fields: { errorCode: 'E-JOB-004', errorMessage: 'worker lost sight of this job', completedAt: new Date() },
+          event: { type: 'job.failed', at: new Date().toISOString(), code: 'E-JOB-004' },
+        })
+        .catch(() => undefined);
+      return jobs.get(owner, projectId, jobId);
+    }
+
+    // Append worker events we have not persisted yet.
+    const known = Array.isArray(job.eventsJson) ? (job.eventsJson as Array<{ type: string; at: string }>) : [];
+    const knownKeys = new Set(known.map((e) => `${e.type}@${e.at}`));
+    const fresh = events.filter((e) => !knownKeys.has(`${e.type}@${e.at}`));
+    for (const event of fresh) {
+      await jobs.appendEvent(owner, projectId, jobId, event).catch(() => undefined);
+    }
+
+    if (view.status === 'COMPLETED' || view.status === 'FAILED' || view.status === 'CANCELLED') {
+      return runExclusive(`finalize:${jobId}`, () => this.finalize(owner, projectId, jobId, view.status as 'COMPLETED' | 'FAILED' | 'CANCELLED', view));
+    }
+
+    // In-flight mirror.
+    await jobs
+      .transition(owner, projectId, jobId, {
+        from: job.status,
+        to: view.status || 'RUNNING',
+        fields: {
+          engineJobId: view.engineJobId ?? null,
+          engineStatus: view.engineStatus ?? null,
+          attemptsMade: view.attemptsMade ?? 0,
+        },
+      })
+      .catch(() => undefined);
+    return jobs.get(owner, projectId, jobId);
+  }
+
+  private async finalize(
+    owner: Owner,
+    projectId: string,
+    jobId: string,
+    to: 'COMPLETED' | 'FAILED' | 'CANCELLED',
+    view: Awaited<ReturnType<WorkerClient['get']>>,
+  ): Promise<GenerationJob> {
+    const { jobs, pages } = repos();
+    const job = await jobs.get(owner, projectId, jobId);
+    if (job.status !== 'QUEUED' && job.status !== 'RUNNING' && job.status !== 'VALIDATING' && job.status !== 'RENDERING') {
+      return job;
+    }
+
+    let fields: Record<string, unknown> = {
+      errorCode: null,
+      errorMessage: null,
+      engineJobId: view?.engineJobId ?? null,
+      engineStatus: view?.engineStatus ?? null,
+      completedAt: new Date(),
+    };
+
+    if (to === 'COMPLETED') {
+      const envelope = (view?.result as { page?: unknown } | null)?.page;
+      if (!envelope || typeof envelope !== 'object') {
+        to = 'FAILED';
+        fields = {
+          ...fields,
+          errorCode: 'E-JOB-004',
+          errorMessage: 'job completed on the worker without a page schema',
+        };
+      } else {
+        try {
+          const pageId = job.pageId;
+          if (!pageId) throw new Error('completed job has no bound page');
+          const version = await pages.saveVersion(owner, projectId, pageId, {
+            baseVersion: (await pages.listVersions(owner, projectId, pageId)).length,
+            schemaVersion: (envelope as { schemaVersion?: string }).schemaVersion ?? '1.0.0',
+            content: envelope,
+          });
+          fields.resultJson = { pageId, versionNumber: version.versionNumber };
+          await jobs
+            .transition(owner, projectId, jobId, {
+              from: job.status as never,
+              to: 'COMPLETED',
+              fields: fields as never,
+              event: { type: 'job.completed', at: new Date().toISOString() },
+            })
+            .catch(() => undefined);
+          return jobs.get(owner, projectId, jobId);
+        } catch (error) {
+          // Invalid schema from the engine would have been caught by L1 inside
+          // saveVersion; surface honestly as a failed job, never a fake result.
+          to = 'FAILED';
+          fields = {
+            ...fields,
+            errorCode: 'E-VAL-L1',
+            errorMessage: error instanceof Error ? error.message : String(error),
+          };
+        }
+      }
+    }
+
+    if (to === 'FAILED' && (fields.errorCode as string | null) == null) {
+      // Persist the REAL worker error.code (honest failure surface, never a fake).
+      fields = {
+        ...fields,
+        errorCode: view?.error?.code ?? 'E-JOB-003',
+        errorMessage: view?.error?.message ?? 'the worker reported a failed job',
+      };
+    }
+
+    const finalTo = to as 'COMPLETED' | 'FAILED' | 'CANCELLED';
+    const eventType = finalTo === 'COMPLETED' ? 'job.completed' : finalTo === 'FAILED' ? 'job.failed' : 'job.cancelled';
+    await jobs
+      .transition(owner, projectId, jobId, {
+        from: job.status as never,
+        to: finalTo,
+        fields: fields as never,
+        event: { type: eventType, at: new Date().toISOString(), code: finalTo === 'FAILED' ? ((fields.errorCode as string) ?? undefined) : undefined },
+      })
+      .catch(() => undefined);
+    return jobs.get(owner, projectId, jobId);
+  }
+}
+
+export class GenerationInputError extends Error {
+  readonly code = 'E-VAL-BRIEF';
+  constructor(message: string) {
+    super(message);
+    this.name = 'GenerationInputError';
+  }
+}
