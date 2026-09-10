@@ -9,6 +9,7 @@ export default defineConfig({
       '@landing-ai/design-system': fileURLToPath(new URL('../../packages/design-system/src/index.ts', import.meta.url)),
       '@landing-ai/page-schema': fileURLToPath(new URL('../../packages/page-schema/src/index.ts', import.meta.url)),
       '@landing-ai/ui-components': fileURLToPath(new URL('../../packages/ui-components/src/index.ts', import.meta.url)),
+      '@landing-ai/visual-qa': fileURLToPath(new URL('../../packages/visual-qa/src/index.ts', import.meta.url)),
     },
   },
   test: {

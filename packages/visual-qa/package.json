@@ -1,0 +1,35 @@
+{
+  "name": "@landing-ai/visual-qa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Automated visual QA for generated landing pages: deterministic VIS-001..007 checks rendered headless in system Chrome (publish gate, Phase 12)",
+  "type": "module",
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc && node scripts/bundle-lib.mjs",
+    "bundle": "node scripts/bundle.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "gate": "node dist/cli.mjs"
+  },
+  "dependencies": {
+    "@landing-ai/design-system": "workspace:*",
+    "@landing-ai/ui-components": "workspace:*",
+    "playwright-core": "^1.44.0"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "esbuild": "^0.20.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  }
+}

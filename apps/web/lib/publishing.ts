@@ -24,6 +24,7 @@ import {
 import { validateSemantic, validateStructural } from '@landing-ai/page-schema';
 import { ApiError } from '@/lib/api';
 import { config } from '@/lib/env';
+import { runVisualGateIfEnabled } from '@/lib/visual-publish-gate';
 
 export class PublishGateError extends ApiError {
   constructor(issues: Array<{ layer: 'structural' | 'semantic'; ruleId: string; path: string; message: string }>) {
@@ -96,6 +97,11 @@ export async function publishVersion(
       ],
     ));
   }
+
+  // Phase 12: opt-in visual QA gate (VIS-001..007) runs the rendered page in
+  // headless Chrome before anything goes live. Skipped when disabled or when no
+  // Chrome is installed; hard-fails the publish as E-PUBLISH-002 on failures.
+  await runVisualGateIfEnabled(version.contentJson as Record<string, unknown>);
 
   // Resolve a stable host: owned subdomain from the request, else the previous
   // host of this page (republish must not change the public URL), else derive one.

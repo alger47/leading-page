@@ -10,6 +10,13 @@ const nextConfig = {
     '@landing-ai/page-schema',
     '@landing-ai/database',
   ],
+  // The visual QA gate pulls in playwright-core; bundling it inside the server
+  // bundle would try to compile its optional native deps (chromium-bidi,
+  // kerberos). It is loaded lazily only when ENABLE_VISUAL_QA_GATE=1, so keep
+  // the whole package external and let Node resolve it at runtime.
+  experimental: {
+    serverComponentsExternalPackages: ['@landing-ai/visual-qa'],
+  },
   async headers() {
     // Security baseline (F18): every response carries the standard hardening
     // headers. The CSP is deliberately permissive where the renderer needs it
