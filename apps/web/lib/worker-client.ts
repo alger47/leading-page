@@ -74,15 +74,17 @@ const POLL_TIMEOUT_MS = 10_000;
 
 export class HttpWorkerClient implements WorkerClient {
   private readonly baseUrl: string;
+  private readonly headers: Record<string, string>;
 
-  constructor(workerUrl: string) {
+  constructor(workerUrl: string, token: string) {
     this.baseUrl = workerUrl.replace(/\/+$/, '');
+    this.headers = { 'x-internal-token': token };
   }
 
   async create(input: CreateJobInput): Promise<{ jobId: string; created: boolean }> {
     const res = await this.request('/api/jobs', {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'idempotency-key': input.idempotencyKey },
+      headers: { 'content-type': 'application/json', 'idempotency-key': input.idempotencyKey, ...this.headers },
       body: JSON.stringify({ brief: input.brief, locale: input.locale, tone: input.tone, budgetUsd: input.budgetUsd, mode: input.mode, targetSectionId: input.targetSectionId, page: input.page }),
     }, CREATE_TIMEOUT_MS);
 
@@ -97,20 +99,20 @@ export class HttpWorkerClient implements WorkerClient {
   }
 
   async get(jobId: string): Promise<WorkerJobView | null> {
-    const res = await this.request(`/api/jobs/${encodeURIComponent(jobId)}`, { method: 'GET' }, POLL_TIMEOUT_MS);
+    const res = await this.request(`/api/jobs/${encodeURIComponent(jobId)}`, { method: 'GET', headers: this.headers }, POLL_TIMEOUT_MS);
     if (res.status === 404) return null;
     return (await res.json()) as WorkerJobView;
   }
 
   async getEvents(jobId: string): Promise<WorkerJobEvent[] | null> {
-    const res = await this.request(`/api/jobs/${encodeURIComponent(jobId)}/events`, { method: 'GET' }, POLL_TIMEOUT_MS);
+    const res = await this.request(`/api/jobs/${encodeURIComponent(jobId)}/events`, { method: 'GET', headers: this.headers }, POLL_TIMEOUT_MS);
     if (res.status === 404) return null;
     const body = (await res.json()) as { events?: WorkerJobEvent[] };
     return body.events ?? [];
   }
 
   async cancel(jobId: string): Promise<boolean> {
-    const res = await this.request(`/api/jobs/${encodeURIComponent(jobId)}`, { method: 'DELETE' }, POLL_TIMEOUT_MS);
+    const res = await this.request(`/api/jobs/${encodeURIComponent(jobId)}`, { method: 'DELETE', headers: this.headers }, POLL_TIMEOUT_MS);
     if (res.status === 404) return false;
     if (res.status === 409) return false; // already terminal
     return res.status === 200;

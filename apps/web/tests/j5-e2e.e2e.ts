@@ -16,7 +16,7 @@ import { HttpWorkerClient } from '../lib/worker-client';
 import { getPublishedViewByHost } from '../lib/public';
 import { renderPublishedHtml } from './render-html.js';
 import { makeApiClient, type ApiClient, waitFor } from './harness.js';
-import { engineVenvAvailable, startRealWorkerBridge } from './e2e/worker-bridge.js';
+import { engineVenvAvailable, startRealWorkerBridge, WORKER_TOKEN } from './e2e/worker-bridge.js';
 
 const BRIEF = 'Une agence digitale qui bâtit des sites vitrine élégants : page de garde, services, témoignages, contact.';
 const LOCALE = 'fr' as const;
@@ -34,7 +34,7 @@ describe.skipIf(!engineVenvAvailable())('J5 publish e2e (real engine + real work
 
   beforeAll(async () => {
     bridge = await startRealWorkerBridge();
-    setGenerationServiceFactory(() => new GenerationService({ worker: new HttpWorkerClient(bridge.workerBaseUrl) }));
+    setGenerationServiceFactory(() => new GenerationService({ worker: new HttpWorkerClient(bridge.workerBaseUrl, WORKER_TOKEN) }));
     api = makeApiClient();
     const reg = await api.call('POST', '/api/v1/auth/register', { email: 'j5-e2e@example.com', name: 'J5 User', password: 'Str0ngP@ssw0rd!' });
     expect(reg.status).toBe(201);

@@ -108,7 +108,7 @@ export class GenerationService {
   private readonly worker: WorkerClient;
 
   constructor(deps: GenerationServiceDeps = {}, _cfg = webConfig()) {
-    this.worker = deps.worker ?? new HttpWorkerClient(_cfg.workerUrl);
+    this.worker = deps.worker ?? new HttpWorkerClient(_cfg.workerUrl, _cfg.workerToken);
   }
 
   async start(input: StartGenerationInput): Promise<StartGenerationResult> {
@@ -255,8 +255,12 @@ export class GenerationService {
   async liveSync(owner: Owner, projectId: string, jobId: string): Promise<GenerationJob> {
     const { jobs } = repos();
     const job = await jobs.get(owner, projectId, jobId);
-    const terminal: ReadonlySet<string> = new Set(['COMPLETED', 'FAILED', 'CANCELLED']);
-    if (terminal.has(job.status)) return job;
+    // A FAILED record is kept as the last-known truth, but it is NOT final:
+    // a transient BullMQ attempt may have failed the DB record while a later
+    // retry succeeded. We still query the worker; if it now reports a valid
+    // COMPLETED result, the DB record self-heals to COMPLETED (F1 fix).
+    const skipping = (status: string) => status === 'COMPLETED' || status === 'CANCELLED';
+    if (skipping(job.status)) return job;
 
     let view;
     let events: Array<{ type: string; at: string; code?: string; detail?: string }> = [];
@@ -268,14 +272,18 @@ export class GenerationService {
       return job;
     }
     if (!view) {
-      await jobs
-        .transition(owner, projectId, jobId, {
-          from: job.status,
-          to: 'FAILED',
-          fields: { errorCode: 'E-JOB-004', errorMessage: 'worker lost sight of this job', completedAt: new Date() },
-          event: { type: 'job.failed', at: new Date().toISOString(), code: 'E-JOB-004' },
-        })
-        .catch(() => undefined);
+      // Worker lost sight of this job. Only escalate a NON-terminal record to
+      // FAILED; an already-FAILED record keeps its real error code.
+      if (job.status !== 'FAILED') {
+        await jobs
+          .transition(owner, projectId, jobId, {
+            from: job.status,
+            to: 'FAILED',
+            fields: { errorCode: 'E-JOB-004', errorMessage: 'worker lost sight of this job', completedAt: new Date() },
+            event: { type: 'job.failed', at: new Date().toISOString(), code: 'E-JOB-004' },
+          })
+          .catch(() => undefined);
+      }
       return jobs.get(owner, projectId, jobId);
     }
 
@@ -315,9 +323,12 @@ export class GenerationService {
   ): Promise<GenerationJob> {
     const { jobs, pages } = repos();
     const job = await jobs.get(owner, projectId, jobId);
-    if (job.status !== 'QUEUED' && job.status !== 'RUNNING' && job.status !== 'VALIDATING' && job.status !== 'RENDERING') {
-      return job;
-    }
+    // Active states can be finalized normally. A FAILED record may ALSO be
+    // finalized to COMPLETED when the worker delivers a valid page (transient
+    // attempt failed the record, a retry succeeded — self-heal, see F1).
+    const active = job.status === 'QUEUED' || job.status === 'RUNNING' || job.status === 'VALIDATING' || job.status === 'RENDERING';
+    if (job.status !== 'FAILED' && !active) return job;
+    if (job.status === 'FAILED' && to !== 'COMPLETED') return job;
 
     let fields: Record<string, unknown> = {
       errorCode: null,

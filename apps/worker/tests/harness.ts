@@ -17,6 +17,9 @@ import { MemoryJobStore } from '../src/store.js';
 import { MemorySpanStore } from '../src/telemetry.js';
 import { makeFakeEngine, type FakeEngine, type Scenario } from './fake-engine.js';
 
+/** Shared token for the worker API in tests (see HarnessOptions.auth). */
+export const AUTH_TOKEN = 'test-worker-token';
+
 export interface HarnessOptions {
   scenario?: Scenario;
   maxAttempts?: number;
@@ -25,6 +28,10 @@ export interface HarnessOptions {
   queueName?: string;
   includeWorker?: boolean;
   engineBaseOverride?: string;
+  /** When true (default) the test harness injects the shared auth header on
+   * every app.inject() call, so individual tests don't repeat the token.
+   * Set to false to exercise the auth hook directly (401/200 scenarios). */
+  auth?: boolean;
 }
 
 export interface Harness {
@@ -76,6 +83,7 @@ export async function makeHarness(opts: HarnessOptions = {}): Promise<Harness> {
     port: 0,
     engineUrl: engineBase,
     engineToken: 'test-token',
+    apiToken: AUTH_TOKEN,
     queueName,
     redisUrl: 'redis://memory',
     engineTimeoutMs,
@@ -84,6 +92,18 @@ export async function makeHarness(opts: HarnessOptions = {}): Promise<Harness> {
   };
 
   const app = buildServer({ store, spans, queue, engine, config });
+
+  if (opts.auth !== false) {
+    // Tests are about the pipeline, not the auth envelope: default the shared
+    // header on every inject() unless the caller opts out deliberately.
+    const plainInject = app.inject.bind(app) as (request: unknown) => Promise<unknown>;
+    type Inbound = { url?: string; headers?: Record<string, string> } & Record<string, unknown>;
+    const authedInject = ((request: string | Inbound) => {
+      const headers = { 'x-internal-token': AUTH_TOKEN, ...((typeof request !== 'string' ? request.headers : undefined) ?? {}) };
+      return plainInject(typeof request === 'string' ? { url: request, headers } : { ...request, headers });
+    }) as unknown as typeof app.inject;
+    app.inject = authedInject;
+  }
 
   return {
     store,

@@ -20,7 +20,7 @@ router = APIRouter()
 
 
 class JobRequest(BaseModel):
-    brief: str = Field(min_length=1, max_length=1_000_000)
+    brief: str = Field(min_length=1, max_length=4_000)
     locale: str | None = Field(default=None, pattern="^(ar|fr|en)$")
     tone: str | None = None
     job_id: str | None = Field(default=None, pattern="^[a-zA-Z0-9-_]{1,64}$")
@@ -31,7 +31,7 @@ class RegenerateSectionRequest(BaseModel):
     """Phase 8 / §11.3 section-level regeneration (J2). Carries the CURRENT
     Page Schema from the web DB; only the target section is regenerated."""
 
-    brief: str = Field(min_length=1, max_length=1_000_000)
+    brief: str = Field(min_length=1, max_length=4_000)
     target_section_id: str = Field(min_length=1, max_length=64)
     page: dict
     locale: str | None = Field(default=None, pattern="^(ar|fr|en)$")

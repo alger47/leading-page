@@ -41,9 +41,11 @@ export function Features({ id, content, layoutHint }: FeaturesSectionProps) {
               gap: 'var(--space-6)',
             }}
           >
-            {items.map((item) => (
+            {items.map((item, index) => (
               <article
-                key={item.title}
+                // Generated items have no stable id; titles can repeat, so key
+                // by position to avoid duplicate React keys within one render.
+                key={index}
                 style={{
                   backgroundColor: 'var(--color-bg)',
                   border: '1px solid var(--color-border)',

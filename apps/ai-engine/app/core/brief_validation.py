@@ -20,10 +20,11 @@ _FRENCH_TOKENS = {
 }
 _FRENCH_ACCENT = re.compile(r"[àâçéèêëîïôœùûü]", re.IGNORECASE)
 
-# Instruction-looking phrasing inside a brief (case-insensitive). Detected and
-# recorded; the DATA framing in prompts is the enforcement layer, detection is
-# the safety net that makes it visible in telemetry.
+# Instruction-looking phrasing inside a brief (case-insensitive, en/fr/ar).
+# Detected and recorded; the DATA framing in prompts is the enforcement layer,
+# detection is the safety net that makes it visible in telemetry.
 _INJECTION_PATTERNS: tuple[re.Pattern[str], ...] = (
+    # English
     re.compile(r"ignore\s+(?:the\s+|these\s+)?(?:(?:above|previous|system|earlier)\s+)?instructions", re.IGNORECASE),
     re.compile(r"disregard\s+(?:the\s+)?(?:above|previous|system)", re.IGNORECASE),
     re.compile(r"you\s+are\s+now", re.IGNORECASE),
@@ -31,10 +32,21 @@ _INJECTION_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\b(set|change|override|ignore)\b.{0,40}\binstead\b", re.IGNORECASE),
     re.compile(r"jailbreak", re.IGNORECASE),
     re.compile(r"\bprint\s+the\s+(?:system\s+)?prompt", re.IGNORECASE),
-    re.compile(r"<system|</", re.IGNORECASE),
     re.compile(r"\{\{\s*system", re.IGNORECASE),
     re.compile(r"system\s+prompt:", re.IGNORECASE),
     re.compile(r"\b(expose|reveal)\b.{0,30}(?:hidden|prompt|instructions)", re.IGNORECASE),
+    # Opening/closing ONE system tag only — NOT every "<" or "</" (a benign
+    # "<br>" "</div>" in a design brief must not be mistaken for an attack).
+    re.compile(r"<system(?:[^a-z]|$)|</\s*system\s*>", re.IGNORECASE),
+    # French
+    re.compile(r"ignore(?:r|z)?\s+les\s+(?:instructions|consignes)", re.IGNORECASE),
+    re.compile(r"(?:vous\s+)?(?:êtes|es)\s+maintenant", re.IGNORECASE),
+    re.compile(r"à\s+partir\s+de\s+maintenant", re.IGNORECASE),
+    re.compile(r"(?:affiche|révèle|montre)(?:r|z)?\s+.{0,40}(?:prompt|instructions|consignes)", re.IGNORECASE),
+    # Arabic
+    re.compile(r"تجاهل\s+(?:التعليمات|ما\s+سبق)", re.IGNORECASE),
+    re.compile(r"(?:أنت|كنت)\s+الآن|من\s+الآن\s+فصاعدا", re.IGNORECASE),
+    re.compile(r"(?:أظهر|اكشف|اعرض)\s+.{0,40}(?:البرومبت|البرومت|النظام|التعليمات)", re.IGNORECASE),
 )
 
 

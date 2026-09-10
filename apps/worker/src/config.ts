@@ -15,6 +15,8 @@ export interface WorkerConfig {
   port: number;
   engineUrl: string;
   engineToken: string;
+  /** Token required on the worker's own HTTP API (X-Internal-Token). */
+  apiToken: string;
   queueName: string;
   redisUrl: string;
   engineTimeoutMs: number;
@@ -28,6 +30,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     port: intFromEnv('PORT', 8080),
     engineUrl: env.AI_ENGINE_URL ?? 'http://localhost:8000',
     engineToken: env.AI_INTERNAL_TOKEN ?? 'dev-internal-token',
+    apiToken: env.WORKER_INTERNAL_TOKEN ?? 'dev-worker-token',
     queueName: env.QUEUE_NAME ?? 'generation-jobs',
     redisUrl: env.REDIS_URL ?? 'redis://localhost:6379',
     engineTimeoutMs: intFromEnv('ENGINE_TIMEOUT_MS', 120_000),

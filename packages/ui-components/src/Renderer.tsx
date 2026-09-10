@@ -67,7 +67,6 @@ function FallbackSection({ type, id }: { type: string; id?: string }) {
   return (
     <section
       id={id}
-      aria-hidden="true"
       style={{
         paddingBlock: 'var(--space-8)',
         borderBottom: '1px dashed var(--color-border)',

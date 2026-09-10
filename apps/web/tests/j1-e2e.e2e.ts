@@ -16,7 +16,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { GenerationService, setGenerationServiceFactory } from '../lib/generation-service';
 import { HttpWorkerClient } from '../lib/worker-client';
 import { makeApiClient, type ApiClient } from './harness.js';
-import { engineVenvAvailable, startRealWorkerBridge, waitFor } from './e2e/worker-bridge.js';
+import { engineVenvAvailable, startRealWorkerBridge, WORKER_TOKEN, waitFor } from './e2e/worker-bridge.js';
 
 const BRIEF = 'Une agence digitale qui bâtit des sites vitrine élégants : page de garde, services, témoignages, contact.';
 const LOCALE = 'fr' as const;
@@ -42,7 +42,7 @@ describe.skipIf(!engineVenvAvailable())('J1 happy path e2e (real engine + real w
 
   beforeAll(async () => {
     bridge = await startRealWorkerBridge();
-    setGenerationServiceFactory(() => new GenerationService({ worker: new HttpWorkerClient(bridge.workerBaseUrl) }));
+    setGenerationServiceFactory(() => new GenerationService({ worker: new HttpWorkerClient(bridge.workerBaseUrl, WORKER_TOKEN) }));
     api = makeApiClient();
     const reg = await api.call('POST', '/api/v1/auth/register', { email: 'j1-e2e@example.com', name: 'J1 User', password: 'Str0ngP@ssw0rd!' });
     expect(reg.status).toBe(201);

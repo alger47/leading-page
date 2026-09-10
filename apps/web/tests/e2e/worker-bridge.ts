@@ -40,6 +40,9 @@ export interface RealWorkerBridge {
   close(): Promise<void>;
 }
 
+/** Shared worker API token between the bridge server and the web client. */
+export const WORKER_TOKEN = 'test-worker-token';
+
 export function engineVenvAvailable(): boolean {
   return PYTHON !== undefined;
 }
@@ -79,6 +82,7 @@ export async function startRealWorkerBridge(): Promise<RealWorkerBridge> {
     port: 0,
     engineUrl: engineBase,
     engineToken: 'test-token',
+    apiToken: WORKER_TOKEN,
     queueName,
     redisUrl: 'redis://memory',
     engineTimeoutMs: 60_000,

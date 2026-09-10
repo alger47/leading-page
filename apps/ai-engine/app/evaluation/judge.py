@@ -126,7 +126,8 @@ class StubJudge(Judge):
         types = [str(s.get("type", "")) for s in sections]
 
         envelope = page.get("page") or {}
-        metadata = page.get("metadata") or {}
+        seo_raw = envelope.get("seo")
+        seo: dict[Any, Any] = seo_raw if isinstance(seo_raw, dict) else {}
 
         hero = _first(sections, "hero")
         hero_content = hero.get("content") or {}
@@ -171,13 +172,16 @@ class StubJudge(Judge):
                     return 3, "minimal grid, fewer than two items"
                 return 3, "feature section missing variant"
             if key == "accessibility":
-                if envelope.get("lang") and envelope.get("direction"):
-                    return 4, "envelope declares lang + direction; media slots carry alt by schema"
-                return 3, "lang/direction not both declared"
+                # The Page Schema declares locale + direction at the page root
+                # (envelope.schema.json); media slots carry alt text by schema,
+                # so the rubric anchors on the declared locale/direction.
+                if envelope.get("locale") and envelope.get("direction"):
+                    return 4, "envelope declares locale + direction; media slots carry alt by schema"
+                return 3, "locale/direction not both declared"
             if key == "seo":
-                if metadata.get("title") and metadata.get("description"):
+                if (envelope.get("title") or seo.get("title")) and seo.get("description"):
                     return 4, "unique title + description and a heading hierarchy"
-                return 3, "missing title or description metadata"
+                return 3, "missing page title or SEO description"
             return 3, "no anchor available"
 
         scores: dict[str, int] = {}

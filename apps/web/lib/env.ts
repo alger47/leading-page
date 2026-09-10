@@ -6,6 +6,8 @@
 export interface WebConfig {
   databaseUrl: string;
   workerUrl: string;
+  /** Shared internal token sent as X-Internal-Token to the worker API. */
+  workerToken: string;
   sessionCookieName: string;
   csrfCookieName: string;
   sessionTtlMs: number;
@@ -22,6 +24,7 @@ export function webConfig(env: NodeJS.ProcessEnv = process.env): WebConfig {
   return {
     databaseUrl: env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:5432/landing_ai',
     workerUrl: (env.WORKER_URL ?? 'http://localhost:8080').replace(/\/+$/, ''),
+    workerToken: env.WORKER_INTERNAL_TOKEN ?? 'dev-worker-token',
     sessionCookieName: env.SESSION_COOKIE_NAME ?? 'sid',
     csrfCookieName: env.CSRF_COOKIE_NAME ?? 'csrf',
     sessionTtlMs: ttlDays * 24 * 60 * 60 * 1000,

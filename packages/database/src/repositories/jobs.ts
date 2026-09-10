@@ -48,7 +48,9 @@ export interface TransitionOptions {
   event?: JobEvent;
 }
 
-/** §10.2 job state machine. Terminal statuses are final. */
+/** §10.2 job state machine. Terminal statuses are final; FAILED may self-heal
+ * to COMPLETED ONLY when the worker later delivers a valid page (a transient
+ * BullMQ attempt must not permanently lose a generation that succeeded). */
 const ALLOWED_TRANSITIONS: Record<JobStatus, readonly JobStatus[]> = {
   // A worker may complete before the web's first sync, so QUEUED -> COMPLETED
   // (and QUEUED -> FAILED) are legitimate fast-path transitions.
@@ -57,7 +59,7 @@ const ALLOWED_TRANSITIONS: Record<JobStatus, readonly JobStatus[]> = {
   VALIDATING: ['RENDERING', 'COMPLETED', 'FAILED', 'CANCELLED'],
   RENDERING: ['COMPLETED', 'FAILED', 'CANCELLED'],
   COMPLETED: [],
-  FAILED: [],
+  FAILED: ['COMPLETED'],
   CANCELLED: [],
 };
 

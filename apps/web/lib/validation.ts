@@ -21,7 +21,7 @@ export const NAME_MAX = 80;
 export const PASSWORD_MIN = 8;
 export const PASSWORD_MAX = 200;
 export const BRIEF_MIN = 10;
-export const BRIEF_MAX = 10_000;
+export const BRIEF_MAX = 4_000;
 
 export function isLocale(value: unknown): value is Locale {
   return typeof value === 'string' && (LOCALES as readonly string[]).includes(value);

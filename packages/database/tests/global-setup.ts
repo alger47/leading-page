@@ -20,7 +20,7 @@ export default async function setup(): Promise<() => Promise<void>> {
   await client.$executeRawUnsafe('CREATE SCHEMA public');
   await client.$disconnect();
 
-  const pnpm = process.env.PNPM_CMD ?? 'C:\\Users\\FC\\AppData\\Roaming\\npm\\pnpm.cmd';
+  const pnpm = process.env.PNPM_CMD ?? 'pnpm';
   execSync(`"${pnpm}" exec prisma migrate deploy`, {
     cwd: pkgRoot,
     env: { ...process.env, DATABASE_URL: url },

@@ -79,7 +79,7 @@ class StageRunner:
                 last_issues, valid = validate_stage_output(stage, data, schema, inputs)
                 attempt.validation_issues = last_issues
                 if valid:
-                    return _success(stage, data, attempts, attempts_count=route.max_attempts)
+                    return _success(stage, data, attempts)
                 continue
             last_data = None
             last_issues = [{"severity": "error", "message": res.message, "ruleId": "PROVIDER", "path": "$"}]
@@ -108,7 +108,7 @@ class StageRunner:
                     last_issues, valid = validate_stage_output(stage, data, schema, inputs)
                     attempt.validation_issues = last_issues
                     if valid:
-                        return _success(stage, data, attempts, attempts_count=route.max_attempts + TARGETED_REASK_ATTEMPTS)
+                        return _success(stage, data, attempts)
 
         # 3. local safe repair — deterministic fixes only
         if last_data is not None:
@@ -122,7 +122,7 @@ class StageRunner:
 
         # 4. stage fallback → job fails honestly (E-AI-004)
         fallback_data = fallbacks.default_stage_data(stage, inputs)
-        issues, valid = validate_stage_output(stage, fallback_data, schema, inputs)
+        issues, _ = validate_stage_output(stage, fallback_data, schema, inputs)
         result = StageResult(
             stage=stage,
             ok=False,
@@ -133,7 +133,6 @@ class StageRunner:
             draft=True,
             error_code="E-AI-004",
         )
-        result.ok = result.ok if valid else False
         return result
 
     async def _generate(
@@ -199,7 +198,7 @@ class StageRunner:
         return attempt, result, result.data
 
 
-def _success(stage: str, data: dict[str, Any], attempts: list[GenerationAttempt], attempts_count: int) -> StageResult:
+def _success(stage: str, data: dict[str, Any], attempts: list[GenerationAttempt]) -> StageResult:
     result = StageResult(stage=stage, ok=True, data=data, attempts=attempts)
     result.issues = []
     return result

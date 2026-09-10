@@ -84,7 +84,12 @@ export function startBullWorker(settings: BullWorkerSettings): WorkerHandle {
     options,
   );
   worker.on('failed', (job, failedReason) => {
-    if (job !== undefined && job.id !== undefined) {
+    // BullMQ emits 'failed' on EVERY failed attempt, not only when retries are
+    // exhausted. Finalizing on an intermediate failure would mark a retryable
+    // job as terminally unreachable even though BullMQ is about to retry it.
+    // Guard on attemptsMade so the in-memory record is only failed once the
+    // job actually ran out of attempts.
+    if (job !== undefined && job.id !== undefined && job.attemptsMade >= (job.opts.attempts ?? 1)) {
       settings.onFailed(job.id, failedReason instanceof Error ? failedReason : new Error(String(failedReason)));
     }
   });

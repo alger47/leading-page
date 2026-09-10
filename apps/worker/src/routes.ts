@@ -45,7 +45,7 @@ const POST_JOB_SCHEMA = {
   required: ['brief'],
   additionalProperties: false,
   properties: {
-    brief: { type: 'string', minLength: 1, maxLength: 1_000_000 },
+    brief: { type: 'string', minLength: 1, maxLength: 4_000 },
     locale: { type: 'string', enum: ['ar', 'fr', 'en'] },
     tone: { type: 'string', minLength: 1, maxLength: 64 },
     budgetUsd: { type: 'number', exclusiveMinimum: 0, maximum: 10 },

@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 
 import { enqueue } from '../src/jobs/enqueue.js';
-import { makeHarness, type Harness } from './harness.js';
+import { makeHarness, AUTH_TOKEN, type Harness } from './harness.js';
 
 const active: Harness[] = [];
 afterEach(async () => {
@@ -71,5 +71,22 @@ describe('worker API routes', () => {
     const spans = await h.app.inject({ method: 'GET', url: `/api/jobs/${made.record.id}/spans` });
     expect(spans.statusCode).toBe(200);
     expect(spans.json<{ traceId: string; spans: unknown[] }>().spans).toEqual([]);
+  });
+
+  it('requires X-Internal-Token on every route except /healthz (F3)', async () => {
+    const h = await newHarness({ includeWorker: false, auth: false });
+
+    const noToken = await h.app.inject({ method: 'GET', url: '/api/jobs/does-not-exist' });
+    expect(noToken.statusCode).toBe(401);
+    expect(noToken.json<{ error: { code: string } }>().error.code).toBe('E-AUTH-001');
+
+    const wrongToken = await h.app.inject({ method: 'GET', url: '/api/jobs/does-not-exist', headers: { 'x-internal-token': 'wrong-token' } });
+    expect(wrongToken.statusCode).toBe(401);
+
+    const correct = await h.app.inject({ method: 'GET', url: '/api/jobs/does-not-exist', headers: { 'x-internal-token': AUTH_TOKEN } });
+    expect(correct.statusCode).toBe(404);
+
+    const health = await h.app.inject({ method: 'GET', url: '/healthz' });
+    expect(health.statusCode).toBe(200);
   });
 });
