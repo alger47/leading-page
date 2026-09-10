@@ -86,6 +86,41 @@ export const SECTION_REGISTRY: Record<string, SectionType> = {
     requiredSlots: ['brandName', 'links'],
     optionalSlots: ['social', 'legal', 'contact'],
   },
+  testimonials: {
+    type: 'testimonials',
+    description: 'Customer quotes (user-provided, never invented)',
+    variants: [{ name: 'grid-3', description: '3-column quote grid', schemaRef: 'testimonials' }],
+    requiredSlots: ['items'],
+    optionalSlots: ['eyebrow', 'title'],
+  },
+  pricing: {
+    type: 'pricing',
+    description: 'Pricing tiers (amounts user-provided, never invented)',
+    variants: [{ name: 'tiers-3', description: 'Three-tier pricing cards', schemaRef: 'pricing' }],
+    requiredSlots: ['tiers'],
+    optionalSlots: ['eyebrow', 'title', 'subtitle'],
+  },
+  faq: {
+    type: 'faq',
+    description: 'Frequently asked questions (user-provided)',
+    variants: [{ name: 'accordion', description: 'Native details/summary accordion', schemaRef: 'faq' }],
+    requiredSlots: ['items'],
+    optionalSlots: ['eyebrow', 'title'],
+  },
+  gallery: {
+    type: 'gallery',
+    description: 'Image gallery with captions',
+    variants: [{ name: 'grid-3', description: '3-column image grid', schemaRef: 'gallery' }],
+    requiredSlots: ['items'],
+    optionalSlots: ['eyebrow', 'title'],
+  },
+  contact: {
+    type: 'contact',
+    description: 'Contact details block',
+    variants: [{ name: 'split', description: 'Heading plus contact cards', schemaRef: 'contact' }],
+    requiredSlots: [],
+    optionalSlots: ['eyebrow', 'title', 'subtitle', 'phone', 'email', 'address', 'hours'],
+  },
 };
 
 /**

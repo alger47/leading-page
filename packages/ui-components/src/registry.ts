@@ -9,7 +9,18 @@
  */
 
 import React from 'react';
-import { Header, Hero, Features, Cta, Footer } from './sections';
+import {
+  Header,
+  Hero,
+  Features,
+  Cta,
+  Footer,
+  Testimonials,
+  Pricing,
+  Faq,
+  Gallery,
+  Contact,
+} from './sections';
 
 export type SectionRenderer = React.ComponentType<{
   id?: string;
@@ -21,6 +32,11 @@ export const SECTION_COMPONENTS: Record<string, SectionRenderer> = {
   header: Header as unknown as SectionRenderer,
   hero: Hero as unknown as SectionRenderer,
   features: Features as unknown as SectionRenderer,
+  testimonials: Testimonials as unknown as SectionRenderer,
+  pricing: Pricing as unknown as SectionRenderer,
+  faq: Faq as unknown as SectionRenderer,
+  gallery: Gallery as unknown as SectionRenderer,
+  contact: Contact as unknown as SectionRenderer,
   cta: Cta as unknown as SectionRenderer,
   footer: Footer as unknown as SectionRenderer,
 };

@@ -1,6 +1,6 @@
 # Metrics Live - golden regression (PART IX section 9.2)
 
-Updated: 2026-09-10T09:54:47+00:00
+Updated: 2026-09-10T21:29:51+00:00
 Judge: stub (stub:runtime?not-calibrated) - advisory
 
 | Metric | Value | Target |

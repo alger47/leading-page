@@ -244,7 +244,8 @@ export async function runChecks(page: Page, envelope: EnvelopeView): Promise<Che
   const expectedTypes = (envelope.sections ?? [])
     .map((s) => s?.type)
     .filter((t): t is string => Boolean(t));
-  const supported = new Set(['header', 'hero', 'features', 'cta', 'footer']);
+  // Parity with ui-components/src/registry.ts SECTION_COMPONENTS: keep in lockstep.
+  const supported = new Set(['header', 'hero', 'features', 'testimonials', 'pricing', 'faq', 'gallery', 'contact', 'cta', 'footer']);
 
   const push = (id: string, title: string, issues: string[], whenPass: string[]): void => {
     results.push({ id, title, status: issues.length ? 'fail' : 'pass', details: issues.length ? issues : whenPass });

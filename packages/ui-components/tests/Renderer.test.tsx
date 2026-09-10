@@ -60,4 +60,30 @@ describe('Renderer', () => {
     const { container } = render(<Render schema={{ page: { locale: 'en', direction: 'ltr' }, theme: { preset: 'cool-modern' }, sections: [] }} />);
     expect(container.firstChild).toBeTruthy();
   });
+
+  it('renders the Phase 14 sections (testimonials, pricing, faq, gallery, contact)', () => {
+    const schema = {
+      page: { title: 'Phase 14', locale: 'en', direction: 'ltr' },
+      theme: { preset: 'cool-modern' },
+      sections: [
+        { id: 'testimonials-1', type: 'testimonials', variant: 'grid-3', content: { eyebrow: 'Social proof', title: 'What customers say', items: [{ quote: '[Customer quote]', name: '[Customer name]', role: '[Role / company]' }] }, layoutHint: { columns: 3 } },
+        { id: 'pricing-1', type: 'pricing', variant: 'tiers-3', content: { eyebrow: 'Pricing', title: 'Simple, honest pricing', tiers: [{ name: '[Plan name]', price: '[Price]', features: ['[Benefit or feature]'], cta: { label: '[Plan CTA]', href: '#cta-1' } }] }, layoutHint: { columns: 3 } },
+        { id: 'faq-1', type: 'faq', variant: 'accordion', content: { eyebrow: 'FAQ', title: 'Frequently asked questions', items: [{ question: '[Question]', answer: '[Answer]' }] } },
+        { id: 'gallery-1', type: 'gallery', variant: 'grid-3', content: { eyebrow: 'Gallery', title: 'A look inside', items: [{ image: { assetRef: 'asset:gallery-0', alt: 'our business' }, caption: '[Caption]' }] }, layoutHint: { columns: 3 } },
+        { id: 'contact-1', type: 'contact', variant: 'split', content: { eyebrow: 'Contact', title: 'Get in touch', subtitle: 'Tell us what you need.', phone: '[Phone]', email: '[Email]' } },
+      ],
+    };
+    const { container } = render(<Render schema={schema} />);
+    expect(screen.getByText('What customers say')).toBeTruthy();
+    expect(screen.getByText((t) => t.includes('Customer quote'))).toBeTruthy();
+    expect(screen.getByText('Simple, honest pricing')).toBeTruthy();
+    expect(screen.getByText('[Price]')).toBeTruthy();
+    expect(screen.getByText('Frequently asked questions')).toBeTruthy();
+    expect(screen.getByText('A look inside')).toBeTruthy();
+    expect(screen.getByText('Get in touch')).toBeTruthy();
+    // gallery alt text (a11y) is rendered on the img
+    expect(container.querySelector('img[alt="our business"]')).toBeTruthy();
+    // native accordion markup
+    expect(container.querySelector('summary')?.textContent).toBe('[Question]');
+  });
 });

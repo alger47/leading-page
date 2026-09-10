@@ -78,6 +78,65 @@ export interface FooterContent {
   contact?: FooterContactContent;
 }
 
+export interface TestimonialItemContent {
+  quote: string;
+  name?: string;
+  role?: string;
+}
+
+export interface TestimonialsContent {
+  eyebrow?: string;
+  title?: string;
+  items: TestimonialItemContent[];
+}
+
+export interface PricingTierContent {
+  name: string;
+  price: string;
+  features: string[];
+  highlight?: boolean;
+  cta?: CtaSlot;
+}
+
+export interface PricingContent {
+  eyebrow?: string;
+  title?: string;
+  subtitle?: string;
+  tiers: PricingTierContent[];
+}
+
+export interface FaqItemContent {
+  question: string;
+  answer: string;
+}
+
+export interface FaqContent {
+  eyebrow?: string;
+  title?: string;
+  items: FaqItemContent[];
+}
+
+export interface GalleryItemContent {
+  image?: MediaRefSlot;
+  caption?: string;
+}
+
+export interface GalleryContent {
+  eyebrow?: string;
+  title?: string;
+  items: GalleryItemContent[];
+}
+
+export interface ContactContent {
+  eyebrow?: string;
+  title?: string;
+  subtitle?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  hours?: string;
+}
+
 export interface SectionEnvelope {
   id: string;
   type: string;
