@@ -8,12 +8,16 @@ from __future__ import annotations
 
 from app.config import Settings
 from app.core.errors import RoutingConfigError
-from app.providers.http_providers import AnthropicProvider, OpenAIProvider
+from app.providers.http_providers import AnthropicProvider, OllamaProvider, OpenAIProvider
 from app.providers.protocol import StructuredLLMProvider
 from app.providers.stub import StubProvider
 from app.routing.config import RoutingConfig
 
-_HTTP_PROVIDERS: dict[str, type] = {"openai": OpenAIProvider, "anthropic": AnthropicProvider}
+_HTTP_PROVIDERS: dict[str, type] = {
+    "openai": OpenAIProvider,
+    "anthropic": AnthropicProvider,
+    "ollama": OllamaProvider,
+}
 
 
 class ProviderRegistry:
@@ -49,6 +53,8 @@ class ProviderRegistry:
         cls = _HTTP_PROVIDERS.get(provider_name)
         if cls is None:
             raise RoutingConfigError(f"unknown provider plugin {provider_name!r} (E-AI-006)")
+        if provider_name == "ollama":
+            return cls("", self.settings.ollama_base_url)
         if provider_name == "openai":
             if not self.settings.openai_api_key:
                 raise RoutingConfigError("openai provider selected but AI_OPENAI_API_KEY is unset")

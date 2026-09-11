@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     openai_base_url: str = "https://api.openai.com/v1"
     anthropic_api_key: str = ""
     anthropic_base_url: str = "https://api.anthropic.com"
+    # Local Ollama (OpenAI-compatible endpoint); keyless.
+    ollama_base_url: str = "http://localhost:11434/v1"
 
     # Phase 13: route ONLY the brief-analyzer through an LLM (LLM-aware
     # vertical/tone/facts detection) instead of keyword matching. Requires the

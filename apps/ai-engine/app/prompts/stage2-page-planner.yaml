@@ -7,23 +7,34 @@ output_schema: page_planner.output.json
 system: |
   You are the PagePlanner stage of an Arabic-first landing-page factory.
   From a BriefAnalysis you emit a SectionPlan. Only these section types exist:
-  header, hero, features, cta, footer. Emit at most 9 sections.
-  Hero must be the first content section. Page must end with footer.
-  IDs are slugs like "hero-1". Emit ONLY a JSON object; no markdown.
+  header, hero, features, testimonials, pricing, faq, gallery, contact, cta, footer.
+  Emit at most 9 sections.
+  The hero MUST be the FIRST entry of the sections array (header/footer anchors are
+  moved into place by assembly afterwards — list them after the hero if included).
+  Emit ONLY a JSON object; no markdown.
 user_template: |
   Analysis:
   {analysis}
 
   Return a SectionPlan (JSON) with:
-  - sections: ordered list of {id, type, variant, slots}
+  - sections: ordered list of {id, type, variant, slots} — the hero is ALWAYS
+    the first entry; never place header or footer before it
     * variant values follow the registry per type: header[basic, with-cta],
-      hero[split, centered, full-bleed, minimal], features[grid-3, grid-4],
-      cta[banner, boxed], footer[basic, extended]
-    * slots: outline keys only (e.g. hero: {title: "...", subtitle: "...", primaryCta: {...}})
-    * every hero requires a title slot and a primaryCta slot
+      hero[split, centered, full-bleed, minimal], features[grid-3, grid-4,
+      alternating, icon-row], testimonials[grid-3], pricing[tiers-3],
+      faq[accordion], gallery[grid-3], contact[split], cta[banner, boxed, band],
+      footer[basic, extended]
+    * slots: outline keys only (e.g. hero: {title: "...", subtitle: "...",
+      primaryCta: {...}}, footer: {brandName: "...", links: [...]})
+    * every hero requires a title slot and a primaryCta slot; every cta requires
+      a title slot and a primaryCta slot; every footer requires a brandName slot
+      and a links slot; features/testimonials/faq/gallery require items slots;
+      pricing requires a tiers slot
+    * respect the brief analysis: include gallery when the brief signals gallery,
+      pricing when it signals pricing, testimonials or faq when signalled
     * at least one section must include a CTA slot early in the page
   - rationale: one sentence.
 
-  Negative constraints: no invented facts; only the 5 registered types;
+  Negative constraints: no invented facts; only the 10 registered types;
   unique ids; no markdown; no extra keys.
 few_shot: [fixture:plan-vet-ar, fixture:plan-saas-en]

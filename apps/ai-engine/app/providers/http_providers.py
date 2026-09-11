@@ -23,13 +23,47 @@ TIMEOUT_S = 30.0
 MAX_RETRIES = 1
 
 
+def _is_strict_compatible(node: Any) -> bool:
+    """True when every object level in the JSON Schema is closed
+    (additionalProperties: false).
+
+    OpenAI/Groq strict structured-output mode REQUIRES additionalProperties:false
+    on every object; schemas with open objects (e.g. section `slots`) would be
+    rejected with a 400. Such schemas get strict:false and rely on the pipeline's
+    post-validation + repair ladder (validate.py / repair.py).
+    """
+    if not isinstance(node, dict):
+        return True
+    if node.get("type") == "object":
+        if node.get("additionalProperties") is not False:
+            return False
+        for sub in (node.get("properties") or {}).values():
+            if not _is_strict_compatible(sub):
+                return False
+    for key in ("items", "additionalProperties", "contains", "not"):
+        if isinstance(node.get(key), dict) and not _is_strict_compatible(node[key]):
+            return False
+    for key in ("anyOf", "oneOf", "allOf"):
+        for sub in node.get(key) or []:
+            if not _is_strict_compatible(sub):
+                return False
+    return True
+
+
 class OpenAIProvider:
     name = "openai"
+    # json_schema | json_object (json_object is the Ollama-compatible fallback:
+    # plain JSON mode; post-validation + repair guarantee schema conformance).
+    response_format: str = "json_schema"
+    timeout_s: float = TIMEOUT_S
+
+    def _request_headers(self) -> dict[str, str]:
+        return {"Authorization": f"Bearer {self.api_key}"}
 
     def __init__(self, api_key: str, base_url: str, client: httpx.AsyncClient | None = None) -> None:
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
-        self._client = client or httpx.AsyncClient(timeout=httpx.Timeout(TIMEOUT_S))
+        self._client = client or httpx.AsyncClient(timeout=httpx.Timeout(self.timeout_s))
 
     async def generate_structured(
         self,
@@ -47,24 +81,28 @@ class OpenAIProvider:
         ]
         if feedback:
             messages.append({"role": "user", "content": f"REPAIR FEEDBACK: {feedback}"})
+        if self.response_format == "json_object":
+            response_format: dict[str, Any] = {"type": "json_object"}
+        else:
+            response_format = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": prompt.name.replace("-", "_"),
+                    "strict": _is_strict_compatible(schema),
+                    "schema": schema,
+                },
+            }
         payload = {
             "model": params.model,
             "temperature": params.temperature,
             "max_tokens": params.max_output_tokens,
             "messages": messages,
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": prompt.name.replace("-", "_"),
-                    "strict": True,
-                    "schema": schema,
-                },
-            },
+            "response_format": response_format,
         }
         try:
             resp = await self._client.post(
                 f"{self.base_url}/chat/completions",
-                headers={"Authorization": f"Bearer {self.api_key}"},
+                headers=self._request_headers(),
                 json=payload,
             )
         except (httpx.TimeoutException, httpx.TransportError) as exc:
@@ -79,6 +117,10 @@ class OpenAIProvider:
             data = json.loads(content)
         except (KeyError, IndexError, ValueError) as exc:
             return self._result(Outcome.malformed, started, params.model, message=f"unparseable: {exc}")
+        if not isinstance(data, dict):
+            # strict:false providers can return a bare array/scalar; that is a
+            # malformed stage output (repairable), not a hard provider error.
+            return self._result(Outcome.malformed, started, params.model, message="output is not a JSON object")
         usage = body.get("usage") or {}
         return ProviderResult(
             outcome=Outcome.ok,
@@ -97,6 +139,25 @@ class OpenAIProvider:
             model=model,
             latency_ms=(time.perf_counter() - started) * 1000.0,
         )
+
+
+class OllamaProvider(OpenAIProvider):
+    """Local Ollama via its OpenAI-compatible endpoint (/v1/chat/completions).
+
+    Keyless (Authorization is ignored). Uses plain json_object mode — weaker
+    local models are unreliable at JSON-schema binding, and the pipeline's
+    post-validation + repair ladder (validate.py / repair.py) guarantees the
+    canonical schema, exactly as with Groq's strict:false JSON mode.
+    """
+
+    name = "ollama"
+    response_format = "json_object"
+    # CPU inference is slow (~2-3 tok/s for llama3.1 8B); allow long generations.
+    timeout_s = 900.0
+
+    # Ollama rejects an empty `Authorization: Bearer ` header on any request.
+    def _request_headers(self) -> dict[str, str]:
+        return {}
 
 
 class AnthropicProvider:

@@ -17,7 +17,7 @@
     "intent": { "type": "string", "minLength": 1, "maxLength": 200 },
     "signals": {
       "type": "array",
-      "items": { "type": "string", "enum": ["cta", "contact", "appointment", "pricing", "testimonial", "none"] }
+      "items": { "type": "string", "enum": ["cta", "contact", "appointment", "pricing", "testimonial", "faq", "gallery", "none"] }
     },
     "summary": { "type": "string", "minLength": 1, "maxLength": 500 },
     "has_enough_facts": { "type": "boolean" }

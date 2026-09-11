@@ -19,7 +19,18 @@ TONES = Literal["warm-professional", "cool-modern", "bold-creative", "minimal-cl
 
 # Registry types — must stay in lockstep with packages/ui-components registry
 # (CI drift check covers the TS side; keep this constant in sync).
-REGISTRY_TYPES: tuple[str, ...] = ("header", "hero", "features", "cta", "footer")
+REGISTRY_TYPES: tuple[str, ...] = (
+    "header",
+    "hero",
+    "features",
+    "testimonials",
+    "pricing",
+    "faq",
+    "gallery",
+    "contact",
+    "cta",
+    "footer",
+)
 
 
 class Outcome(str, Enum):

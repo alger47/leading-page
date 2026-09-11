@@ -16,6 +16,7 @@ from app.contracts import REGISTRY_TYPES, ValidationIssue
 
 _FORBIDDEN_HTML = re.compile(r"<[a-zA-Z/!][^>]*>|</[a-zA-Z]+>|javascript:|on\w+\s*=", re.IGNORECASE)
 _URL_PREFIXES = re.compile(r"^[a-z][a-z0-9+.-]*:", re.IGNORECASE)
+_REAL_PRICE = re.compile(r"^\s*[\$\u20ac\u00a3\u00a5]?\s*[0-9]", re.IGNORECASE)
 
 
 def validate_stage_output(
@@ -83,6 +84,13 @@ def _issue(
 def _plan_semantics(data: dict[str, Any]) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     sections = data.get("sections", [])
+    valid_sections = [s for s in sections if isinstance(s, dict)]
+    malformed = len(sections) - len(valid_sections)
+    if malformed:
+        issues.append(
+            _issue("SEM-010", "error", "$.sections", f"{malformed} non-object entry/entries in sections", "page-planner")
+        )
+    sections = valid_sections
     types = [s.get("type") for s in sections]
 
     if types.count("hero") != 1:
@@ -114,8 +122,8 @@ def _plan_semantics(data: dict[str, Any]) -> list[ValidationIssue]:
 
 def _layout_semantics(data: dict[str, Any], plan: dict[str, Any] | None) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
-    plan_ids = [s["id"] for s in (plan or {}).get("sections", [])]
-    ordered = [o.get("sectionId") for o in data.get("ordering", [])]
+    plan_ids = [s["id"] for s in (plan or {}).get("sections", []) if isinstance(s, dict)]
+    ordered = [o.get("sectionId") for o in data.get("ordering", []) if isinstance(o, dict)]
     if sorted(ordered) != sorted(plan_ids):
         issues.append(
             _issue("SEM-007", "error", "$", "Layout ordering must cover every planned section once", "layout-planner")
@@ -127,8 +135,8 @@ def _layout_semantics(data: dict[str, Any], plan: dict[str, Any] | None) -> list
 
 def _content_semantics(data: dict[str, Any], plan: dict[str, Any] | None, _analysis: Any) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
-    planned = [s["id"] for s in (plan or {}).get("sections", [])]
-    produced = [s.get("sectionId") for s in data.get("sections", [])]
+    planned = [s["id"] for s in (plan or {}).get("sections", []) if isinstance(s, dict)]
+    produced = [s.get("sectionId") for s in data.get("sections", []) if isinstance(s, dict)]
 
     if sorted(produced) != sorted(planned):
         missing = set(planned) - set(produced)
@@ -148,6 +156,9 @@ def _content_semantics(data: dict[str, Any], plan: dict[str, Any] | None, _analy
         issues.append(_issue("SCHEMA", "error", "$", "Duplicate section content", "content-generator"))
 
     for sec in data.get("sections", []):
+        if not isinstance(sec, dict):
+            issues.append(_issue("SCHEMA", "error", "$.sections", "non-object content entry", "content-generator"))
+            continue
         content = sec.get("content") or {}
         section_path = f"$.sections[{produced.index(sec['sectionId'])}]"
         for key, value in _flatten(content):
@@ -162,6 +173,22 @@ def _content_semantics(data: dict[str, Any], plan: dict[str, Any] | None, _analy
                 issues.append(
                     _issue("SEM-007", "error", section_path, f"non-anchor href {href!r}", "content-generator")
                 )
+        tiers = content.get("tiers")
+        if isinstance(tiers, list):
+            for j, tier in enumerate(tiers):
+                if not isinstance(tier, dict):
+                    continue
+                price = tier.get("price")
+                if isinstance(price, str) and price.strip() and _REAL_PRICE.match(price.strip()):
+                    issues.append(
+                        _issue(
+                            "SEM-012",
+                            "error",
+                            f"{section_path}.tiers[{j}].price",
+                            f"price must be a user-provided placeholder like [price], got {price.strip()!r}",
+                            "content-generator",
+                        )
+                    )
     return issues
 
 
