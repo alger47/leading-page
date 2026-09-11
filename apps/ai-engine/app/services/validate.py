@@ -122,8 +122,8 @@ def _plan_semantics(data: dict[str, Any]) -> list[ValidationIssue]:
 
 def _layout_semantics(data: dict[str, Any], plan: dict[str, Any] | None) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
-    plan_ids = [s["id"] for s in (plan or {}).get("sections", []) if isinstance(s, dict)]
-    ordered = [o.get("sectionId") for o in data.get("ordering", []) if isinstance(o, dict)]
+    plan_ids = [s["id"] for s in (plan or {}).get("sections", []) if isinstance(s, dict) and s.get("id")]
+    ordered = [o["sectionId"] for o in data.get("ordering", []) if isinstance(o, dict) and o.get("sectionId")]
     if sorted(ordered) != sorted(plan_ids):
         issues.append(
             _issue("SEM-007", "error", "$", "Layout ordering must cover every planned section once", "layout-planner")
@@ -135,8 +135,8 @@ def _layout_semantics(data: dict[str, Any], plan: dict[str, Any] | None) -> list
 
 def _content_semantics(data: dict[str, Any], plan: dict[str, Any] | None, _analysis: Any) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
-    planned = [s["id"] for s in (plan or {}).get("sections", []) if isinstance(s, dict)]
-    produced = [s.get("sectionId") for s in data.get("sections", []) if isinstance(s, dict)]
+    planned = [s["id"] for s in (plan or {}).get("sections", []) if isinstance(s, dict) and s.get("id")]
+    produced = [s["sectionId"] for s in data.get("sections", []) if isinstance(s, dict) and s.get("sectionId")]
 
     if sorted(produced) != sorted(planned):
         missing = set(planned) - set(produced)
@@ -160,7 +160,7 @@ def _content_semantics(data: dict[str, Any], plan: dict[str, Any] | None, _analy
             issues.append(_issue("SCHEMA", "error", "$.sections", "non-object content entry", "content-generator"))
             continue
         content = sec.get("content") or {}
-        section_path = f"$.sections[{produced.index(sec['sectionId'])}]"
+        section_path = f"$.sections[{produced.index(sec['sectionId'])}]" if sec.get("sectionId") else "$.sections"
         for key, value in _flatten(content):
             if isinstance(value, str) and (not value.strip()):
                 issues.append(_issue("SCHEMA", "error", section_path, f"empty slot {key!r}", "content-generator"))

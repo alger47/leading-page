@@ -92,3 +92,19 @@ def test_content_semantics_allows_placeholder_prices() -> None:
     }
     issues = _content_semantics(data, plan=None, _analysis=None)
     assert not [i for i in issues if i["ruleId"] == "SEM-012"]
+
+
+def test_content_semantics_missing_id_keys_do_not_crash() -> None:
+    data = {"sections": [{"sectionId": "hero-1", "content": {"title": "Hi"}}, {}, {"type": "hero"}]}
+    plan = {"sections": [{"id": "hero-1"}, {}, {"type": "footer"}]}
+    issues = _content_semantics(data, plan=plan, _analysis=None)
+    assert isinstance(issues, list)
+
+
+def test_layout_semantics_missing_id_keys_do_not_crash() -> None:
+    from app.services.validate import _layout_semantics
+
+    data = {"ordering": [{"sectionId": "hero-1"}, {}, {"order": 1}]}
+    plan = {"sections": [{"id": "hero-1"}, {}, {"type": "footer"}]}
+    issues = _layout_semantics(data, plan)
+    assert isinstance(issues, list)
