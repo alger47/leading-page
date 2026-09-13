@@ -1,5 +1,5 @@
-# Render Blueprint — Leading Page AI platform (monorepo: web + worker + ai-engine)
-# Deploy once:  render.com → Dashboard → New → Blueprint → connect the repo
+﻿# Render Blueprint â€” Leading Page AI platform (monorepo: web + worker + ai-engine)
+# Deploy once:  render.com â†’ Dashboard â†’ New â†’ Blueprint â†’ connect the repo
 # Each push re-deploys affected services.
 
 databases:
@@ -9,14 +9,14 @@ databases:
 
 services:
   # --------------------------------------------------------------------------
-  # web — Next.js app (auth, dashboard, project brief, generation UI, preview)
+  # web â€” Next.js app (auth, dashboard, project brief, generation UI, preview)
   # --------------------------------------------------------------------------
   - type: web
     name: web
     runtime: node
     plan: free
     buildCommand: >-
-      npm install -g pnpm@9 &&
+      npm install -g pnpm@9.15.0 &&
       pnpm install --frozen-lockfile &&
       pnpm exec prisma generate --schema packages/database/prisma/schema.prisma &&
       pnpm exec prisma migrate deploy --schema packages/database/prisma/schema.prisma &&
@@ -42,7 +42,7 @@ services:
           envVarKey: WORKER_INTERNAL_TOKEN
 
   # --------------------------------------------------------------------------
-  # worker — BullMQ/Fastify job service. type:web (pserv has no free plan; free
+  # worker â€” BullMQ/Fastify job service. type:web (pserv has no free plan; free
   # web services can't receive private traffic either). Public but every route
   # except /healthz requires X-Internal-Token (server.ts onRequest hook).
   # --------------------------------------------------------------------------
@@ -51,7 +51,7 @@ services:
     runtime: node
     plan: free
     buildCommand: >-
-      npm install -g pnpm@9 &&
+      npm install -g pnpm@9.15.0 &&
       pnpm install --frozen-lockfile &&
       pnpm exec turbo build --filter @landing-ai/worker
     startCommand: pnpm --filter @landing-ai/worker start
@@ -83,7 +83,7 @@ services:
         value: "3"
 
   # --------------------------------------------------------------------------
-  # ai-engine — FastAPI generation pipeline. type:web for free tier; every
+  # ai-engine â€” FastAPI generation pipeline. type:web for free tier; every
   # /internal/* route is token-protected (deps.py require_internal_token).
   # --------------------------------------------------------------------------
   - type: web
@@ -108,14 +108,14 @@ services:
         value: stub
       - key: AI_ROUTING_CONFIG_PATH
         value: config/routing.yaml
-      # Set a real Groq key here once (Dashboard — Service — Environment), then
+      # Set a real Groq key here once (Dashboard â€” Service â€” Environment), then
       # flip AI_PROVIDER to openai and point AI_OPENAI_BASE_URL at
       # https://api.groq.com/openai/v1 to enable real-LLM generation.
       - key: AI_OPENAI_API_KEY
         sync: false
 
   # --------------------------------------------------------------------------
-  # cache — Redis-compatible Key Value (BullMQ queue).
+  # cache â€” Redis-compatible Key Value (BullMQ queue).
   # noeviction: LRU eviction would silently drop queued generation jobs.
   # Free plan: 25 MB, no persistence. Enough for a demo/queue.
   # --------------------------------------------------------------------------
