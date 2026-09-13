@@ -3,6 +3,10 @@ import { getPrismaClient } from '@landing-ai/database';
 import { jsonOk } from '@/lib/api';
 import { webConfig } from '@/lib/env';
 
+// Route reads runtime process env; without dynamic it would be prerendered
+// as static during `next build` (GET route handlers default to static).
+export const dynamic = 'force-dynamic';
+
 function procEnviron(): Record<string, string> | null {
   try {
     const raw = readFileSync('/proc/1/environ', 'latin1');
