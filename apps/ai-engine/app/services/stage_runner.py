@@ -210,9 +210,11 @@ def _pick_provider(
     primary: StructuredLLMProvider,
     attempts: list[GenerationAttempt],
 ) -> tuple[StructuredLLMProvider, str]:
-    """Primary provider; try the configured fallback model only after a hard
-    provider error (thrash is forbidden)."""
-    if attempts and attempts[-1].outcome is Outcome.provider_error and len(route.fallbacks) > 1:
+    """Primary provider; after a provider error OR quota/auth refusal (HTTP
+    429/401/403 → Outcome.refused), switch to the configured fallback model
+    class — a different quota pool usually recovers without burning more
+    attempts on the throttled one (thrash is forbidden, bounded by max_attempts)."""
+    if attempts and attempts[-1].outcome in (Outcome.provider_error, Outcome.refused) and len(route.fallbacks) > 1:
         model_class = route.fallbacks[1] if route.fallbacks[1] != route.model_class else route.model_class
         return registry.get(model_class), model_class
     return primary, route.model_class

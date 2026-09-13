@@ -16,10 +16,12 @@ user_template: |
   Return an AssetRequirements object (JSON) with:
   - requirements: list of {id, kind, subject, orientation, constraints}
     * every hero image slot and features media needs a requirement
+    * id: lowercase letters, digits and single hyphens only (e.g. hero-image,
+      feat-cupcake-icon); NEVER use underscores, spaces or uppercase
     * subject: a concrete visual subject (never a trademarked character or logo)
     * orientation: landscape | portrait | square
     * constraints: optional object (e.g. {"tone": "<tone from brief>"})
 
-  Negative constraints: no URLs, no filenames, no storage keys; only the
-  prescribed keys; no markdown.
+  Negative constraints: no URLs, no filenames, no storage keys; ids with
+  underscores are INVALID; only the prescribed keys; no markdown.
 few_shot: []

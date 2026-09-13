@@ -41,19 +41,19 @@ stages:
     model_class: fast
     temperature: 0
     max_attempts: 2
-    fallbacks: [fast]
+    fallbacks: [fast, premium]
   page-planner:
     prompt: stage2-page-planner
     model_class: fast
     temperature: 0
     max_attempts: 2
-    fallbacks: [fast]
+    fallbacks: [fast, premium]
   layout-planner:
     prompt: stage3-layout-planner
     model_class: fast
     temperature: 0
     max_attempts: 2
-    fallbacks: [fast]
+    fallbacks: [fast, premium]
   content-generator:
     prompt: stage4-content-generator
     model_class: premium
@@ -65,7 +65,7 @@ stages:
     model_class: fast
     temperature: 0
     max_attempts: 2
-    fallbacks: [fast]
+    fallbacks: [fast, premium]
 
 job:
   max_total_attempts: 18

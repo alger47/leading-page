@@ -30,7 +30,7 @@ def test_enable_brief_analyzer_llm_affects_only_that_stage() -> None:
     routing = RoutingConfig.from_path(ROUTING_PATH)
     routing.enable_brief_analyzer_llm("brief-llm")
     assert routing.route("brief-analyzer").model_class == "brief-llm"
-    assert routing.route("brief-analyzer").fallbacks == ("brief-llm", "fast")
+    assert routing.route("brief-analyzer").fallbacks == ("brief-llm", "fast", "premium")
     # untouched stages keep their routing
     assert routing.route("content-generator").model_class == "premium"
     assert routing.route("page-planner").model_class == "fast"

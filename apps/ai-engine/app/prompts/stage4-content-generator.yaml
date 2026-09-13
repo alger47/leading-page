@@ -38,4 +38,7 @@ user_template: |
 
   Negative constraints: no invented specifics (see rules); no HTML/scripts;
   no markdown; no extra keys; no empty content values.
+  Every href must be a fragment anchor starting with '#' (e.g. '#contact',
+  '#menu', '#pricing'); never emit http://, https:// or tel: links.
+  Call-to-action labels and button text must be in the requested locale.
 few_shot: [fixture:content-vet-ar, fixture:content-saas-en]

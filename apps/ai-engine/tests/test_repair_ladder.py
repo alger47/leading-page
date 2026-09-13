@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from app.api.container import build_container
 from app.main import create_app
-from tests.helpers import FlakyProvider, RaisingProvider, RiggedProvider
+from tests.helpers import FlakyProvider, QuotaThrottledProvider, RaisingProvider, RiggedProvider
+from app.providers.stub import StubProvider
 
 
 def _generate(container, brief: str) -> dict:
@@ -42,6 +43,20 @@ def test_rigged_stage_fails_honestly_e_ai_004() -> None:
     assert first_missing["fallback_used"] is True
     assert first_missing["draft"] is True
     assert first_missing["attempts"] == 2  # brief-analyzer max_attempts
+
+
+def test_refused_quota_swaps_to_fallback_pool() -> None:
+    container = build_container(
+        provider_overrides={"fast": QuotaThrottledProvider(), "premium": StubProvider()}
+    )
+    job = _generate(container, "Boutique hotel near the old town.")
+    assert job["status"] == "COMPLETED"
+    brief_stage = next(s for s in job["stages"] if s["stage"] == "brief-analyzer")
+    assert brief_stage["attempts"] == 2
+    assert brief_stage["repaired"] is False
+    detail = [a for a in job["ledger"]["attempts_detail"] if a["stage"] == "brief-analyzer"]
+    assert [a["outcome"] for a in detail] == ["refused", "ok"]
+    assert detail[1]["model_class"] == "premium"
 
 
 def test_provider_crash_yields_e_ai_005_no_thrash() -> None:

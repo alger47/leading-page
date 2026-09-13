@@ -7,15 +7,16 @@
 # tests/nightly keep the deterministic stub.
 #
 # Usage (run from the repo root):
-#   powershell -ExecutionPolicy Bypass -File scripts/flip-ollama.ps1            # enable
+#   powershell -ExecutionPolicy Bypass -File scripts/flip-ollama.ps1            # enable (qwen2.5:7b)
+#   powershell -ExecutionPolicy Bypass -File scripts/flip-ollama.ps1 -Model llama3.1   # other local model
 #   powershell -ExecutionPolicy Bypass -File scripts/flip-ollama.ps1 -Revert    # back to stub
 #
-# Prereqs: `ollama pull llama3.1` and `ollama serve` running on 127.0.0.1:11434.
+# Prereqs: `ollama pull <Model>` and `ollama serve` running on 127.0.0.1:11434.
 # Then in apps/ai-engine/.env and restart the engine:
 #   AI_ROUTING_CONFIG_PATH=config/routing.local.yaml
 # (ollama is keyless; AI_OLLAMA_BASE_URL defaults to http://localhost:11434/v1)
 
-param([switch]$Revert)
+param([switch]$Revert, [string]$Model = 'qwen2.5:7b-instruct-q5_K_M')
 
 $ErrorActionPreference = 'Stop'
 $yaml = 'apps/ai-engine/config/routing.yaml'
@@ -29,8 +30,6 @@ if ($Revert) {
 }
 
 if (-not (Test-Path -LiteralPath $yaml)) { throw "not found: $yaml (run from the repo root)" }
-
-$model = 'llama3.1'
 
 $content = Get-Content -LiteralPath $yaml -Raw
 

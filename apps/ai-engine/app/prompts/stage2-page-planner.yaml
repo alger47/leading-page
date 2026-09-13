@@ -19,6 +19,7 @@ user_template: |
   Return a SectionPlan (JSON) with:
   - sections: ordered list of {id, type, variant, slots} — the hero is ALWAYS
     the first entry; never place header or footer before it
+    * id: lowercase letters, digits and single hyphens only (e.g. hero, our-menu, cta-1); no underscores, spaces or unicode
     * variant values follow the registry per type: header[basic, with-cta],
       hero[split, centered, full-bleed, minimal], features[grid-3, grid-4,
       alternating, icon-row], testimonials[grid-3], pricing[tiers-3],

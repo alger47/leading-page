@@ -83,15 +83,22 @@ class OpenAIProvider:
             messages.append({"role": "user", "content": f"REPAIR FEEDBACK: {feedback}"})
         if self.response_format == "json_object":
             response_format: dict[str, Any] = {"type": "json_object"}
-        else:
+        elif _is_strict_compatible(schema):
+            # Native JSON-schema-bound output (OpenAI strict mode). Groq also
+            # honours this for fully closed schemas.
             response_format = {
                 "type": "json_schema",
                 "json_schema": {
                     "name": prompt.name.replace("-", "_"),
-                    "strict": _is_strict_compatible(schema),
+                    "strict": True,
                     "schema": schema,
                 },
             }
+        else:
+            # Schemas with open objects (e.g. section slots, free content) are
+            # rejected by strict-mode providers with a 400. Fall back to plain
+            # JSON mode; post-validation + repair guarantee conformance (PART VI ).
+            response_format = {"type": "json_object"}
         payload = {
             "model": params.model,
             "temperature": params.temperature,

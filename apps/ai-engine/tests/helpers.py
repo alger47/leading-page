@@ -84,3 +84,36 @@ class RaisingProvider:
         feedback: str | None = None,
     ) -> ProviderResult:
         raise RuntimeError("simulated provider crash")
+
+
+class QuotaThrottledProvider:
+    """Refuses on the (quota-throttled) fast pool, delegates otherwise —
+    simulates a free-tier 429 so the repair ladder swaps to the premium pool."""
+
+    name = "quota-throttled"
+
+    def __init__(self, throttled_model: str = "stub-fast", delegate: Any = None) -> None:
+        self.throttled_model = throttled_model
+        self._delegate = delegate or StubProvider()
+
+    async def generate_structured(
+        self,
+        *,
+        schema: dict[str, Any],
+        prompt: PromptAsset,
+        inputs: dict[str, Any],
+        params: GenerationParams,
+        feedback: str | None = None,
+    ) -> ProviderResult:
+        if self.throttled_model in params.model:
+            return ProviderResult(
+                outcome=Outcome.refused,
+                data=None,
+                message="429 quota exceeded (simulated)",
+                usage=Usage(0, 0),
+                model=params.model,
+                latency_ms=0.1,
+            )
+        return await self._delegate.generate_structured(
+            schema=schema, prompt=prompt, inputs=inputs, params=params, feedback=feedback
+        )

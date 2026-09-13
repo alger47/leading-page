@@ -22,9 +22,9 @@ user_template: |
   Requested locale: {locale}
 
   Analyze the brief and return JSON with:
-  - vertical: one of the enumerated verticals (use "other" only as a fallback)
+  - vertical: exactly one of [restaurant, saas, veterinary, hotel, gym, real-estate, law-firm, medical-clinic, startup, e-commerce, agency, education, other] (use "other" only as a fallback)
   - audience: the business's audience, or "Not stated in the brief"
-  - tone: a tone from the prescribed list matching the brief's voice (warm-professional is the safe default)
+  - tone: exactly one of [warm-professional, cool-modern, bold-creative, minimal-clean, friendly-casual], matching the brief's voice (warm-professional is the safe default)
   - intent: the page's primary goal
   - signals: list from [cta, contact, appointment, pricing, testimonial, faq, gallery, none] observed in the brief
   - summary: 1-3 sentences
