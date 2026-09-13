@@ -4,7 +4,7 @@
 
 databases:
   - name: landing-ai-db
-    plan: basic-256mb
+    plan: 0.1c-256mb
     databaseName: landing_ai
 
 services:
@@ -14,12 +14,14 @@ services:
   - type: web
     name: web
     runtime: node
-    plan: starter
+    plan: 0.5c-512mb
     buildCommand: >-
       npm install -g pnpm@9 &&
       pnpm install --frozen-lockfile &&
       pnpm exec prisma generate --schema packages/database/prisma/schema.prisma &&
       pnpm exec turbo build --filter @landing-ai/web
+    preDeployCommand: >-
+      pnpm exec prisma migrate deploy --schema packages/database/prisma/schema.prisma
     startCommand: pnpm --filter @landing-ai/web start
     healthCheckPath: /api/v1/healthz
     envVars:
@@ -44,13 +46,12 @@ services:
   - type: pserv
     name: worker
     runtime: node
-    plan: starter
+    plan: 0.5c-512mb
     buildCommand: >-
       npm install -g pnpm@9 &&
       pnpm install --frozen-lockfile &&
       pnpm exec turbo build --filter @landing-ai/worker
     startCommand: pnpm --filter @landing-ai/worker start
-    healthCheckPath: /healthz
     envVars:
       - key: REDIS_URL
         fromService:
@@ -83,12 +84,10 @@ services:
   - type: pserv
     name: ai-engine
     runtime: python
-    pythonVersion: "3.11"
-    plan: starter
+    plan: 0.5c-512mb
     rootDir: apps/ai-engine
     buildCommand: pip install .
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
-    healthCheckPath: /healthz
     envVars:
       # Generated once; copied to the worker via envVarKey above.
       - key: AI_INTERNAL_TOKEN
@@ -115,6 +114,6 @@ services:
   # --------------------------------------------------------------------------
   - type: keyvalue
     name: cache
-    plan: starter
+    plan: 256mb
     maxmemoryPolicy: noeviction
     ipAllowList: []
