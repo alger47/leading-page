@@ -4,7 +4,7 @@
 
 databases:
   - name: landing-ai-db
-    plan: 0.1c-256mb
+    plan: free
     databaseName: landing_ai
 
 services:
@@ -14,7 +14,7 @@ services:
   - type: web
     name: web
     runtime: node
-    plan: 0.5c-512mb
+    plan: free
     buildCommand: >-
       npm install -g pnpm@9 &&
       pnpm install --frozen-lockfile &&
@@ -29,29 +29,34 @@ services:
         fromDatabase:
           name: landing-ai-db
           property: connectionString
+      # Free web services can't RECEIVE private-network traffic, so worker calls
+      # go over its public URL. Auth is enforced by the shared X-Internal-Token.
       - key: WORKER_URL
         fromService:
           name: worker
-          type: pserv
-          envVarKey: RENDER_INTERNAL_URL
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
       - key: WORKER_INTERNAL_TOKEN
         fromService:
           name: worker
-          type: pserv
+          type: web
           envVarKey: WORKER_INTERNAL_TOKEN
 
   # --------------------------------------------------------------------------
-  # worker — BullMQ/Fastify job service (private: only reachable inside Render)
+  # worker — BullMQ/Fastify job service. type:web (pserv has no free plan; free
+  # web services can't receive private traffic either). Public but every route
+  # except /healthz requires X-Internal-Token (server.ts onRequest hook).
   # --------------------------------------------------------------------------
-  - type: pserv
+  - type: web
     name: worker
     runtime: node
-    plan: 0.5c-512mb
+    plan: free
     buildCommand: >-
       npm install -g pnpm@9 &&
       pnpm install --frozen-lockfile &&
       pnpm exec turbo build --filter @landing-ai/worker
     startCommand: pnpm --filter @landing-ai/worker start
+    healthCheckPath: /healthz
     envVars:
       - key: REDIS_URL
         fromService:
@@ -61,12 +66,12 @@ services:
       - key: AI_ENGINE_URL
         fromService:
           name: ai-engine
-          type: pserv
-          envVarKey: RENDER_INTERNAL_URL
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
       - key: AI_INTERNAL_TOKEN
         fromService:
           name: ai-engine
-          type: pserv
+          type: web
           envVarKey: AI_INTERNAL_TOKEN
       # Generated once; copied to the web service via envVarKey above.
       - key: WORKER_INTERNAL_TOKEN
@@ -79,15 +84,17 @@ services:
         value: "3"
 
   # --------------------------------------------------------------------------
-  # ai-engine — FastAPI generation pipeline (private: only reachable inside Render)
+  # ai-engine — FastAPI generation pipeline. type:web for free tier; every
+  # /internal/* route is token-protected (deps.py require_internal_token).
   # --------------------------------------------------------------------------
-  - type: pserv
+  - type: web
     name: ai-engine
     runtime: python
-    plan: 0.5c-512mb
+    plan: free
     rootDir: apps/ai-engine
     buildCommand: pip install .
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
     envVars:
       # Generated once; copied to the worker via envVarKey above.
       - key: AI_INTERNAL_TOKEN
@@ -102,18 +109,19 @@ services:
         value: stub
       - key: AI_ROUTING_CONFIG_PATH
         value: config/routing.yaml
-      # Set a real Groq key here once (Dashboard → Service → Environment), then
+      # Set a real Groq key here once (Dashboard — Service — Environment), then
       # flip AI_PROVIDER to openai and point AI_OPENAI_BASE_URL at
       # https://api.groq.com/openai/v1 to enable real-LLM generation.
       - key: AI_OPENAI_API_KEY
         sync: false
 
   # --------------------------------------------------------------------------
-  # cache — Redis-compatible Key Value (BullMQ queue)
+  # cache — Redis-compatible Key Value (BullMQ queue).
   # noeviction: LRU eviction would silently drop queued generation jobs.
+  # Free plan: 25 MB, no persistence. Enough for a demo/queue.
   # --------------------------------------------------------------------------
   - type: keyvalue
     name: cache
-    plan: 256mb
+    plan: free
     maxmemoryPolicy: noeviction
     ipAllowList: []
