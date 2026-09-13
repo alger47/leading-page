@@ -31,10 +31,7 @@ services:
       # Free web services can't RECEIVE private-network traffic, so worker calls
       # go over its public URL. Auth is enforced by the shared X-Internal-Token.
       - key: WORKER_URL
-        fromService:
-          name: worker
-          type: web
-          envVarKey: RENDER_EXTERNAL_URL
+        value: https://worker-d4z1.onrender.com
       - key: WORKER_INTERNAL_TOKEN
         fromService:
           name: worker
@@ -63,10 +60,7 @@ services:
           type: keyvalue
           property: connectionString
       - key: AI_ENGINE_URL
-        fromService:
-          name: ai-engine
-          type: web
-          envVarKey: RENDER_EXTERNAL_URL
+        value: https://ai-engine-ncro.onrender.com
       - key: AI_INTERNAL_TOKEN
         fromService:
           name: ai-engine
