@@ -1,0 +1,61 @@
+# Config-driven model routing — Groq (provider: openai, base_url api.groq.com).
+# Deployed config for production. `routing.yaml` stays as the stub/dev default.
+# See the parity comments in apps/ai-engine/config/routing.yaml.
+
+models:
+  fast:
+    provider: openai
+    model_id: "llama-3.1-8b-instant"
+    cost_per_1k_input: 0.00005
+    cost_per_1k_output: 0.00008
+  premium:
+    provider: openai
+    model_id: "llama-3.3-70b-versatile"
+    cost_per_1k_input: 0.00059
+    cost_per_1k_output: 0.00079
+  judge:
+    provider: openai
+    model_id: "llama-3.3-70b-versatile"
+    cost_per_1k_input: 0.00059
+    cost_per_1k_output: 0.00079
+  brief-llm:
+    provider: openai
+    model_id: "llama-3.1-8b-instant"
+    cost_per_1k_input: 0.00005
+    cost_per_1k_output: 0.00008
+
+stages:
+  brief-analyzer:
+    prompt: stage1-brief-analyzer
+    model_class: fast
+    temperature: 0
+    max_attempts: 2
+    fallbacks: [fast, premium]
+  page-planner:
+    prompt: stage2-page-planner
+    model_class: fast
+    temperature: 0
+    max_attempts: 2
+    fallbacks: [fast, premium]
+  layout-planner:
+    prompt: stage3-layout-planner
+    model_class: fast
+    temperature: 0
+    max_attempts: 2
+    fallbacks: [fast, premium]
+  content-generator:
+    prompt: stage4-content-generator
+    model_class: premium
+    temperature: 0.6
+    max_attempts: 3
+    fallbacks: [premium, fast]
+  asset-planner:
+    prompt: stage5-asset-planner
+    model_class: fast
+    temperature: 0
+    max_attempts: 2
+    fallbacks: [fast, premium]
+
+job:
+  max_total_attempts: 18
+  default_budget_usd: 0.25
