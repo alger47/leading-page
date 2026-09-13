@@ -18,8 +18,8 @@ services:
     buildCommand: >-
       npm install -g pnpm@9.15.0 &&
       pnpm install --frozen-lockfile &&
-      pnpm exec prisma generate --schema packages/database/prisma/schema.prisma &&
-      pnpm exec prisma migrate deploy --schema packages/database/prisma/schema.prisma &&
+      pnpm --filter @landing-ai/database generate &&
+      pnpm --filter @landing-ai/database migrate:deploy &&
       pnpm exec turbo build --filter @landing-ai/web
     startCommand: pnpm --filter @landing-ai/web start
     healthCheckPath: /api/v1/healthz
