@@ -58,3 +58,10 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def inter_stage_delay(settings: Settings) -> float:
+    """Pause between LLM stages, only when a real provider is configured."""
+    if settings.openai_api_key or settings.anthropic_api_key:
+        return 12.0
+    return 0.0

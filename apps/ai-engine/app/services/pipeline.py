@@ -15,7 +15,7 @@ import asyncio
 import time
 import uuid
 
-from app.config import Settings
+from app.config import Settings, inter_stage_delay
 from app.contracts import JobResult, StageResult, generation_mode_for
 from app.core.brief_validation import validate_brief
 from app.core.errors import AiEngineError, ProviderHardError
@@ -30,10 +30,20 @@ PARALLEL_STAGES = ("content-generator", "asset-planner")
 
 
 class Pipeline:
+    # Pacing between LLM stages (only with real provider credentials): free-tier
+    # vendor budgets (Groq ~7.5k tokens/min) refill continuously but bursty; a
+    # short pause after each finished stage keeps the bucket from exhausting.
+    inter_stage_delay_s: float = 12.0
+
     def __init__(self, *, runner: StageRunner, routing: RoutingConfig, settings: Settings) -> None:
         self.runner = runner
         self.routing = routing
         self.settings = settings
+        self._max_delay = max(0.0, inter_stage_delay(self.settings))
+
+    async def _pace(self) -> None:
+        if self._max_delay > 0:
+            await asyncio.sleep(self._max_delay)
 
     async def run(
         self,
@@ -98,6 +108,7 @@ class Pipeline:
         resolved_tone = tone or (analysis.get("tone") if isinstance(analysis, dict) else None) or "warm-professional"
 
         # Stage 2 — PagePlanner
+        await self._pace()
         s2 = await self.runner.run(
             stage="page-planner",
             inputs={"analysis": analysis},
@@ -109,6 +120,7 @@ class Pipeline:
         plan = s2.data or {}
 
         # Stage 3 — LayoutPlanner
+        await self._pace()
         s3 = await self.runner.run(
             stage="layout-planner",
             inputs={"plan": plan, "analysis": analysis},
@@ -118,18 +130,20 @@ class Pipeline:
         if not s3.ok:
             return self._fail(result, start_ms, ledger)
 
-        # Stages 4 ∥ 5 — ContentGenerator ∥ AssetPlanner (PART VI §6.10)
-        s4_task = self.runner.run(
+        # Stages 4 → 5 (serial) — parallel content+asset bursts exceed the Groq
+        # free-tier RPM budget (429); run serially to stay under the bucket.
+        await self._pace()
+        s4 = await self.runner.run(
             stage="content-generator",
             inputs={"plan": plan, "locale": resolved_locale, "tone": resolved_tone, "analysis": analysis},
             ledger=ledger,
         )
-        s5_task = self.runner.run(
+        await self._pace()
+        s5 = await self.runner.run(
             stage="asset-planner",
             inputs={"plan": plan},
             ledger=ledger,
         )
-        s4, s5 = await asyncio.gather(s4_task, s5_task)
         result.stages.append(s4)
         result.stages.append(s5)
         if not (s4.ok and s5.ok):

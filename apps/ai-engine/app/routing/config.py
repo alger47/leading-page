@@ -33,6 +33,7 @@ class StageRoute:
     temperature: float
     max_attempts: int
     fallbacks: tuple[str, ...] = ("fast",)
+    max_output_tokens: int = 2048
 
 
 @dataclass
@@ -77,6 +78,7 @@ class RoutingConfig:
                 temperature=float(s.get("temperature", 0.0)),
                 max_attempts=int(s.get("max_attempts", 2)),
                 fallbacks=fallbacks,
+                max_output_tokens=int(s.get("max_output_tokens", 2048)),
             )
         job = raw.get("job") or {}
         return cls(

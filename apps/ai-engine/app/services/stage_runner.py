@@ -16,6 +16,7 @@ configured fallback model class once, then fail honestly.
 
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import Any
 
@@ -83,6 +84,11 @@ class StageRunner:
                 continue
             last_data = None
             last_issues = [{"severity": "error", "message": res.message, "ruleId": "PROVIDER", "path": "$"}]
+            if res.outcome in (Outcome.refused, Outcome.provider_error):
+                # Rate-limit (429) or vendor throttle: give the bucket a moment
+                # to refill before the next attempt — free-tier TPM budgets are
+                # small and bursty (e.g. Groq ~7.5k tokens/min).
+                await asyncio.sleep(10.0)
 
         # 2. targeted re-ask (only the failing slots)
         if last_data is not None and last_issues:
@@ -150,7 +156,7 @@ class StageRunner:
         feedback: str | None,
     ) -> tuple[GenerationAttempt, Any, dict[str, Any] | None]:
         model_def = self.routing.model(model_class)
-        params = GenerationParams(model=model_def.model_id, temperature=route.temperature)
+        params = GenerationParams(model=model_def.model_id, temperature=route.temperature, max_output_tokens=route.max_output_tokens)
         started = time.perf_counter()
         try:
             result = await provider.generate_structured(

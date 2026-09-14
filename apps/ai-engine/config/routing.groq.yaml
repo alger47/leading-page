@@ -5,22 +5,22 @@
 models:
   fast:
     provider: openai
-    model_id: "llama-3.1-8b-instant"
+    model_id: "qwen/qwen3.8-27b"
     cost_per_1k_input: 0.00005
     cost_per_1k_output: 0.00008
   premium:
     provider: openai
-    model_id: "llama-3.3-70b-versatile"
-    cost_per_1k_input: 0.00059
-    cost_per_1k_output: 0.00079
+    model_id: "qwen/qwen3.8-27b"
+    cost_per_1k_input: 0.0001
+    cost_per_1k_output: 0.0003
   judge:
     provider: openai
-    model_id: "llama-3.3-70b-versatile"
-    cost_per_1k_input: 0.00059
-    cost_per_1k_output: 0.00079
+    model_id: "qwen/qwen3.8-27b"
+    cost_per_1k_input: 0.0001
+    cost_per_1k_output: 0.0003
   brief-llm:
     provider: openai
-    model_id: "llama-3.1-8b-instant"
+    model_id: "qwen/qwen3.8-27b"
     cost_per_1k_input: 0.00005
     cost_per_1k_output: 0.00008
 
@@ -30,30 +30,35 @@ stages:
     model_class: fast
     temperature: 0
     max_attempts: 2
+    max_output_tokens: 700
     fallbacks: [fast, premium]
   page-planner:
     prompt: stage2-page-planner
     model_class: fast
     temperature: 0
     max_attempts: 2
+    max_output_tokens: 700
     fallbacks: [fast, premium]
   layout-planner:
     prompt: stage3-layout-planner
     model_class: fast
     temperature: 0
     max_attempts: 2
+    max_output_tokens: 900
     fallbacks: [fast, premium]
   content-generator:
     prompt: stage4-content-generator
     model_class: premium
     temperature: 0.6
     max_attempts: 3
+    max_output_tokens: 1200
     fallbacks: [premium, fast]
   asset-planner:
     prompt: stage5-asset-planner
     model_class: fast
     temperature: 0
     max_attempts: 2
+    max_output_tokens: 700
     fallbacks: [fast, premium]
 
 job:
