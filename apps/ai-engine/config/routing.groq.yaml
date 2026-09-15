@@ -37,28 +37,28 @@ stages:
     model_class: fast
     temperature: 0
     max_attempts: 2
-    max_output_tokens: 700
+    max_output_tokens: 1600
     fallbacks: [fast, premium]
   layout-planner:
     prompt: stage3-layout-planner
     model_class: fast
     temperature: 0
     max_attempts: 2
-    max_output_tokens: 900
+    max_output_tokens: 1200
     fallbacks: [fast, premium]
   content-generator:
     prompt: stage4-content-generator
     model_class: premium
     temperature: 0.6
     max_attempts: 3
-    max_output_tokens: 1200
+    max_output_tokens: 2400
     fallbacks: [premium, fast]
   asset-planner:
     prompt: stage5-asset-planner
     model_class: fast
     temperature: 0
-    max_attempts: 2
-    max_output_tokens: 700
+    max_attempts: 3
+    max_output_tokens: 1000
     fallbacks: [fast, premium]
 
 job:

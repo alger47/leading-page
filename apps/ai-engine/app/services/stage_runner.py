@@ -88,7 +88,7 @@ class StageRunner:
                 # Rate-limit (429) or vendor throttle: give the bucket a moment
                 # to refill before the next attempt — free-tier TPM budgets are
                 # small and bursty (e.g. Groq ~7.5k tokens/min).
-                await asyncio.sleep(10.0)
+                await asyncio.sleep(30.0)
 
         # 2. targeted re-ask (only the failing slots)
         if last_data is not None and last_issues:

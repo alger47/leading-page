@@ -33,7 +33,7 @@ class Pipeline:
     # Pacing between LLM stages (only with real provider credentials): free-tier
     # vendor budgets (Groq ~7.5k tokens/min) refill continuously but bursty; a
     # short pause after each finished stage keeps the bucket from exhausting.
-    inter_stage_delay_s: float = 12.0
+    inter_stage_delay_s: float = 30.0
 
     def __init__(self, *, runner: StageRunner, routing: RoutingConfig, settings: Settings) -> None:
         self.runner = runner
