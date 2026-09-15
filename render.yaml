@@ -72,7 +72,7 @@ services:
       - key: QUEUE_NAME
         value: generation-jobs
       - key: ENGINE_TIMEOUT_MS
-        value: "120000"
+        value: "300000"
       - key: MAX_ATTEMPTS
         value: "3"
 
