@@ -87,9 +87,9 @@ Status legend: ✅ implemented · ⚠️ partially implemented · ❌ not starte
 - ⚠️ Missing: rate limiting, HTTPS config (Render supplies TLS), uploaded-file validation, sandboxing of generated code, automated PostgreSQL backups
 
 ### 9. المراقبة
-⚠️ **Partially implemented.**
+⚠️→✅ **Mostly implemented (GAP-1 done).**
 - ✅ Worker events + spans; engine cost/attempt ledger; mini-eval metrics (`apps/ai-engine/app/evaluation/`); publish budget script
-- ⚠️ `packages/telemetry` is an **empty placeholder** (no package.json yet). Metrics catalog defined in `docs/architecture.md` §12 but not emitted anywhere (generation duration, tokens, model cost, failure/repair rates, queue length).
+- ✅ `packages/telemetry` — now implemented (2026-09-16): structured logger + MemorySpanStore + InMemoryMetrics (full §12 metric catalog). Not yet consumed by apps; next: adopt in worker/ai-engine.
 
 ---
 
@@ -97,7 +97,7 @@ Status legend: ✅ implemented · ⚠️ partially implemented · ❌ not starte
 
 | Priority | Gap | Recommended change |
 |---|---|---|
-| 1 | `packages/telemetry` empty | Implement telemetry package (logs + metrics + cost per generation) or remove placeholder |
+| 1 | ~~`packages/telemetry` empty~~ | ✅ Implemented: `src/{logger,spans,metrics,types}.ts` + 13 tests; in-memory collector covers all §12 metrics; not yet consumed (additive, safe). Next: adopt in worker/ai-engine. |
 | 2 | Engine ledger in-memory | Persist per-attempt ledger to `GenerationAttempt` (tokens, cost, errors, repairs) |
 | 3 | LLM Gateway providers | Add Gemini / Qwen / local (OpenAI-compatible) providers behind `factory.py` |
 | 4 | Skills system | Add `skills/` taxonomy mapping to existing prompts/stages (no new agents) |

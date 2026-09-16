@@ -268,3 +268,19 @@
 - GAP-3: LLM Gateway has stub/OpenAI/Anthropic/Groq only — Gemini/Qwen/local provider missing.
 - GAP-4: No `skills/` system yet (engine stages + versioned prompts act as the skill map).
 - GAP-5: Production ops (rate limiting, HTTPS headers, S3 assets, backups, real-Redis validation) still open.
+
+### GAP-1 — Implement telemetry package (2026-09-16)
+
+**Created** (`packages/telemetry`, @landing-ai/telemetry, TypeScript):
+- `src/logger.ts` — Structured JSON logger with correlation context (CorrelationContext) + child binding. ConsoleLogSink, NoopLogSink, createLogger() factory.
+- `src/spans.ts` — Span, SpanStore, MemorySpanStore, trace() helper (extracted from worker in-process pattern into a shared package; compatible interface).
+- `src/metrics.ts` — MetricsCollector interface + InMemoryMetrics (counters + histograms). Covers the full architecture.md §12 metric catalog (generation_jobs_total, generation_stage_seconds, ai_attempts_total, ai_tokens, ai_cost_usd, validation_failures_total, render_fallbacks_total). correlationLabels() helper maps CorrelationContext → snake_case metric labels.
+- `src/types.ts` — CorrelationContext, TelemetryAttrs, TelemetryValue shared types.
+- `src/index.ts` — public re-exports.
+- `tests/` — 13 tests (logger 3, spans 4, metrics 6): all green.
+- Config: package.json, tsconfig.json, vitest.config.ts following the design-system/ui-components conventions. Depends on nothing (no other packages wired in yet); no consumers adopted the package yet (safe, additive-only).
+- pnpm-lock.yaml updated (new @types/node, typescript, vitest for telemetry workspace).
+
+**Verified:** `pnpm build` 8/8 green; `pnpm test` 13/13 green. The original baseline guarantees preserved.
+
+**Next:** Adopt the package in worker/telemetry.ts (replace inline MemorySpanStore + trace with @landing-ai/telemetry) — or ai-engine for structured logging/metrics. This is the first consumer wiring, low risk since the exported interfaces match the worker's originals exactly.
