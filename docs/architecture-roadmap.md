@@ -74,10 +74,10 @@ Status legend: ✅ implemented · ⚠️ partially implemented · ❌ not starte
 - Missing from the recommendation list: Gemini, Qwen, local/open-source chat-completions provider.
 
 ### 7. قاعدة بيانات (تاريخ التوليد)
-⚠️ **Partially implemented.**
+✅ **Implemented.**
 - ✅ Full persistence layer: `packages/database/prisma/schema.prisma` — User/Project/Page/PageVersion, GenerationJob/GenerationAttempt, PublishedPage, Asset, PromptVersion, Session
 - ✅ Tenant-scoped repositories (`src/repositories/*`), forward-only migrations, seeds
-- ⚠️ Engine-side `JobLedger` is **in-memory** (500-job ring buffer) — per-attempt tokens/cost/errors/repairs are not yet written to `GenerationAttempt` rows. Persisting the ledger is a candidate next phase.
+- ✅ Engine `JobLedger` now persisted (GAP-2, 2026-09-16): `apps/web/lib/generation-attempts.ts` maps `result.ledger.attempts_detail` (outcome `ok/malformed/refused/timeout/provider_error` → `SUCCESS/FAILED/TIMED_OUT`) into `GenerationAttempt` rows via `JobsRepository.recordAttempt` (upsert per `(jobId, stage, attempt)`, idempotent) during `GenerationService.finalize` — best-effort, never blocks the finalize. Verified by unit test (mapper, 5) + API integration test (real rows persisted on COMPLETED, incl. `TIMED_OUT` + `validationJson`).
 
 ### 8. الأمان
 ⚠️ **Partially implemented.**
@@ -98,7 +98,7 @@ Status legend: ✅ implemented · ⚠️ partially implemented · ❌ not starte
 | Priority | Gap | Recommended change |
 |---|---|---|
 | 1 | ~~`packages/telemetry` empty~~ | ✅ Implemented: `src/{logger,spans,metrics,types}.ts` + 13 tests; in-memory collector covers all §12 metrics; not yet consumed (additive, safe). Next: adopt in worker/ai-engine. |
-| 2 | Engine ledger in-memory | Persist per-attempt ledger to `GenerationAttempt` (tokens, cost, errors, repairs) |
+| 2 | ~~Engine ledger in-memory~~ | ✅ Implemented (GAP-2): `apps/web/lib/generation-attempts.ts` + `GenerationService.persistAttempts` in `finalize()` → `GenerationAttempt` rows (upsert per (jobId, stage, attempt)); unit + API integration tests green. |
 | 3 | LLM Gateway providers | Add Gemini / Qwen / local (OpenAI-compatible) providers behind `factory.py` |
 | 4 | Skills system | Add `skills/` taxonomy mapping to existing prompts/stages (no new agents) |
 | 5 | Production ops | Rate limiting, HTTPS headers, S3 assets, real Redis validation, PostgreSQL backups |

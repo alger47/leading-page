@@ -23,6 +23,7 @@ import {
 } from '@landing-ai/database';
 import { labelForFeedback } from './validation';
 import { deriveIdempotencyKey, jobIdForIdempotencyKey } from './generation-key';
+import { mapEngineAttemptsToDb } from './generation-attempts';
 import { HttpWorkerClient, WorkerCallError, type WorkerClient } from './worker-client';
 import { webConfig } from './env';
 import { validateBriefInput } from './validation';
@@ -330,6 +331,12 @@ export class GenerationService {
     if (job.status !== 'FAILED' && !active) return job;
     if (job.status === 'FAILED' && to !== 'COMPLETED') return job;
 
+    // Persist the engine ledger into GenerationAttempt rows (GAP-2). Runs once
+    // per terminal finalize; recordAttempt upserts per (jobId, stage, attempt)
+    // so replays are no-ops and a self-healed FAILED→COMPLETED keeps the
+    // attempts that actually produced the page.
+    await this.persistAttempts(owner, projectId, jobId, view);
+
     let fields: Record<string, unknown> = {
       errorCode: null,
       errorMessage: null,
@@ -399,6 +406,22 @@ export class GenerationService {
       })
       .catch(() => undefined);
     return jobs.get(owner, projectId, jobId);
+  }
+
+  /** Write the engine's per-attempt ledger rows (best-effort, idempotent). */
+  private async persistAttempts(
+    owner: Owner,
+    projectId: string,
+    jobId: string,
+    view: Awaited<ReturnType<WorkerClient['get']>>,
+  ): Promise<void> {
+    const { jobs } = repos();
+    const detail = (view?.result as { ledger?: { attempts_detail?: readonly unknown[] } } | null)?.ledger?.attempts_detail;
+    if (!Array.isArray(detail) || detail.length === 0) return;
+    const rows = mapEngineAttemptsToDb(detail);
+    for (const input of rows) {
+      await jobs.recordAttempt(owner, projectId, jobId, input).catch(() => undefined);
+    }
   }
 }
 

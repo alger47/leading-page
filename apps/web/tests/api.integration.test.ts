@@ -9,6 +9,7 @@
 
 import { afterAll, describe, expect, it } from 'vitest';
 import { GenerationService, setGenerationServiceFactory } from '../lib/generation-service';
+import { getPrismaClient } from '@landing-ai/database';
 import { config } from '../lib/env';
 import { getPublishedViewByHost } from '../lib/public';
 import { renderPublishedHtml } from './render-html.js';
@@ -151,6 +152,94 @@ describe('generation lifecycle (fake worker)', () => {
     expect(latest).not.toBeNull();
     expect(latest!.versionNumber).toBe(1);
     expect((latest!.content as { page: { title: string } }).page.title).toBe('Agence Bakhti');
+  });
+
+  it('generation ledger: persists engine attempts as GenerationAttempt rows (GAP-2)', async () => {
+    const api = await makeUser('gen-ledger@example.com');
+    const { projectId, pageId } = await makeProjectAndPage(api);
+
+    const created = await generate(api, projectId, pageId);
+    expect(created.status).toBe(202);
+    const jobId = (await jsonOf<{ jobId: string }>(created)).jobId;
+
+    worker.setStatus(jobId, 'COMPLETED', {
+      attemptsMade: 3,
+      result: {
+        page: samplePageSchema(),
+        ledger: {
+          attempts: 3,
+          cost_usd: 0.000912,
+          attempts_detail: [
+            {
+              stage: 'content-generator',
+              attempt: 1,
+              prompt: 'stage4-content-generator@v6',
+              model_class: 'groq-llama-3.1-8b',
+              provider: 'groq',
+              model: 'llama-3.1-8b-instant',
+              tokens_in: 1200,
+              tokens_out: 300,
+              cost_usd: 0.000012,
+              latency_ms: 2450.3,
+              outcome: 'ok',
+              issues: [],
+            },
+            {
+              stage: 'content-generator',
+              attempt: 2,
+              prompt: 'stage4-content-generator@v6',
+              model_class: 'groq-llama-3.1-8b',
+              provider: 'groq',
+              model: 'llama-3.1-8b-instant',
+              tokens_in: 900,
+              tokens_out: 0,
+              cost_usd: 0.0009,
+              latency_ms: 50000.1,
+              outcome: 'timeout',
+              issues: [{ layer: 'L2', ruleId: 'SEM-007', severity: 'error', path: 'sections.0' }],
+            },
+            {
+              stage: 'content-generator',
+              attempt: 3,
+              prompt: 'stage4-content-generator@v6',
+              model_class: 'groq-llama-3.1-8b',
+              provider: 'groq',
+              model: 'llama-3.1-8b-instant',
+              tokens_in: 1300,
+              tokens_out: 310,
+              cost_usd: 0.000013,
+              latency_ms: 2380.7,
+              outcome: 'ok',
+              issues: [],
+            },
+          ],
+        },
+      },
+    });
+
+    await waitFor(async () => (await fetchJob(api, jobId)).job?.status === 'COMPLETED');
+
+    const attempts = await getPrismaClient().generationAttempt.findMany({ where: { jobId }, orderBy: { attempt: 'asc' } });
+    expect(attempts).toHaveLength(3);
+
+    const first = attempts[0];
+    expect(first.stage).toBe('content-generator');
+    expect(first.attempt).toBe(1);
+    expect(first.provider).toBe('groq');
+    expect(first.model).toBe('llama-3.1-8b-instant');
+    expect(first.promptVersion).toBe('stage4-content-generator@v6');
+    expect(first.tokensIn).toBe(1200);
+    expect(first.tokensOut).toBe(300);
+    expect(first.costUsd?.toString()).toBe('0.000012');
+    expect(first.latencyMs).toBe(2450);
+    expect(first.outcome).toBe('SUCCESS');
+
+    const second = attempts[1];
+    expect(second.outcome).toBe('TIMED_OUT');
+    expect(Array.isArray(second.validationJson)).toBe(true);
+    expect((second.validationJson as Array<{ ruleId: string }>)[0].ruleId).toBe('SEM-007');
+
+    expect(attempts[2].outcome).toBe('SUCCESS');
   });
 
   it('replays an existing job (200) when the same body is posted again', async () => {

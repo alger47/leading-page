@@ -284,3 +284,15 @@
 **Verified:** `pnpm build` 8/8 green; `pnpm test` 13/13 green. The original baseline guarantees preserved.
 
 **Next:** Adopt the package in worker/telemetry.ts (replace inline MemorySpanStore + trace with @landing-ai/telemetry) — or ai-engine for structured logging/metrics. This is the first consumer wiring, low risk since the exported interfaces match the worker's originals exactly.
+
+### GAP-2 — Persist engine JobLedger to GenerationAttempt (2026-09-16)
+
+**Implemented** (GAP-2: engine ledger was in-memory only; the DB `GenerationAttempt` model and `JobsRepository.recordAttempt` existed but were never called):
+- `apps/web/lib/generation-attempts.ts` (`mapEngineAttemptsToDb`) — pure, defensive mapper from the engine's `JobResult.ledger.attempts_detail` (`stage, attempt, prompt, provider, model, tokens_in/out, cost_usd, latency_ms, outcome, issues`) to `RecordAttemptInput[]`. Outcome translation is total: `ok→SUCCESS`, `malformed→FAILED`, `refused→FAILED`, `timeout→TIMED_OUT`, `provider_error→FAILED`; unmappable rows are skipped (never thrown); numeric fields accept number or numeric string.
+- `apps/web/lib/generation-service.ts` — new `persistAttempts()` called inside `finalize()` at the terminal-state guard (before transition). Best-effort: per `JobsRepository.recordAttempt` upsert on `(jobId, stage, attempt)`, so replays are no-ops and a self-healed `FAILED→COMPLETED` (F1) keeps the attempts that produced the page. Failure to persist never blocks the finalize.
+- Tests: `apps/web/tests/generation-attempts.test.ts` (5 unit: happy path, outcome matrix, skip-invalid, string numerics, empty/non-array) + `apps/web/tests/api.integration.test.ts` new "generation ledger: persists engine attempts as GenerationAttempt rows (GAP-2)" (real DB rows after COMPLETED: 3 attempts → `SUCCESS`/`TIMED_OUT`/`SUCCESS`, cost/latency/tokens mapped, `validationJson` = rules array).
+
+**Fixed:**
+- Initial `persistAttempts` insertion accidentally swallowed `finalize()`'s closing return/braces → restored `return jobs.get(...)` + class braces, then added the method as a proper class member (`generation-service.ts:411`).
+
+**Status:** `pnpm build` 8/8 green; web typecheck clean; web unit 51/51 green (9 files); web integration 33/33 green (API, no engine e2e). Baseline guarantees preserved. Docs: this CHANGELOG entry + `docs/architecture-roadmap.md` §7 + gap table row 2.
