@@ -43,6 +43,7 @@ Status legend: ✅ implemented · ⚠️ partially implemented · ❌ not starte
 ✅ **Implemented.** `User → Next.js API → BullMQ queue → Worker → AI Engine → validation → page`:
 - `apps/web/lib/generation-service.ts` (idempotency key, liveSync, finalize)
 - `apps/worker/src/` (queue ports: `src/queue/{ports,bullmq,memory}.ts`, processors)
+- Local dev without Redis: `REDIS_URL=memory://` boots the worker on the in-memory driver (`src/queue/memory.ts`, `startPaused: false`; real handler + retries + `finalizeFailure`) — added 2026-09-16; BullMQ/Redis path unchanged. Verified live E2E (register→login→project→page→generate→COMPLETED, engine stub :8000).
 - `apps/ai-engine` HTTP API behind `X-Internal-Token`
 - Async rule enforced: generation/regeneration/publishing are jobs, never inline HTTP
 

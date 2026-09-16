@@ -296,3 +296,13 @@
 - Initial `persistAttempts` insertion accidentally swallowed `finalize()`'s closing return/braces → restored `return jobs.get(...)` + class braces, then added the method as a proper class member (`generation-service.ts:411`).
 
 **Status:** `pnpm build` 8/8 green; web typecheck clean; web unit 51/51 green (9 files); web integration 33/33 green (API, no engine e2e). Baseline guarantees preserved. Docs: this CHANGELOG entry + `docs/architecture-roadmap.md` §7 + gap table row 2.
+
+### Worker memory-queue mode — run without Redis locally (2026-09-16)
+
+**Implemented** (`REDIS_URL=memory://`): `apps/worker/src/index.ts` now branches — when `REDIS_URL` is `memory://` (or `redis://memory`) it boots a real in-process queue via `makeMemoryDriver()` instead of the BullMQ/Redis driver; otherwise the original BullMQ path is unchanged. The memory driver (`src/queue/memory.ts`, `startPaused: false`) runs a live handler, retries with backoff, and `finalizeFailure` — same processor behavior as BullMQ, no Redis process required.
+- `apps/worker/src/index.ts` — `isMemoryRedis()` guard + driver selection; worker health endpoint reports `queue.mode` (memory) and still checks engine reachability.
+- `apps/worker/README.md` + `apps/worker/.env.example` + root `.env.example` — documented `REDIS_URL=memory://` for local no-Redis dev.
+
+**Verified live on this machine:** full local E2E `register → login → create project → create page → generate → COMPLETED` (engine in deterministic stub mode on :8000, worker memory-mode on :8080, web on :3000). The completion persisted GAP-2 `generation_attempt` rows for the new job (5 stages, all `SUCCESS`, stub provider/model) — verified via psql against `landing_ai`. Also: worker typecheck clean + worker tests 19/19 green (3 files).
+
+**Status:** no Redis/Docker required for local development. Baseline guarantees preserved. Docs: this CHANGELOG entry + `docs/architecture-roadmap.md` (worker bullet under the generation pipeline). Commit pending user confirmation.

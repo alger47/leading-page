@@ -39,7 +39,7 @@ src/
 
 Errors are envelopes: `{ error: { code, message, details?, docs } }`.
 
-## Run (needs Redis + the engine)
+## Run (needs Redis OR the in-memory queue, + the engine)
 
 ```bash
 pnpm dev            # tsx, reads .env (copy .env.example)
@@ -47,12 +47,22 @@ pnpm start          # compiled dist
 ```
 
 ```bash
+# Option A — Redis (production-like):
 docker run -p 6379:6379 redis:7
+
+# Option B — no Redis (local dev, zero install): same processor/retry semantics
+# in process; set before starting:
+#   set REDIS_URL=memory://   (Windows PowerShell / cmd)
+
 # engine: apps/ai-engine, `.venv\Scripts\python -m uvicorn app.main:app --port 8000`
 ```
 
 Worker default env: `AI_ENGINE_URL=http://127.0.0.1:8000`, token must match the
 engine (`AI_INTERNAL_TOKEN`), `QUEUE_NAME=jobs`, `MAX_ATTEMPTS=3`.
+
+`REDIS_URL=memory://` switches `src/index.ts` to the in-memory queue driver
+(`queue/memory.ts`) — the same driver the test suite uses — so the full local
+stack (engine → worker → web) runs without installing Redis or Docker.
 
 ## Tests
 
