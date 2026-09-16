@@ -252,3 +252,19 @@
 - Exit gate: pytest 91 green (was 72; +4 evaluation test files; mini_eval lock >= 36; prompt count 5 -> 6), mypy app clean (41 files), ruff check . clean (incl. 2 pre-existing regenerate.py nits).
 - Full regression report (37 cases, stub judge): all gated metrics 1.0000 vs targets >= 0.99/0.99/0.90/0.90, visual quality 4.0/5, repair rate 0, cost .3929 total / .0106 per successful page, zero breaches. reports/metrics-live + phase11-regression-<ts> written.
 - Docs: ADR-0010-evaluation-engine.md, walkthrough Phase 11, this CHANGELOG, NOTES.txt.
+
+----------------------------------------
+
+## Date: 2026-09-16
+
+### Baseline Snapshot + Architecture Roadmap (SAFE REVERT POINT, no code change)
+- Created annotated tag **`baseline-2026-09-16`** at commit `f5a0ae0` = the verified working state (AI engine green, worker green, web green, DB green, publish budget 79.5 KB gz). Rollback: `git checkout baseline-2026-09-16`.
+- Created `docs/architecture-roadmap.md`: maps the 9 recommended-architecture points to the actual code, flags the known gaps, defines the modification-log convention (CHANGELOG.txt + roadmap + commit), and lists baseline verification commands.
+- Worktree touched: only the new doc + this CHANGELOG entry (no source code modified).
+
+**Decisions / gaps recorded for next changes:**
+- GAP-1: `packages/telemetry` is an empty placeholder (no package.json) — observability metrics not emitted yet.
+- GAP-2: Engine `JobLedger` is in-memory (500-job ring) — not yet persisted to `GenerationAttempt`.
+- GAP-3: LLM Gateway has stub/OpenAI/Anthropic/Groq only — Gemini/Qwen/local provider missing.
+- GAP-4: No `skills/` system yet (engine stages + versioned prompts act as the skill map).
+- GAP-5: Production ops (rate limiting, HTTPS headers, S3 assets, backups, real-Redis validation) still open.
