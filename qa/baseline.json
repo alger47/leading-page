@@ -1,0 +1,14 @@
+{
+  "schema": "qa-baseline/1",
+  "lastUpdated": "2026-09-17T06:11:00.869Z",
+  "fixtures": [
+    "ai-saas-en-001.json",
+    "ai-vet-ar-001.json",
+    "invalid-duplicate-ids.json",
+    "invalid-no-hero.json",
+    "valid-saas-en-001.json",
+    "valid-vet-ar-001.json"
+  ],
+  "visualBaseline": "packages/visual-qa/baselines/fixtures-baseline.json",
+  "budgetBytes": 82534
+}

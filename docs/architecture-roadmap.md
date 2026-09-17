@@ -110,6 +110,7 @@ Status legend: ✅ implemented · ⚠️ partially implemented · ❌ not starte
 | 3 | ~~LLM Gateway providers~~ | ✅ Implemented (GAP-4): `GeminiProvider`, `QwenProvider`, `LocalCompatibleProvider` in `app/providers/http_providers.py` + factory branches + settings + routing comments; provider tests 20/20 (`tests/test_providers.py`), full engine pytest 148 green. |
 | 4 | ~~Skills system~~ | ✅ Implemented (GAP-5): `app/skills/taxonomy.yaml` + `registry.py` (validated at startup: unique ids, canonical stages, existing prompts) + `GET /internal/v1/skills`; wired in DI container; 9 tests. |
 | 5 | ~~Production ops~~ | ✅ Implemented (GAP-6): per-IP token-bucket rate limiting middleware on `/api/v1/*`; HTTPS/security headers (pre-existing `next.config.mjs` headers, CE); `lib/storage.ts` S3/local storage with dependency-free SigV4 + presigned URLs; Redis boot validation (pre-existing, verified); `packages/database/scripts/backup.ts` pg_dump + retention; 28 new unit tests across web+db. |
+| 6 | ~~Phase 12 CI + baselines~~ | ✅ Implemented (2026-09-17): L3 CLI baseline flags (`--baseline` / `--update-baseline`, exits 0/1/4) + `packages/visual-qa/baselines/fixtures-baseline.json` (4-page corpus, VIS-001..007 7/7); root `pnpm qa` gate (`scripts/qa.mjs`) — L1/L2 fixture drift + page-schema suite, L3 visual baseline (skipped-not-failed without Chrome), budget cap; `.github/workflows/ci.yml` (engine: pytest/ruff/mypy; web-ts: typecheck/build/unit suites + `pnpm qa`). Publish-gate sample QA (E-PUBLISH-002) already existed. |
 
 ---
 

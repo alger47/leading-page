@@ -1,0 +1,30 @@
+{
+  "schema": "fixtures-visual-baseline/1",
+  "generatedAt": "2026-09-17T06:11:00.433Z",
+  "pages": [
+    {
+      "name": "ai-saas-en-001",
+      "passed": true,
+      "passedChecks": 7,
+      "totalChecks": 7
+    },
+    {
+      "name": "ai-vet-ar-001",
+      "passed": true,
+      "passedChecks": 7,
+      "totalChecks": 7
+    },
+    {
+      "name": "valid-saas-en-001",
+      "passed": true,
+      "passedChecks": 7,
+      "totalChecks": 7
+    },
+    {
+      "name": "valid-vet-ar-001",
+      "passed": true,
+      "passedChecks": 7,
+      "totalChecks": 7
+    }
+  ]
+}

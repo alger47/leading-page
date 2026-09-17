@@ -19,6 +19,8 @@ export { resolveChromePath, CHROME_MISSING_HINT } from './chrome.js';
 export { buildDocument, renderPageMarkup } from './html.js';
 export { runVisualPublishGate, gatePasses, isVisualPublishGateEnabled } from './gate.js';
 export type { VisualPublishGateResult } from './gate.js';
+export { buildBaseline, diffAgainstBaseline } from './baseline.js';
+export type { BaselineSnapshot, BaselinePage, BaselineDiff, BaselineResult } from './baseline.js';
 
 export interface VisualQaOptions {
   /** Explicit Chrome/Edge executable; defaults to resolution of the system install. */
