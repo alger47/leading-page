@@ -270,13 +270,14 @@ platform logs + the health endpoints + the engine's committed reports.
    scripts, contexts, build args all resolve), but there is no daemon to
    `build`/`run`; `docker compose build && docker compose up` is a mandatory
    pre-deploy gate.
-2. **Groq provider key must be rotated** before any public deploy. The key is
-   still live in `apps/ai-engine/.env` (as `AI_OPENAI_API_KEY`, used because Groq
-   is OpenAI-compatible) and duplicated in the git-ignored plaintext
-   `مفتاح.txt`; it was also exposed in a local terminal transcript. Revoke it in
-   the Groq console, mint a new one, and set the new key only in the deployment
-   environment. Neither file is tracked nor present in git history (`.gitignore`
-   covers `.env` and `*مفتاح*.txt`).
+2. **Groq provider key rotation — done locally, console revocation pending
+   (2026-09-17).** The exposed old key was replaced in `apps/ai-engine/.env`
+   (`AI_OPENAI_API_KEY`; Groq via its OpenAI-compatible endpoint) with a freshly
+   minted key that was verified live against `GET
+   https://api.groq.com/openai/v1/models`, and the git-ignored plaintext
+   duplicate `مفتاح.txt` was deleted. **Remaining user action:** revoke the old
+   key in the Groq console and set the new key in the deployment environment.
+   `.env` is untracked and no key value exists in git history.
 3. **CSP `unsafe-inline`/`unsafe-eval`** remain (Next inline bootstrap). XSS is
    closed at the source (L1 href-scheme gate, renderer guard, SVG escaping);
    revisit when Next/React drop inline bootstraps.

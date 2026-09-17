@@ -274,9 +274,9 @@ cd apps\ai-engine
   the images were never built; run `docker compose build && docker compose up`
   before the first real deploy.
 - **`apps/ai-engine/.env`** makes local e2e/CLI runs use a real provider and
-  hang; remove/rename it for local CI (see §10). Its key is a live provider key
-  that must be revoked/rotated before deploy — also delete the duplicate
-  plaintext `مفتاح.txt` at the repo root.
+  hang; remove/rename it for local CI (see §10). Its provider key was rotated on
+  2026-09-17 (new key verified live) and the duplicate plaintext `مفتاح.txt`
+  removed; revoke the old key in the provider console before deploy.
 - **mypy** reports two pre-existing errors in
   `apps/ai-engine/app/services/validate.py`; unrelated to deployment.
 - **Integration tests default to `landing_ai`** in the app under test — always
