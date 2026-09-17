@@ -80,9 +80,11 @@ env inventory make the HTTPS story explicit; the handover is written down in
 12–14 missing entries) is paid.
 
 **Trade-offs / notes** — the compose stack and Dockerfiles were authored in an
-environment **without a Docker daemon**, so they are validated structurally
-(YAML parse) but not built here; `docker compose config && docker compose build`
-is a mandatory pre-deploy gate (runbook §2/§4). No external APM/error-reporting
+environment **without a Docker daemon**. The Compose model is validated with the
+official `docker compose config` binary (v5.5.1) and the Dockerfiles were
+statically audited, but the images are **not built here**;
+`docker compose build && docker compose up` is a mandatory pre-deploy gate
+(runbook §2/§4). No external APM/error-reporting
 SDK is wired (deliberate; documented seams). CSP still allows
 `unsafe-inline`/`unsafe-eval` for Next's bootstrap (Phase 14 rationale).
 Session `__Host-` prefixing, session rotation, engine input-provenance

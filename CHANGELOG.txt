@@ -431,7 +431,7 @@ PHASE 15 master-prompt task (PART XV §15.1): env config · production migration
 **Tests / verification:**
 - New `apps/web/tests/env.test.ts` (Secure-cookie derivation + flag helpers) and an HSTS assertion in `apps/web/tests/security-headers.test.ts`.
 - `pnpm --filter @landing-ai/web test` (unit incl. new suites) + `typecheck` clean; DB-backed integration `api.integration.test.ts` + `security.integration.test.ts` on `landing_ai_test`; root `pnpm build`; `pnpm qa` ALL GREEN.
-- `docker-compose.yml` parses cleanly via PyYAML (services: db/cache/migrate/engine/worker/web; volumes db-data/cache-data). **Docker is not installed in this environment** — the compose stack/Dockerfiles are authored, not built; `docker compose config && docker compose build` is a mandatory pre-deploy gate (runbook §2/§4).
+- `docker-compose.yml` validated with the official `docker compose config` binary (Compose v5.5.1: services db/cache/migrate/engine/worker/web, volumes db-data/cache-data, build contexts and `depends_on` gating all resolve) and the three Dockerfiles statically audited. **Docker is not installed in this environment** — the images are authored, not built; `docker compose build && docker compose up` is a mandatory pre-deploy gate (runbook §2/§4).
 
 **Status:** Phase 15 complete. Docs: this entry + `docs/production-readiness.md` + `docs/runbook.md` + `docs/adr/ADR-0011-production-deployment.md` + `docs/walkthrough.md` (Phases 12–15) + `docs/architecture-roadmap.md` row 9.
 

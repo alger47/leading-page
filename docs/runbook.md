@@ -269,11 +269,14 @@ cd apps\ai-engine
 
 ## 14. Known environment caveats
 
-- **No Docker daemon in the authoring environment** — the compose stack and
-  Dockerfiles are unvalidated here; run `docker compose config && docker compose
-  build` before the first real deploy.
+- **No Docker daemon in the authoring environment** — `docker compose config`
+  passes here (Compose v5.5.1) and the Dockerfiles were statically audited, but
+  the images were never built; run `docker compose build && docker compose up`
+  before the first real deploy.
 - **`apps/ai-engine/.env`** makes local e2e/CLI runs use a real provider and
-  hang; remove/rename it for local CI (see §10).
+  hang; remove/rename it for local CI (see §10). Its key is a live provider key
+  that must be revoked/rotated before deploy — also delete the duplicate
+  plaintext `مفتاح.txt` at the repo root.
 - **mypy** reports two pre-existing errors in
   `apps/ai-engine/app/services/validate.py`; unrelated to deployment.
 - **Integration tests default to `landing_ai`** in the app under test — always

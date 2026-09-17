@@ -31,9 +31,11 @@ internal-token contract:
 | **Platform (managed)** | [`render.yaml`](../render.yaml) | Primary. Render Blueprint: managed Postgres + Key Value + 3 web services + automatic TLS, health checks and `generateValue` secrets. |
 | **Self-hosted (single host)** | [`docker-compose.yml`](../docker-compose.yml) + `apps/*/Dockerfile` | Portable/on-prem or air-gapped. Postgres + Redis + engine + worker + web on one Docker network. |
 
-The self-hosted path is **authored but not validated against a Docker daemon in
-this environment** (no Docker installed — see §10.1). Validate with
-`docker compose config && docker compose build` before first use.
+The self-hosted path's Compose model **passes `docker compose config`** (validated
+with the official Compose v5.5.1 binary: services, volumes, build contexts,
+`depends_on` conditions and required-variable guards all resolve), but the images
+have **not been built or run** here (no Docker daemon — see §10.1). Run
+`docker compose build` and a smoke `up` before first use.
 
 ### Render topology (render.yaml)
 
@@ -263,11 +265,18 @@ platform logs + the health endpoints + the engine's committed reports.
 
 ## 10. Residual risks (carried from `docs/security.md`) & deferred items
 
-1. **Docker images unvalidated here** — no Docker daemon in this environment;
-   `docker compose config && docker compose build` is a mandatory pre-deploy gate.
-2. **Groq provider key must be rotated** before any public deploy (the local
-   `apps/ai-engine/.env` previously held a real key); set the new key only in the
-   platform environment, never in git.
+1. **Docker images not built here** — the Compose model passes `docker compose
+   config` (v5.5.1) and the Dockerfiles were statically audited (COPY sources,
+   scripts, contexts, build args all resolve), but there is no daemon to
+   `build`/`run`; `docker compose build && docker compose up` is a mandatory
+   pre-deploy gate.
+2. **Groq provider key must be rotated** before any public deploy. The key is
+   still live in `apps/ai-engine/.env` (as `AI_OPENAI_API_KEY`, used because Groq
+   is OpenAI-compatible) and duplicated in the git-ignored plaintext
+   `مفتاح.txt`; it was also exposed in a local terminal transcript. Revoke it in
+   the Groq console, mint a new one, and set the new key only in the deployment
+   environment. Neither file is tracked nor present in git history (`.gitignore`
+   covers `.env` and `*مفتاح*.txt`).
 3. **CSP `unsafe-inline`/`unsafe-eval`** remain (Next inline bootstrap). XSS is
    closed at the source (L1 href-scheme gate, renderer guard, SVG escaping);
    revisit when Next/React drop inline bootstraps.
@@ -292,7 +301,7 @@ platform logs + the health endpoints + the engine's committed reports.
 |---|---|---|
 | Env config | per-service `.env.example` + matrix §2; dead names removed | ✅ |
 | Prod migrations path | `migrate:deploy` in render.yaml + compose `migrate` service; §3 | ✅ |
-| Deployment (compose → platform) | `docker-compose.yml`, `apps/*/Dockerfile`, `render.yaml`; §1 | ✅ (compose un-dockerd-validated) |
+| Deployment (compose → platform) | `docker-compose.yml`, `apps/*/Dockerfile`, `render.yaml`; §1 | ✅ (`docker compose config` v5.5.1; image `build` pending a daemon) |
 | HTTPS | platform TLS + HSTS header + test; §4.1 | ✅ |
 | Cookies | centralized flags + `Secure` in prod + tests; §4.2 | ✅ |
 | CORS | same-origin by design (documented); §4.3 | ✅ |
