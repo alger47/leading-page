@@ -1,15 +1,14 @@
-﻿# Render Blueprint â€” Leading Page AI platform (monorepo: web + worker + ai-engine)
-# Deploy once:  render.com â†’ Dashboard â†’ New â†’ Blueprint â†’ connect the repo
+﻿# Render Blueprint - Leading Page AI platform (monorepo: web + worker + ai-engine)
+# Deploy once:  render.com -> Dashboard -> New -> Blueprint -> connect the repo
 # Each push re-deploys affected services.
 
-databases:
-  - name: landing-ai-db
-    plan: free
-    databaseName: landing_ai
-
+# NOTE: this workspace already owns one free Postgres and one free Key Value.
+# Render's free tier allows only one of each, so declaring them here makes the
+# Blueprint try to create duplicates and fail the sync. We therefore omit them
+# and accept their connection strings via `sync: false` (Dashboard prompts).
 services:
   # --------------------------------------------------------------------------
-  # web â€” Next.js app (auth, dashboard, project brief, generation UI, preview)
+  # web - Next.js app (auth, dashboard, project brief, generation UI, preview)
   # --------------------------------------------------------------------------
   - type: web
     name: web
@@ -24,10 +23,10 @@ services:
     startCommand: pnpm --filter @landing-ai/web start
     healthCheckPath: /api/v1/healthz
     envVars:
+      # Existing free Postgres `landing-ai-db` — paste its connection string
+      # (Internal Database URL) when Render prompts.
       - key: DATABASE_URL
-        fromDatabase:
-          name: landing-ai-db
-          property: connectionString
+        sync: false
       # Free web services can't RECEIVE private-network traffic, so worker calls
       # go over its public URL. Auth is enforced by the shared X-Internal-Token.
       # Derived from the worker's own Render URL so a fresh Blueprint deploy
@@ -50,7 +49,7 @@ services:
           envVarKey: RENDER_EXTERNAL_URL
 
   # --------------------------------------------------------------------------
-  # worker â€” BullMQ/Fastify job service. type:web (pserv has no free plan; free
+  # worker - BullMQ/Fastify job service. type:web (pserv has no free plan; free
   # web services can't receive private traffic either). Public but every route
   # except /healthz requires X-Internal-Token (server.ts onRequest hook).
   # --------------------------------------------------------------------------
@@ -65,11 +64,10 @@ services:
     startCommand: pnpm --filter @landing-ai/worker start
     healthCheckPath: /healthz
     envVars:
+      # Existing free Key Value `cache` — paste its Internal connection string
+      # (redis://...) when Render prompts.
       - key: REDIS_URL
-        fromService:
-          name: cache
-          type: keyvalue
-          property: connectionString
+        sync: false
       - key: AI_ENGINE_URL
         fromService:
           name: ai-engine
@@ -91,7 +89,7 @@ services:
         value: "3"
 
   # --------------------------------------------------------------------------
-  # ai-engine â€” FastAPI generation pipeline. type:web for free tier; every
+  # ai-engine - FastAPI generation pipeline. type:web for free tier; every
   # /internal/* route is token-protected (deps.py require_internal_token).
   # --------------------------------------------------------------------------
   - type: web
@@ -124,14 +122,3 @@ services:
         value: https://api.groq.com/openai/v1
       - key: AI_OPENAI_API_KEY
         sync: false
-
-  # --------------------------------------------------------------------------
-  # cache â€” Redis-compatible Key Value (BullMQ queue).
-  # noeviction: LRU eviction would silently drop queued generation jobs.
-  # Free plan: 25 MB, no persistence. Enough for a demo/queue.
-  # --------------------------------------------------------------------------
-  - type: keyvalue
-    name: cache
-    plan: free
-    maxmemoryPolicy: noeviction
-    ipAllowList: []
