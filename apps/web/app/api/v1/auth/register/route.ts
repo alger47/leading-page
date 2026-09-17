@@ -3,7 +3,7 @@ import { hashPassword } from '@/lib/auth/password';
 import { createSession } from '@/lib/auth/session';
 import { generateCsrfToken } from '@/lib/auth/csrf';
 import { config } from '@/lib/env';
-import { attachSessionCookie, badRequest, invalid, jsonError, jsonOk } from '@/lib/api';
+import { attachSessionCookie, badRequest, csrfCookieFlags, invalid, jsonError, jsonOk } from '@/lib/api';
 import { validateEmail, validateName, validatePassword } from '@/lib/validation';
 
 export async function POST(request: Request) {
@@ -33,10 +33,7 @@ export async function POST(request: Request) {
     const res = jsonOk({ user: { id: user.id, email: user.email, name: user.name } }, 201);
     attachSessionCookie(res, token, config.sessionTtlMs);
     res.cookies.set(config.csrfCookieName, csrf, {
-      httpOnly: false,
-      sameSite: 'strict',
-      secure: process.env.NODE_ENV === 'production',
-      path: '/',
+      ...csrfCookieFlags(config.secureCookies),
       expires: new Date(Date.now() + config.sessionTtlMs),
     });
     return res;

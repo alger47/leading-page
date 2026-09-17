@@ -434,3 +434,81 @@ This document records the implementation progress phase by phase, per master pro
 - Stub latency is not representative of real providers; recorded anyway to keep charts honest. Replacing the stub with real models is expected to move content-completeness — the harness exists precisely to catch that.
 - `content_must_include` deliberately uses engine-deterministic strings; aligns expectations to the pipeline (Phase 4/5 stub substring-vertical quirks are documented, not re-engineered here).
 - Remaining: production ops (secrets/TLS/rate limit/S3-backed assets, real Redis/BullMQ validation, session rotation); optional real-LLM calibration pass + trend charts.
+
+---
+
+## Phase 12 — Visual QA automation (CI wiring + baseline management)
+
+**Date:** 2026-09-17  
+**Objective:** Close the Phase 12 catalog tasks: L3 visual QA in CI for the fixtures, publish-gate sample QA, and a deliberate baseline-management flow.
+
+**Implemented:**
+- `packages/visual-qa` L3 CLI: `--baseline <file>` (compare against the committed snapshot; exit **4** when the snapshot is stale/corpus changed, **1** on a verdict regression) and `--update-baseline <file>`. New pure module `src/baseline.ts` (`buildBaseline`, `diffAgainstBaseline`).
+- Committed snapshot `packages/visual-qa/baselines/fixtures-baseline.json` (4-page corpus, VIS-001..007 7/7).
+- Root QA gate `scripts/qa.mjs` (`pnpm qa` / `pnpm qa:update`): L1/L2 fixture drift + page-schema suite, L3 baseline match (skipped-not-failed without Chrome), published-page budget cap.
+- First CI (`.github/workflows/ci.yml`): `engine` job (pytest/ruff/mypy on 3.12) and `web-ts` job (frozen install, typecheck, build, infra-free unit suites against a Postgres service, then `pnpm qa`).
+
+**Created:** `packages/visual-qa/src/baseline.ts` + `tests/baseline.test.ts` (6), `packages/visual-qa/baselines/fixtures-baseline.json`, `scripts/qa.mjs`, `.github/workflows/ci.yml`.
+
+**Tests:** visual-qa 15/15 + typecheck clean; exit codes exercised live (match → 0, stale → 4). `pnpm qa` → ALL GREEN (L1/L2 6 examples, L3 match, budget 82 534 B within cap).
+
+**Known limitations:** L3 skips-not-fails where no system Chrome exists (missing sampler is not a verdict); the CI can only enforce the baseline where Chrome is present.
+
+---
+
+## Phase 13 — Performance measurement harness
+
+**Date:** 2026-09-17  
+**Objective:** Measure generation latency per stage, render, bundles, image loading and published-page vitals; optimize only measured hotspots. Bundles were already gated; this phase added client-side vitals + one surfaced report.
+
+**Implemented:**
+- `packages/visual-qa/src/vitals.ts`: `measureVitals()` renders the envelope with the production renderer (`renderToStaticMarkup`, timed) then loads the document over a real `file://` Chrome navigation so genuine LCP/CLS observers and NavigationTiming fire; returns LCP, CLS, load ms, document bytes, image transfer bytes and a per-`<img>` report. `withinBudgets()` enforces §5.7 (LCP < 2.5 s, CLS < 0.1); sentinel −1 is skipped, impossible 0/negative is a breach.
+- Root `scripts/perf.mjs` (`pnpm perf`): per-envelope render/vitals/image report, §5.7 gate (breach → exit 1, Chrome-less → skip-not-failed), plus read-only surfacing of the last golden engine report (per-stage latency p50/p95, e2e p50/p95, cost per successful page); `--json`, `--quiet`.
+- `qa/perf-baseline.json` records the measured run; CI runs `pnpm perf --quiet --json qa/perf-ci.json` after the QA gate (`if: always()`).
+
+**Tests:** `@landing-ai/visual-qa` 21/21 (9 VIS + 6 baseline + 6 vitals), serial pool for stable shared Chrome; typecheck clean.
+
+**Results:** `pnpm perf` → RESULT OK, 4/4 within budget. Render 3–20 ms; load 522–595 ms; LCP 108–328 ms; CLS 0–0.078; documents 7.6–9.4 kB. Engine: e2e 6 ms p50 / 8 ms p95; cost per successful page $0.0111. No measured hotspot required optimization.
+
+**Known limitations:** DB-query latency is deliberately not instrumented (would need instrumented published routes; covered by smoke/e2e + bundle budget). Per-query `EXPLAIN` is flagged for Phase 15 ops handover. Stub-mode engine latency is not representative of real providers.
+
+---
+
+## Phase 14 — Security audit (PART XII full pass)
+
+**Date:** 2026-09-17  
+**Objective:** Close the §12.1 gates — IDOR ownership on every tenant route, CSRF on every mutating endpoint, XSS defense across generated content, secret scanning in CI, upload MIME validation, and a written security annex.
+
+**Implemented:**
+- **XSS / safe URLs:** `packages/page-schema/src/schemes.ts` (`isSafeHref`/`sanitizeHref`, allow-list http/https/mailto/tel/#/relative/`asset:`) wired into `validateStructural` as **`E-VAL-STRUCT-004`** — every save/publish path blocks hostile targets at L1; renderer second line of defense in `Button`/`Header`/`Footer`. Placeholder SVG labels XML-escaped in `apps/web/lib/assets.ts`. CTA/Footer schemas document the pattern.
+- **IDOR + CSRF verification:** `apps/web/tests/security.integration.test.ts` (real Postgres) — cross-tenant 404 (never 403) across every page/project/job route; 403 matrix across all 9 mutating endpoints.
+- **Fail-closed tokens:** worker `assertProdConfig()` refuses to boot in production on dev-default tokens; web `GenerationService` throws per request when the dev worker token would be used.
+- **`healthz` de-sensitized:** removed the env-presence probe (NODE_ENV, DATABASE_URL, token presence, /proc/1/environ).
+- **Upload allow-list:** `Storage.put` (local + S3) rejects non-image MIME types.
+- **Headers:** COOP/CORP/Origin-Agent-Cluster added; CSP `unsafe-inline`/`unsafe-eval` retained with explicit rationale; introspection test.
+- **Secret scan:** gitleaks CI job.
+- **Docs:** `docs/security.md` §12.1 threat matrix + residual risks.
+
+**Tests:** page-schema 33/33, ui-components 40/40, worker 25/25, web unit 77/77, DB-backed integration 37/37 (api 33 + security 4) on `landing_ai_test`; typecheck clean; page-schema dist rebuilt.
+
+**Known limitations:** Groq key rotation, CSP tightening when Next drops inline bootstraps, engine input-provenance hardening, published-route `EXPLAIN` tuning, and ownership-check ordering on two routes are carried to Phase 15 (`docs/security.md`).
+
+---
+
+## Phase 15 — Production readiness & handover
+
+**Date:** 2026-09-17  
+**Objective:** Close PART XV §15.1 — env config, production migration path, deployment (docker compose → platform), HTTPS, cookies, CORS, backups, monitoring, error reporting, CDN and domain configuration — and hand over written readiness + runbook documentation.
+
+**Implemented:**
+- **Portable deployment:** root `docker-compose.yml` (db + cache + one-shot `migrate` + engine + worker + web) + `apps/{web,worker,ai-engine}/Dockerfile` + `.dockerignore`; mirrors `render.yaml`'s build commands and token contract. The `migrate` service runs `prisma migrate deploy`; `web`/`worker` wait for its successful exit. `docker-compose.env.example` documents required secrets.
+- **HTTPS:** `next.config.mjs` now ships `Strict-Transport-Security` (`max-age=63072000; includeSubDomains`, no `preload`); platform TLS + reverse-proxy note in the docs; covered by the headers test.
+- **Cookies:** flags centralized in `lib/api.ts` (`sessionCookieFlags`/`csrfCookieFlags`) and used by login/register/logout/attach/clear; `secureCookies` added to `webConfig` (default `NODE_ENV=production`, explicit `COOKIE_SECURE` override). Session `HttpOnly`+`SameSite=strict`, CSRF JS-readable for double-submit.
+- **Env config:** root `.env.example` rewritten (removed dead `AI_ENGINE_API_KEY`/`NEXT_PUBLIC_APP_URL`/`PLATFORM_ROOT_DOMAIN`; added the real `AI_INTERNAL_TOKEN`/`WORKER_INTERNAL_TOKEN`, domain, cookie, storage, rate-limit and backup knobs); `apps/web/.env.example` gained the worker token, `COOKIE_SECURE` and the published-domain vars.
+- **Docs/handover:** `docs/production-readiness.md` (topology, env matrix, migration path, HTTPS/cookies/CORS, backups, monitoring, error reporting, CDN/domain, residual risks, PART XV acceptance checklist) + `docs/runbook.md` (deploy both paths, smoke test, migrations, backup/restore, rollback, monitoring, incident playbooks, secret rotation, logs) + `docs/adr/ADR-0011-production-deployment.md`.
+
+**Created:** `docker-compose.yml`, `docker-compose.env.example`, `apps/web/Dockerfile`, `apps/worker/Dockerfile`, `apps/ai-engine/Dockerfile`, `.dockerignore`, `apps/web/tests/env.test.ts`, `docs/production-readiness.md`, `docs/runbook.md`, `docs/adr/ADR-0011-production-deployment.md`.
+
+**Tests:** web unit (incl. new `env.test.ts` and the HSTS assertion in `security-headers.test.ts`), typecheck, `pnpm qa`, and root build green; compose YAML parses via PyYAML. Full command list in the phase status report.
+
+**Known limitations:** the compose stack/Dockerfiles are authored but **not built** here (no Docker daemon) — `docker compose config && docker compose build` is a mandatory pre-deploy gate; no external APM/error-reporting SDK is wired (documented seams); `__Host-` cookie prefix, session rotation, engine input provenance and published-route `EXPLAIN` tuning remain residual risks (production-readiness §10).

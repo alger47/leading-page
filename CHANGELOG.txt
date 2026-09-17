@@ -413,3 +413,29 @@ PHASE 14 master-prompt task: close the security gates from PART XII §12.1 — I
 **Verified (local, 2026-09-17):** page-schema **33/33** (19 existing + 8 href-scheme + 6 schemes), ui-components **40/40** (incl. new renderer-guard suite), worker **25/25** (incl. new config suite), web unit **77/77** (incl. security-headers + prod-guard + SVG escape + MIME allowlist), DB-backed integration **37/37** (api.integration 33 + security.integration 4) on `landing_ai_test`; typecheck clean; `@landing-ai/page-schema` rebuild propagates `sanitizeHref` to ui-components via dist. Prior suites unchanged (visual-qa 21/21, database 40/40).
 
 **Remaining (next phases):** PHASE 15 production readiness & handover — rotate the Groq provider key in `apps/ai-engine/.env` before any public deploy, pin deployment secrets (POSTGRES/a AUX), decide CSP rollback path when Next drops inline bootstrap, EXPLAIN-tuning of published-route queries, and the engine-input provenance + prompt-injection hardening note carried in `docs/security.md`.
+
+## Phase 15 — Production readiness & handover (2026-09-17)
+
+PHASE 15 master-prompt task (PART XV §15.1): env config · production migration path · deployment (docker compose → platform) · HTTPS · cookies · CORS · backups · monitoring · error reporting · CDN · domain configuration, with written handover docs.
+
+**Implemented:**
+- **Portable deployment** — root `docker-compose.yml`: `db` (postgres:18) + `cache` (redis:7, `noeviction`) + one-shot `migrate` (`prisma migrate deploy`) + `engine` + `worker` + `web`; `web`/`worker` wait on `migrate` `service_completed_successfully` (no request served against an unmigrated schema). Per-app `apps/{web,worker,ai-engine}/Dockerfile` built from the repo root with the same commands as `render.yaml`; `.dockerignore`; `docker-compose.env.example` (required secrets, generated 32-byte tokens). Engine image bakes `packages/page-schema/schema` and sets `AI_PAGE_SCHEMA_DIR=/packages/page-schema/schema`.
+- **HTTPS** — `next.config.mjs` now sends `Strict-Transport-Security: max-age=63072000; includeSubDomains` (no `preload`; hard-to-reverse commitment left as explicit ops step). Platform TLS documented; reverse-proxy note for compose.
+- **Cookies** — centralized flag policy in `apps/web/lib/api.ts` (`sessionCookieFlags` / `csrfCookieFlags`) used by `attachSessionCookie`/`clearSessionCookie` and the login/register/logout routes; new `webConfig().secureCookies` (defaults to `NODE_ENV=production`, explicit `COOKIE_SECURE` override for plain-HTTP dry runs). Session cookie `HttpOnly`+`SameSite=strict`+`Secure`(prod); CSRF intentionally JS-readable for the double-submit header. Clears now carry the same flags.
+- **Env config** — root `.env.example` rewritten: removed the unused `AI_ENGINE_API_KEY`/`NEXT_PUBLIC_APP_URL`/`PLATFORM_ROOT_DOMAIN`; documented the real `AI_INTERNAL_TOKEN` (worker→engine) and `WORKER_INTERNAL_TOKEN` (web→worker), `NODE_ENV`, `PUBLIC_BASE_URL`/`PUBLIC_HOST_SUFFIX`, `COOKIE_SECURE`, asset-storage and rate-limit knobs. `apps/web/.env.example` gained the worker token, `COOKIE_SECURE` and the published-domain section.
+- **Docs/handover** — `docs/production-readiness.md` (topology, full env matrix, forward-only migration path, HTTPS/cookies/CORS, backups, monitoring, error reporting, CDN/domain, fail-closed guards, residual risks, PART XV acceptance checklist); `docs/runbook.md` (pre-deploy checklist, Render + compose deploy, smoke test, migrations, backup/restore, rollback, monitoring, incident playbooks, secret rotation, logs, local verification, environment caveats); `docs/adr/ADR-0011-production-deployment.md`.
+- **Walkthrough debt paid** — `docs/walkthrough.md` gained the missing Phase 12 (visual QA CI/baselines), Phase 13 (performance harness), Phase 14 (security audit) and Phase 15 entries (§15.2 requires a walkthrough entry per phase).
+
+**CORS (decision):** kept absent by design — the browser is same-origin with the web app; worker/engine are server-to-server behind `X-Internal-Token`. Adding `Access-Control-Allow-*` would only widen the surface. Documented in production-readiness §4.3.
+
+**Tests / verification:**
+- New `apps/web/tests/env.test.ts` (Secure-cookie derivation + flag helpers) and an HSTS assertion in `apps/web/tests/security-headers.test.ts`.
+- `pnpm --filter @landing-ai/web test` (unit incl. new suites) + `typecheck` clean; DB-backed integration `api.integration.test.ts` + `security.integration.test.ts` on `landing_ai_test`; root `pnpm build`; `pnpm qa` ALL GREEN.
+- `docker-compose.yml` parses cleanly via PyYAML (services: db/cache/migrate/engine/worker/web; volumes db-data/cache-data). **Docker is not installed in this environment** — the compose stack/Dockerfiles are authored, not built; `docker compose config && docker compose build` is a mandatory pre-deploy gate (runbook §2/§4).
+
+**Status:** Phase 15 complete. Docs: this entry + `docs/production-readiness.md` + `docs/runbook.md` + `docs/adr/ADR-0011-production-deployment.md` + `docs/walkthrough.md` (Phases 12–15) + `docs/architecture-roadmap.md` row 9.
+
+**Known limitations / next:**
+- Compose stack + Dockerfiles unvalidated against a Docker daemon here (see above).
+- No external APM / error-reporting SDK wired; monitoring = healthz ×3 + `@landing-ai/telemetry` + engine reports; error-reporting seam = `jsonError` (web), Fastify error handler (worker), engine handlers.
+- Residual: rotate the Groq key before public deploy; CSP `unsafe-inline`/`unsafe-eval` until Next drops inline bootstrap; engine input provenance; published-route `EXPLAIN` tuning; `__Host-` cookie prefix + session rotation; `/docs/errors/<code>` route not served.

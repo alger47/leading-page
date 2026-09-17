@@ -30,6 +30,15 @@ describe('security headers', () => {
     expect(map.get('Origin-Agent-Cluster')).toBe('?1');
   });
 
+  it('enforces TLS with HSTS (no preload commitment)', async () => {
+    const headers = await headersFor('/(.*)');
+    const map = new Map(headers.map((h) => [h.key, h.value]));
+    const hsts = map.get('Strict-Transport-Security') ?? '';
+    expect(hsts).toContain('max-age=');
+    expect(hsts).toContain('includeSubDomains');
+    expect(hsts).not.toContain('preload');
+  });
+
   it('CSP locks down framing, base-uri and form-action', async () => {
     const headers = await headersFor('/(.*)');
     const csp = headers.find((h) => h.key === 'Content-Security-Policy')?.value ?? '';

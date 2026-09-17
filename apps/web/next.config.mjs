@@ -37,6 +37,11 @@ const nextConfig = {
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
           { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
           { key: 'Origin-Agent-Cluster', value: '?1' },
+          // Phase 15 (§15.1 HTTPS): HSTS. Browsers ignore it on plain-HTTP
+          // origins, so it is safe in local dev and enforced once the platform
+          // (Render edge) terminates TLS. `preload` is intentionally NOT set —
+          // it is a hard-to-reverse commitment and stays an explicit ops step.
+          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
           {
             key: 'Content-Security-Policy',

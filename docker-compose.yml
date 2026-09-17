@@ -1,0 +1,175 @@
+# Leading Page AI — single-host production stack (Phase 15).
+#
+#   web (Next.js) ── HTTP ── worker (Fastify/BullMQ) ── HTTP ── ai-engine (FastAPI)
+#         │                        │                                   │
+#         └──────── Postgres ──────┴──────── Redis (BullMQ) ───────────┘
+#
+# This is the self-hosted deployment path; the platform path is render.yaml
+# (managed Postgres + Key Value + automatic TLS). Both use the same build
+# commands and the same internal-token contract.
+#
+# ── Usage ────────────────────────────────────────────────────────────────────
+#   cp docker-compose.env.example .env      # then edit the required secrets
+#   docker compose up --build -d
+#   docker compose logs -f web worker engine
+#
+# Required secrets (fail fast when unset — generate 32+ random bytes each):
+#   POSTGRES_PASSWORD, AI_INTERNAL_TOKEN, WORKER_INTERNAL_TOKEN
+#   Generate a token:  node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+#
+# NOTE: authored in an environment without a Docker daemon; validate before the
+# first real deploy:  docker compose config && docker compose build
+#
+# TLS: this stack terminates plain HTTP on :3000. Put it behind a TLS reverse
+# proxy (Caddy/Traefik/nginx) and set COOKIE_SECURE=1; see docs/runbook.md.
+
+name: leading-page-ai
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-landing_ai}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # Not published: the database is reachable only inside the compose network.
+    expose:
+      - '5432'
+
+  cache:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # LRU eviction would silently drop queued generation jobs (ADR-0004).
+    command: ['redis-server', '--maxmemory-policy', 'noeviction']
+    volumes:
+      - cache-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    expose:
+      - '6379'
+
+  # One-shot schema migration (the production migration path: `prisma migrate
+  # deploy`). web/worker wait for it to exit 0, so the DB is always ahead of
+  # the app code before any request is served. Forward-only by policy (§10.3).
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    command: ['pnpm', '--filter', '@landing-ai/database', 'migrate:deploy']
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-landing_ai}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: 'no'
+
+  engine:
+    build:
+      context: .
+      dockerfile: apps/ai-engine/Dockerfile
+    restart: unless-stopped
+    environment:
+      AI_ENV: ${AI_ENV:-production}
+      AI_SERVICE_NAME: ai-engine
+      AI_VERSION: '0.1.0'
+      AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:?set AI_INTERNAL_TOKEN in .env}
+      AI_PROVIDER: ${AI_PROVIDER:-stub}
+      AI_ROUTING_CONFIG_PATH: config/routing.yaml
+      # Real-LLM mode: set AI_PROVIDER=openai + AI_OPENAI_BASE_URL to the
+      # provider (e.g. https://api.groq.com/openai/v1) and supply the key.
+      AI_OPENAI_API_KEY: ${AI_OPENAI_API_KEY:-}
+      AI_OPENAI_BASE_URL: ${AI_OPENAI_BASE_URL:-https://api.openai.com/v1}
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz').status==200 else 1)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    expose:
+      - '8000'
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: '8080'
+      REDIS_URL: redis://cache:6379
+      AI_ENGINE_URL: http://engine:8000
+      AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN}
+      WORKER_INTERNAL_TOKEN: ${WORKER_INTERNAL_TOKEN:?set WORKER_INTERNAL_TOKEN in .env}
+      QUEUE_NAME: generation-jobs
+      ENGINE_TIMEOUT_MS: '300000'
+      MAX_ATTEMPTS: '3'
+    depends_on:
+      cache:
+        condition: service_healthy
+      engine:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8080/healthz']
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    expose:
+      - '8080'
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: '3000'
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-landing_ai}
+      WORKER_URL: http://worker:8080
+      WORKER_INTERNAL_TOKEN: ${WORKER_INTERNAL_TOKEN}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+      PUBLIC_HOST_SUFFIX: ${PUBLIC_HOST_SUFFIX:-landing-ai.test}
+      # Behind a TLS reverse proxy set COOKIE_SECURE=1; plain-HTTP dry run = 0.
+      COOKIE_SECURE: ${COOKIE_SECURE:-0}
+      SESSION_TTL_DAYS: '30'
+      RATE_LIMIT_CAPACITY: ${RATE_LIMIT_CAPACITY:-60}
+      RATE_LIMIT_REFILL_PER_SECOND: ${RATE_LIMIT_REFILL_PER_SECOND:-1}
+    ports:
+      - '${WEB_PORT:-3000}:3000'
+    depends_on:
+      db:
+        condition: service_healthy
+      worker:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3000/api/v1/healthz']
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  db-data:
+  cache-data:

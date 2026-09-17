@@ -82,19 +82,48 @@ export const jsonError = (error: unknown): NextResponse => {
 
 export const SESSION_COOKIE = config.sessionCookieName;
 
-export function attachSessionCookie(res: NextResponse, token: string, ttlMs: number): NextResponse {
+/**
+ * Cookie flag policy (Phase 15). One place decides HttpOnly/SameSite/Secure so
+ * session, CSRF and clear paths can never drift. `secure` is true in production
+ * (or when COOKIE_SECURE overrides); the CSRF cookie is intentionally readable
+ * by JS for the double-submit header.
+ */
+export interface CookieFlags {
+  httpOnly: boolean;
+  sameSite: 'strict';
+  secure: boolean;
+  path: string;
+}
+
+export const sessionCookieFlags = (secure: boolean): CookieFlags => ({
+  httpOnly: true,
+  sameSite: 'strict',
+  secure,
+  path: '/',
+});
+
+export const csrfCookieFlags = (secure: boolean): CookieFlags => ({
+  httpOnly: false,
+  sameSite: 'strict',
+  secure,
+  path: '/',
+});
+
+export function attachSessionCookie(
+  res: NextResponse,
+  token: string,
+  ttlMs: number,
+  secure: boolean = config.secureCookies,
+): NextResponse {
   res.cookies.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: 'strict',
-    secure: process.env.NODE_ENV === 'production',
-    path: '/',
+    ...sessionCookieFlags(secure),
     expires: new Date(Date.now() + ttlMs),
   });
   return res;
 }
 
-export function clearSessionCookie(res: NextResponse): NextResponse {
-  res.cookies.set(SESSION_COOKIE, '', { httpOnly: true, sameSite: 'strict', path: '/', maxAge: 0 });
+export function clearSessionCookie(res: NextResponse, secure: boolean = config.secureCookies): NextResponse {
+  res.cookies.set(SESSION_COOKIE, '', { ...sessionCookieFlags(secure), maxAge: 0 });
   return res;
 }
 

@@ -1,0 +1,23 @@
+# Repo-wide Docker build context exclusions (Phase 15).
+# Keep node_modules/.venv/build outputs out of the build context.
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+**/.venv
+**/__pycache__
+**/*.egg-info
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+packages/database/backups
+**/*.dump
+apps/web/.local-assets
+# Never bake secrets into an image (e.g. apps/ai-engine/.env holds provider keys).
+**/.env
+**/.env.local
+**/.env.*.local
+.git
+.github
+*.log
+coverage
