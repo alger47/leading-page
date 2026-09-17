@@ -9,6 +9,7 @@
 import React from 'react';
 import { Container } from '../primitives';
 import type { FooterContent } from '../types';
+import { sanitizeHref } from '@landing-ai/page-schema';
 
 export interface FooterSectionProps {
   content: FooterContent;
@@ -47,7 +48,7 @@ export function Footer({ content }: FooterSectionProps) {
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
             {links.map((link) => (
               <li key={`${link.label}-${link.href}`}>
-                <a href={link.href} style={linkStyle}>
+                <a href={sanitizeHref(link.href)} style={linkStyle}>
                   {link.label}
                 </a>
               </li>
@@ -58,7 +59,7 @@ export function Footer({ content }: FooterSectionProps) {
             <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', gap: 'var(--space-4)' }}>
               {social.map((s) => (
                 <li key={s.platform}>
-                  <a href={s.url} style={linkStyle} rel="noopener noreferrer" target="_blank">
+                  <a href={sanitizeHref(s.url)} style={linkStyle} rel="noopener noreferrer" target="_blank">
                     {s.platform}
                   </a>
                 </li>

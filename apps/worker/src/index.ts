@@ -10,7 +10,7 @@
  *     the driver used by the test harness and the web e2e bridge).
  */
 
-import { loadConfig } from './config.js';
+import { loadConfig, assertProdConfig } from './config.js';
 import { EngineClient } from './engine/client.js';
 import { makeProcessor } from './processor.js';
 import { makeBullQueue, makeRedis, startBullWorker } from './queue/bullmq.js';
@@ -33,6 +33,7 @@ function isMemoryRedis(url: string): boolean {
 
 async function main(): Promise<void> {
   const config = loadConfig();
+  assertProdConfig(config);
 
   const store = new MemoryJobStore();
   const spans = new MemorySpanStore();

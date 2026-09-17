@@ -13,9 +13,12 @@
  */
 
 // Validators
-export { validateStructural, validateSectionIdUniqueness, validateAssetReferences } from './validators/structural';
+export { validateStructural, validateSectionIdUniqueness, validateAssetReferences, validateHrefSchemes } from './validators/structural';
 export { validateSemantic, SEMANTIC_RULES } from './validators/semantic';
 export type { StructuralValidationError, SemanticValidationError, SemanticRule, ValidationResult } from './validators/index';
+
+// Safe-URL scheme policy (Phase 14 — §12.3)
+export { isSafeHref, sanitizeHref } from './schemes';
 
 // Registry
 export { SECTION_REGISTRY, getSectionType, getAvailableSectionTypes, isValidSectionVariant } from './registry';

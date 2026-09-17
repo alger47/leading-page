@@ -18,13 +18,16 @@ export interface WebConfig {
   publicHostSuffix: string;
 }
 
+/** Well-known local-development worker token — forbidden in production (§12.4). */
+export const DEV_WORKER_TOKEN = 'dev-worker-token';
+
 export function webConfig(env: NodeJS.ProcessEnv = process.env): WebConfig {
   const ttlDays = Number.parseInt(env.SESSION_TTL_DAYS ?? '30', 10);
   if (Number.isNaN(ttlDays) || ttlDays <= 0) throw new Error('invalid SESSION_TTL_DAYS');
   return {
     databaseUrl: env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:5432/landing_ai',
     workerUrl: (env.WORKER_URL ?? 'http://localhost:8080').replace(/\/+$/, ''),
-    workerToken: env.WORKER_INTERNAL_TOKEN ?? 'dev-worker-token',
+    workerToken: env.WORKER_INTERNAL_TOKEN ?? DEV_WORKER_TOKEN,
     sessionCookieName: env.SESSION_COOKIE_NAME ?? 'sid',
     csrfCookieName: env.CSRF_COOKIE_NAME ?? 'csrf',
     sessionTtlMs: ttlDays * 24 * 60 * 60 * 1000,

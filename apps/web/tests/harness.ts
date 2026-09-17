@@ -264,9 +264,11 @@ async function routeFor(method: string, path: string) {
     assets: '../app/api/v1/assets/route',
     generate: '../app/api/v1/generate/route',
     jobId: '../app/api/v1/generation-jobs/[jobId]/route',
+    healthz: '../app/api/v1/healthz/route',
   };
   let mod = '';
-  if (routePath.match(/^\/api\/v1\/auth\/(register|login|logout|me)$/)) mod = mods[routePath.split('/').pop()! as keyof typeof mods];
+  if (routePath === '/api/v1/healthz') mod = mods.healthz;
+  else if (routePath.match(/^\/api\/v1\/auth\/(register|login|logout|me)$/)) mod = mods[routePath.split('/').pop()! as keyof typeof mods];
   else if (routePath === '/api/v1/projects') mod = mods.projects;
   else if (routePath.match(/^\/api\/v1\/projects\/[^/]+(\/pages)?$/)) mod = routePath.endsWith('/pages') ? mods.pages : mods.projectId;
   else if (routePath.match(/^\/api\/v1\/pages\/[^/]+\/sections\/[^/]+\/regenerate$/)) mod = mods.regenerate;

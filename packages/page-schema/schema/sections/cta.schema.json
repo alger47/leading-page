@@ -38,7 +38,9 @@
         },
         "href": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "pattern": "^(?!([\\u00A0\\s]|javascript:|data:|vbscript:))",
+          "description": "Navigation target; javascript:/data:/vbscript: schemes rejected at L1 (matches src/schemes.ts policy)"
         }
       }
     }

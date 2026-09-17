@@ -90,3 +90,44 @@ describe('Section ID Uniqueness', () => {
     expect(errors[0].ruleId).toBe('E-VAL-STRUCT-002');
   });
 });
+
+describe('URL scheme validation (Phase 14 §12.3 — XSS gate)', () => {
+  const clone = (value: unknown) => structuredClone(value) as Record<string, unknown>;
+
+  it('still validates when every navigation target is allowed', () => {
+    const doc = clone(validVetAr);
+    const cta = (doc.sections as Array<{ id: string; content: { href?: string } }>).find((s) => s.id === 'cta-1') ??
+      (doc.sections as Array<{ id: string; content: { href?: string } }>)[0];
+    cta.content.href = 'https://calendly.com/landing-ai';
+    const result = validateStructural(doc);
+    expect(result.valid).toBe(true);
+  });
+
+  it('fails with E-VAL-STRUCT-004 for a javascript: href in section content', () => {
+    const doc = clone(validVetAr) as { sections: Array<{ id: string; content: Record<string, unknown> }> };
+    (doc.sections[0].content as { href?: string }).href = 'javascript:alert(document.cookie)';
+    const result = validateStructural(doc);
+    expect(result.valid).toBe(false);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].ruleId).toBe('E-VAL-STRUCT-004');
+    expect(result.errors[0].path).toContain('.href');
+  });
+
+  it('fails for a data: scheme in an asset url', () => {
+    const doc = clone(validSaasEn) as { assets?: Array<{ id: string; kind: string; source: string; url: string; alt: string }> };
+    doc.assets = [{ id: 'asset:hero-main', kind: 'image', source: 'curated', url: 'data:text/html;base64,PHNjcmlwdD4=', alt: 'hero image' }];
+    const result = validateStructural(doc);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.ruleId === 'E-VAL-STRUCT-004' && e.path === '$.assets[0].url')).toBe(true);
+  });
+
+  it('allows internal anchor and scheme-relative links that fixtures use', () => {
+    const doc = clone(validVetAr);
+    for (const href of ['#services', '#cta', 'mailto:support@vet-ar.io', '/careers']) {
+      const attempt = clone(doc) as { sections: Array<{ id: string; content: Record<string, unknown> }> };
+      (attempt.sections[0].content as { href?: string }).href = href;
+      const result = validateStructural(attempt);
+      expect(result.valid).toBe(true);
+    }
+  });
+});

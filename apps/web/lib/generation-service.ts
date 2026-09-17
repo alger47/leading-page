@@ -25,7 +25,7 @@ import { labelForFeedback } from './validation';
 import { deriveIdempotencyKey, jobIdForIdempotencyKey } from './generation-key';
 import { mapEngineAttemptsToDb } from './generation-attempts';
 import { HttpWorkerClient, WorkerCallError, type WorkerClient } from './worker-client';
-import { webConfig } from './env';
+import { webConfig, DEV_WORKER_TOKEN, type WebConfig } from './env';
 import { validateBriefInput } from './validation';
 
 export interface StartGenerationInput {
@@ -108,7 +108,15 @@ export function buildGenerationService(): GenerationService {
 export class GenerationService {
   private readonly worker: WorkerClient;
 
-  constructor(deps: GenerationServiceDeps = {}, _cfg = webConfig()) {
+  constructor(deps: GenerationServiceDeps = {}, _cfg: WebConfig = webConfig()) {
+    // Fail-closed (§12.4): a production build must never reach the worker using
+    // the well-known local-development token (would let any caller impersonate
+    // the platform). This guard sits at the request boundary (constructor is
+    // called per-request), NOT in webConfig(), because webConfig() also runs
+    // during `next build` where NODE_ENV=production and secrets are absent.
+    if (_cfg.isProd && _cfg.workerToken === DEV_WORKER_TOKEN) {
+      throw new Error('refusing to call the worker: WORKER_INTERNAL_TOKEN is unset (dev default)');
+    }
     this.worker = deps.worker ?? new HttpWorkerClient(_cfg.workerUrl, _cfg.workerToken);
   }
 

@@ -9,6 +9,7 @@
 import React from 'react';
 import { Container, Button } from '../primitives';
 import type { HeaderContent } from '../types';
+import { sanitizeHref } from '@landing-ai/page-schema';
 
 export interface HeaderSectionProps {
   id: string;
@@ -59,7 +60,7 @@ export function Header({ content }: HeaderSectionProps) {
               <ul style={navStyle}>
                 {nav.map((item) => (
                   <li key={item.href}>
-                    <a href={item.href} style={linkStyle}>
+                    <a href={sanitizeHref(item.href)} style={linkStyle}>
                       {item.label}
                     </a>
                   </li>

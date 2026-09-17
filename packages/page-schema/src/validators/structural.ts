@@ -13,6 +13,8 @@ import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import envelopeSchema from '../../schema/envelope.schema.json';
 
+import { isSafeHref } from '../schemes.js';
+
 export interface ValidationError {
   layer: 'structural';
   ruleId: string;
@@ -40,8 +42,12 @@ const validateSchema = ajv.compile(envelopeSchema);
  */
 export function validateStructural(document: unknown): ValidationResult {
   const valid = validateSchema(document) as boolean;
-  
+
   if (valid) {
+    const hrefErrors = validateHrefSchemes(document as Parameters<typeof validateHrefSchemes>[0]);
+    if (hrefErrors.length > 0) {
+      return { valid: false, errors: hrefErrors };
+    }
     return { valid: true, errors: [] };
   }
 
@@ -132,6 +138,70 @@ export function validateAssetReferences(
   sections.forEach((section, index) => {
     findAssetRefs(section.content, `$.sections[${index}].content`);
   });
+
+  return errors;
+}
+
+/**
+ * Validate that every user-supplied navigation target uses an allowed URL
+ * scheme (§12.3 XSS mitigation). Walks all section content (keys `href`/`url`)
+ * plus top-level `seo.canonical` and `assets[].url`; `javascript:`/`data:`/
+ * control characters are rejected at L1 so a malicious target is blocked before
+ * render — the renderer guard is the second, runtime-only line of defense.
+ */
+export function validateHrefSchemes(
+  document: { sections?: Array<{ content?: Record<string, unknown> }>; assets?: Array<{ url?: unknown }>; page?: Record<string, unknown> },
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  function walkNode(node: unknown, path: string): void {
+    if (node === null || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      node.forEach((item, index) => walkNode(item, `${path}[${index}]`));
+      return;
+    }
+    for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+      const currentPath = `${path}.${key}`;
+      if ((key === 'href' || key === 'url') && typeof value === 'string' && !isSafeHref(value)) {
+        errors.push({
+          layer: 'structural',
+          ruleId: 'E-VAL-STRUCT-004',
+          severity: 'error',
+          path: currentPath,
+          message: `Unsafe URL scheme in "${value.slice(0, 60)}" — only http(s), mailto, tel, #, relative paths and internal asset: refs are allowed`,
+          fixable: false,
+        });
+      }
+      walkNode(value, currentPath);
+    }
+  }
+
+  for (const [index, section] of (document.sections ?? []).entries()) {
+    walkNode(section.content ?? {}, `$.sections[${index}].content`);
+  }
+  for (const [index, asset] of (document.assets ?? []).entries()) {
+    if (typeof asset.url === 'string' && !isSafeHref(asset.url)) {
+      errors.push({
+        layer: 'structural',
+        ruleId: 'E-VAL-STRUCT-004',
+        severity: 'error',
+        path: `$.assets[${index}].url`,
+        message: `Unsafe URL scheme in "${asset.url.slice(0, 60)}"`,
+        fixable: false,
+      });
+    }
+  }
+  const canonical = document.page?.seo as { canonical?: unknown } | undefined;
+  if (typeof canonical?.canonical === 'string' && !isSafeHref(canonical.canonical)) {
+    errors.push({
+      layer: 'structural',
+      ruleId: 'E-VAL-STRUCT-004',
+      severity: 'error',
+      path: '$.page.seo.canonical',
+      message: `Unsafe URL scheme in canonical "${canonical.canonical.slice(0, 60)}"`,
+      fixable: false,
+    });
+  }
 
   return errors;
 }

@@ -34,10 +34,18 @@ const s3 = () =>
 describe('safe keys', () => {
   it('rejects traversal and empty segments', async () => {
     const storage = await makeLocal();
-    await expect(storage.put('../evil', Buffer.from('x'), 'text/plain')).rejects.toThrow(/unsafe/);
+    await expect(storage.put('../evil', Buffer.from('x'), 'image/png')).rejects.toThrow(/unsafe/);
     await expect(storage.get('a/../b')).rejects.toThrow(/unsafe/);
     await expect(storage.get('/abs')).rejects.toThrow(/unsafe/);
     await expect(storage.get('')).rejects.toThrow(/empty|unsafe/);
+  });
+
+  it('rejects non-image content types (Phase 14 stored-XSS guard)', async () => {
+    const storage = await makeLocal();
+    await expect(storage.put('x.html', Buffer.from('<script>alert(1)</script>'), 'text/html')).rejects.toThrow(/not allowed/);
+    await expect(storage.put('x.txt', Buffer.from('hi'), 'text/plain')).rejects.toThrow(/not allowed/);
+    await expect(storage.put('x/x', Buffer.from('{'), 'application/json')).rejects.toThrow(/not allowed/);
+    await expect(storage.get('x.html')).resolves.toBeNull();
   });
 });
 
@@ -53,7 +61,7 @@ describe('LocalStorage', () => {
   it('returns null for missing keys and tolerates double delete', async () => {
     const storage = await makeLocal();
     expect(await storage.get('missing')).toBeNull();
-    await storage.put('x', Buffer.from('1'), 'text/plain');
+    await storage.put('x', Buffer.from('1'), 'image/png');
     await storage.delete('x');
     expect(await storage.get('x')).toBeNull();
     await expect(storage.delete('x')).resolves.toBeUndefined();

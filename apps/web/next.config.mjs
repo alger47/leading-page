@@ -30,11 +30,25 @@ const nextConfig = {
           { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'X-DNS-Prefetch-Control', value: 'on' },
+          // Phase 14 (§12.4): cross-origin isolation hardening.
+          // COOP: force top-level / bfcache-friendly same-origin windowing.
+          // CORP: only same-origin resources may embed this page.
+          // Origin-Agent-Cluster: per-origin memory/thread isolation.
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
+          { key: 'Origin-Agent-Cluster', value: '?1' },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
           {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
+              // Phase 14 note: 'unsafe-inline'/'unsafe-eval' are KEPT because Next's
+              // production hydration emits inline bootstrap scripts and evaluates
+              // inline modules in dev/SWC path; removing them breaks the published
+              // SSR pages. The XSS surface they leave is closed by the L1
+              // href-scheme gate + renderer guard + placeholder-SVG escaping and
+              // would only widen again if they were replaced naively. Revisit when
+              // React 19 + Next stabilized non-inline bootstraps.
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https: http:",

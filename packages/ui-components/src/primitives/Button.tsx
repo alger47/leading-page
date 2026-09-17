@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import { sanitizeHref } from '@landing-ai/page-schema';
 
 export interface ButtonProps {
   label: string;
@@ -43,7 +44,7 @@ const secondaryStyle: React.CSSProperties = {
 export function Button({ label, href, variant = 'primary', className }: ButtonProps) {
   return (
     <a
-      href={href}
+      href={sanitizeHref(href)}
       className={className}
       style={{ ...baseStyle, ...(variant === 'primary' ? primaryStyle : secondaryStyle) }}
     >

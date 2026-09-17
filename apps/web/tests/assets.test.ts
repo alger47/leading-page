@@ -38,4 +38,13 @@ describe('buildPlaceholderSvg', () => {
     expect(a).toContain('xmlns="http://www.w3.org/2000/svg"');
     expect(a.startsWith('<svg')).toBe(true);
   });
+
+  it('escapes markup so a hostile ref cannot break out of the SVG text node (Phase 14)', () => {
+    const svg = buildPlaceholderSvg('asset:hero<script>alert(1)</script>&"x');
+    expect(svg).not.toContain('<script>');
+    expect(svg).toContain('&lt;script&gt;');
+    expect(svg).toContain('&amp;');
+    expect(svg).toContain('&quot;');
+    expect(svg).not.toMatch(/<text[^>]*>[^<]*<script/);
+  });
 });

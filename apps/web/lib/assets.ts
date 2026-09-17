@@ -97,7 +97,15 @@ export function buildPlaceholderSvg(ref: string, width = 1200, height = 800): st
     .split(/[-_:]+/)
     .filter(Boolean)
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
+    .join(' ')
+    // SVG-in-XML escaping: ref-derived labels land inside <text> and must
+    // never interpret markup (Phase 14 §12.3). Control chars are dropped too.
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
     `<rect width="100%" height="100%" fill="hsl(${hue} 28% 92%)"/>`,

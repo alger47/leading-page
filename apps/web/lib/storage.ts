@@ -55,6 +55,28 @@ function assertSafeKey(key: string): void {
   if (key.includes('\0')) throw new Error('asset key must not contain NUL');
 }
 
+// Phase 14 §12.4: only image content may be stored. Storing user-supplied
+// HTML/SVG-with-script under a same-origin path would turn uploads into a
+// stored-XSS / hosting-abuse vector (SVG is allowed but rendered inert at the
+// visual surface; storage itself never serves active content semantics).
+const ALLOWED_UPLOAD_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+  'image/avif',
+  'image/svg+xml',
+]);
+
+function assertAllowedContentType(contentType: string): void {
+  const normalized = contentType.trim().toLowerCase();
+  if (!ALLOWED_UPLOAD_MIME_TYPES.has(normalized)) {
+    throw new Error(
+      `content type ${JSON.stringify(contentType)} is not allowed; only ${[...ALLOWED_UPLOAD_MIME_TYPES].join(', ')}`,
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Local filesystem driver
 // ---------------------------------------------------------------------------
@@ -75,6 +97,7 @@ export class LocalStorage implements AssetStorage {
   }
 
   async put(key: string, body: Buffer, contentType: string): Promise<void> {
+    assertAllowedContentType(contentType);
     const file = this.resolvePath(key);
     await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, body);
@@ -284,6 +307,7 @@ export class S3Storage implements AssetStorage {
   }
 
   async put(key: string, body: Buffer, contentType: string): Promise<void> {
+    assertAllowedContentType(contentType);
     const url = this.objectUrl(key);
     const signed = this.sign('PUT', url, body);
     const response = await this.fetcher(url, {
