@@ -18,9 +18,9 @@ os.environ["AI_OPENAI_API_KEY"] = ""
 os.environ["AI_ANTHROPIC_API_KEY"] = ""
 os.environ["AI_BRIEF_ANALYZER_LLM"] = "false"
 
-from app.api.container import build_container  # noqa: E402
-from app.config import Settings  # noqa: E402
-from app.main import create_app  # noqa: E402
+from app.api.container import build_container
+from app.config import Settings
+from app.main import create_app
 
 AUTH_HEADERS = {"X-Internal-Token": "dev-internal-token"}
 

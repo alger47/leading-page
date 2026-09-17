@@ -14,7 +14,14 @@ from pathlib import Path
 
 from app.api.container import build_container
 from app.config import Settings
-from app.contracts import GenerationAttempt, JobResult, Outcome, StageResult, Usage, generation_mode_for
+from app.contracts import (
+    GenerationAttempt,
+    JobResult,
+    Outcome,
+    StageResult,
+    Usage,
+    generation_mode_for,
+)
 from app.routing.config import RoutingConfig
 
 ROUTING_PATH = Path("config/routing.yaml")

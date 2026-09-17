@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from app.services.validate import _content_semantics, _plan_semantics
 
+
 def _hero() -> dict:
     return {
         "id": "hero-1",

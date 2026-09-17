@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Literal
 
+from app.core.errors import RoutingConfigError
+
 # One validation finding, in the stable machine-readable shape of PART VIII §8.3.
 ValidationIssue = dict[str, Any]
 
@@ -142,7 +144,7 @@ def generation_mode_for(result, routing) -> str:
                 continue
             try:
                 provider = routing.model(attempt.model_class).provider
-            except Exception:
+            except RoutingConfigError:
                 continue
             if provider != "stub":
                 return "llm"

@@ -167,6 +167,129 @@ class OllamaProvider(OpenAIProvider):
         return {}
 
 
+class QwenProvider(OpenAIProvider):
+    """Qwen Cloud (DashScope) via its OpenAI-compatible /chat/completions endpoint.
+
+    Same wire protocol as OpenAI; json_object mode (strict:no json_schema binding
+    on the compatible-mode endpoint) + the pipeline's post-validation + repair
+    ladder guarantee the canonical schema.
+    """
+
+    name = "qwen"
+    response_format = "json_object"
+
+
+class LocalCompatibleProvider(OpenAIProvider):
+    """Any self-hosted OpenAI-compatible endpoint (vLLM / LM Studio / llama.cpp ...).
+
+    Keyless by default (optional AI_LOCAL_API_KEY for gateways that need one).
+    json_object mode + post-validation + repair, same reasoning as ollama/qwen.
+    Speed depends on the machine; allow long generations like Ollama.
+    """
+
+    name = "local"
+    response_format = "json_object"
+    timeout_s = 900.0
+
+    def _request_headers(self) -> dict[str, str]:
+        return {} if not self.api_key else {"Authorization": f"Bearer {self.api_key}"}
+
+
+class GeminiProvider:
+    """Google Gemini (generativelanguage) structured output.
+
+    Prompt is bound to JSON output via `responseMimeType: application/json` above
+    a plain user/system prompt; Gemini's responseSchema dialect is a reduced JSON
+    Schema subset (no additionalProperties) so native schema binding is NOT used —
+    the pipeline's post-validation + repair ladder guarantees the canonical schema,
+    matching the engine's json_object fallback policy for the other vendors.
+    """
+
+    name = "gemini"
+    timeout_s = TIMEOUT_S
+
+    def __init__(self, api_key: str, base_url: str, client: httpx.AsyncClient | None = None) -> None:
+        self.api_key = api_key
+        self.base_url = base_url.rstrip("/")
+        self._client = client or httpx.AsyncClient(timeout=httpx.Timeout(self.timeout_s))
+
+    def _endpoint(self, model: str) -> str:
+        return f"{self.base_url}/models/{model}:generateContent?key={self.api_key}"
+
+    async def generate_structured(
+        self,
+        *,
+        schema: dict[str, Any],
+        prompt: PromptAsset,
+        inputs: dict[str, Any],
+        params: GenerationParams,
+        feedback: str | None = None,
+    ) -> ProviderResult:
+        started = time.perf_counter()
+        user_content = prompt.render(inputs)
+        if feedback:
+            user_content = f"{user_content}\n\nREPAIR FEEDBACK: {feedback}"
+        payload = {
+            "system_instruction": {"parts": [{"text": prompt.system}]},
+            "contents": [{"role": "user", "parts": [{"text": user_content}]}],
+            "generationConfig": {
+                "temperature": params.temperature,
+                "maxOutputTokens": params.max_output_tokens,
+                "responseMimeType": "application/json",
+            },
+        }
+        try:
+            resp = await self._client.post(self._endpoint(params.model), json=payload)
+        except (httpx.TimeoutException, httpx.TransportError) as exc:
+            outcome = Outcome.timeout if isinstance(exc, httpx.TimeoutException) else Outcome.provider_error
+            return ProviderResult(
+                outcome=outcome,
+                message=str(exc),
+                usage=Usage(0, 0),
+                model=params.model,
+                latency_ms=(time.perf_counter() - started) * 1000.0,
+            )
+        if resp.status_code >= 400:
+            outcome = Outcome.refused if resp.status_code in (400, 401, 403, 429) else Outcome.provider_error
+            return ProviderResult(
+                outcome=outcome,
+                message=f"http {resp.status_code}",
+                usage=Usage(0, 0),
+                model=params.model,
+                latency_ms=(time.perf_counter() - started) * 1000.0,
+            )
+        body = resp.json()
+        usage = body.get("usageMetadata") or {}
+        try:
+            parts = body["candidates"][0]["content"]["parts"]
+            text = next(p["text"] for p in parts if "text" in p)
+            data = json.loads(text)
+        except (KeyError, IndexError, StopIteration, ValueError) as exc:
+            return ProviderResult(
+                outcome=Outcome.malformed,
+                message=f"unparseable: {exc}",
+                usage=Usage(0, 0),
+                model=params.model,
+                latency_ms=(time.perf_counter() - started) * 1000.0,
+            )
+        if not isinstance(data, dict):
+            return ProviderResult(
+                outcome=Outcome.malformed,
+                message="output is not a JSON object",
+                usage=Usage(0, 0),
+                model=params.model,
+                latency_ms=(time.perf_counter() - started) * 1000.0,
+            )
+        return ProviderResult(
+            outcome=Outcome.ok,
+            data=data,
+            message="ok",
+            usage=Usage(int(usage.get("promptTokenCount", 0)), int(usage.get("candidatesTokenCount", 0))),
+            model=params.model,
+            latency_ms=(time.perf_counter() - started) * 1000.0,
+        )
+
+
 class AnthropicProvider:
     name = "anthropic"
 

@@ -14,7 +14,9 @@
     "migrate:dev": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "db:reset": "prisma migrate reset --force --skip-seed",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "backup": "tsx scripts/backup.ts",
+    "backup:dry-run": "tsx scripts/backup.ts --dry-run"
   },
   "dependencies": {
     "@landing-ai/page-schema": "workspace:*",

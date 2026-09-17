@@ -1,0 +1,41 @@
+skills:
+  - id: landing-page-production
+    name: Landing page production
+    description: End-to-end generation of a validated single-page landing site from a brief.
+    stages: [brief-analyzer, page-planner, layout-planner, content-generator, asset-planner]
+    prompts: [stage1-brief-analyzer, stage2-page-planner, stage3-layout-planner, stage4-content-generator, stage5-asset-planner, judge-rubric]
+  - id: brief-analysis
+    name: Brief analysis
+    description: Vertical, audience and tone detection from a raw brief.
+    stages: [brief-analyzer]
+    prompts: [stage1-brief-analyzer]
+  - id: page-structuring
+    name: Page structuring
+    description: Section plan and sales structure for the landing page.
+    stages: [page-planner]
+    prompts: [stage2-page-planner]
+  - id: layout-design
+    name: Layout design
+    description: Section-by-section layout variants (theme and variant choices).
+    stages: [layout-planner]
+    prompts: [stage3-layout-planner]
+  - id: copywriting
+    name: Copywriting
+    description: Entity-ready marketing copy for every section.
+    stages: [content-generator]
+    prompts: [stage4-content-generator]
+  - id: asset-planning
+    name: Media asset planning
+    description: Concrete image, icon and logo asset requests for the page.
+    stages: [asset-planner]
+    prompts: [stage5-asset-planner]
+  - id: localization
+    name: Localization (ar / fr / en)
+    description: Locale-aware brief analysis and content tone.
+    stages: [brief-analyzer, content-generator]
+    prompts: [stage1-brief-analyzer, stage4-content-generator]
+  - id: brand-tone
+    name: Brand tone
+    description: Tone-of-voice detection and consistently branded copy.
+    stages: [brief-analyzer, content-generator]
+    prompts: [stage1-brief-analyzer, stage4-content-generator]

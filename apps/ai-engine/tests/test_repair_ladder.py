@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from app.api.container import build_container
 from app.main import create_app
-from tests.helpers import FlakyProvider, QuotaThrottledProvider, RaisingProvider, RiggedProvider
 from app.providers.stub import StubProvider
+from tests.helpers import FlakyProvider, QuotaThrottledProvider, RaisingProvider, RiggedProvider
 
 
 def _generate(container, brief: str) -> dict:

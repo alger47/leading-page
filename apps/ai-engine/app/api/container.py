@@ -15,6 +15,7 @@ from app.routing.config import RoutingConfig
 from app.services.pipeline import Pipeline
 from app.services.regenerate import SectionRegenerator
 from app.services.stage_runner import StageRunner
+from app.skills.registry import SkillsRegistry
 
 
 class JobStore:
@@ -47,6 +48,7 @@ class Container:
     runner: StageRunner
     pipeline: Pipeline
     regenerator: SectionRegenerator
+    skills: SkillsRegistry
     jobs: JobStore
 
 
@@ -56,14 +58,13 @@ def build_container(
 ) -> Container:
     settings = settings or get_settings()
     routing = RoutingConfig.from_path(settings.routing_config_path)
-    if settings.brief_analyzer_llm:
+    if settings.brief_analyzer_llm and settings.openai_api_key:
         # Phase 13: LLM-aware brief analysis (opt-in via AI_BRIEF_ANALYZER_LLM).
         # `brief-llm` is pinned to openai in routing.yaml — only enable it when
         # the matching credential exists, otherwise the factory would raise on
         # the first brief-analyzer call. Anthropic-only setups point
         # routing.yaml's `brief-llm.provider` at "anthropic" instead.
-        if settings.openai_api_key:
-            routing.enable_brief_analyzer_llm("brief-llm")
+        routing.enable_brief_analyzer_llm("brief-llm")
     schemas = SchemaStore()
     prompts = PromptStore(schemas=schemas)
     providers = ProviderRegistry(settings, routing)
@@ -73,6 +74,7 @@ def build_container(
     runner = StageRunner(routing=routing, providers=providers, prompts=prompts, schemas=schemas)
     pipeline = Pipeline(runner=runner, routing=routing, settings=settings)
     regenerator = SectionRegenerator(runner=runner, routing=routing, settings=settings)
+    skills = SkillsRegistry(prompts=prompts)
     return Container(
         settings=settings,
         routing=routing,
@@ -82,5 +84,6 @@ def build_container(
         runner=runner,
         pipeline=pipeline,
         regenerator=regenerator,
+        skills=skills,
         jobs=JobStore(),
     )

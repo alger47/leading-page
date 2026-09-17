@@ -47,6 +47,16 @@ class Settings(BaseSettings):
     anthropic_base_url: str = "https://api.anthropic.com"
     # Local Ollama (OpenAI-compatible endpoint); keyless.
     ollama_base_url: str = "http://localhost:11434/v1"
+    # Gemini (Google) key + API base; keyless otherwise, provider unavailable.
+    gemini_api_key: str = ""
+    gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta"
+    # Qwen Cloud / DashScope via the OpenAI-compatible endpoint.
+    qwen_api_key: str = ""
+    qwen_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    # Any OpenAI-compatible local endpoint (vLLM / LM Studio / llama.cpp ...).
+    # Key is optional; a gateway behind auth sets AI_LOCAL_API_KEY.
+    local_api_key: str = ""
+    local_base_url: str = "http://localhost:8001/v1"
 
     # Phase 13: route ONLY the brief-analyzer through an LLM (LLM-aware
     # vertical/tone/facts detection) instead of keyword matching. Requires the

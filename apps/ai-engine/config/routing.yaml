@@ -4,7 +4,7 @@
 # plus an evaluation run. Per-stage: model_class, temperature, max attempts,
 # fallback order. Per model class: provider + per-1k-token cost + default model_id.
 #
-# provider values: stub | openai | anthropic | ollama
+# provider values: stub | openai | anthropic | ollama | gemini | qwen | local
 
 models:
   fast:

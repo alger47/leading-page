@@ -8,7 +8,14 @@ from __future__ import annotations
 
 from app.config import Settings
 from app.core.errors import RoutingConfigError
-from app.providers.http_providers import AnthropicProvider, OllamaProvider, OpenAIProvider
+from app.providers.http_providers import (
+    AnthropicProvider,
+    GeminiProvider,
+    LocalCompatibleProvider,
+    OllamaProvider,
+    OpenAIProvider,
+    QwenProvider,
+)
 from app.providers.protocol import StructuredLLMProvider
 from app.providers.stub import StubProvider
 from app.routing.config import RoutingConfig
@@ -17,6 +24,9 @@ _HTTP_PROVIDERS: dict[str, type] = {
     "openai": OpenAIProvider,
     "anthropic": AnthropicProvider,
     "ollama": OllamaProvider,
+    "gemini": GeminiProvider,
+    "qwen": QwenProvider,
+    "local": LocalCompatibleProvider,
 }
 
 
@@ -55,6 +65,16 @@ class ProviderRegistry:
             raise RoutingConfigError(f"unknown provider plugin {provider_name!r} (E-AI-006)")
         if provider_name == "ollama":
             return cls("", self.settings.ollama_base_url)
+        if provider_name == "local":
+            return cls(self.settings.local_api_key, self.settings.local_base_url)
+        if provider_name == "gemini":
+            if not self.settings.gemini_api_key:
+                raise RoutingConfigError("gemini provider selected but AI_GEMINI_API_KEY is unset")
+            return cls(self.settings.gemini_api_key, self.settings.gemini_base_url)
+        if provider_name == "qwen":
+            if not self.settings.qwen_api_key:
+                raise RoutingConfigError("qwen provider selected but AI_QWEN_API_KEY is unset")
+            return cls(self.settings.qwen_api_key, self.settings.qwen_base_url)
         if provider_name == "openai":
             if not self.settings.openai_api_key:
                 raise RoutingConfigError("openai provider selected but AI_OPENAI_API_KEY is unset")

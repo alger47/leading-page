@@ -63,6 +63,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@landing-ai/telemetry':
+        specifier: workspace:*
+        version: link:../../packages/telemetry
       bullmq:
         specifier: ^5.34.0
         version: 5.81.4

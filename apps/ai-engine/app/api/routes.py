@@ -124,3 +124,20 @@ async def page(job_id: str, request: Request) -> dict:
 async def prompts(request: Request) -> dict:
     container = _container(request)
     return {"refs": container.prompts.refs()}
+
+
+@router.get("/internal/v1/skills", dependencies=[Depends(require_internal_token)])
+async def skills(request: Request) -> dict:
+    container = _container(request)
+    return {
+        "skills": [
+            {
+                "id": skill.id,
+                "name": skill.name,
+                "description": skill.description,
+                "stages": list(skill.stages),
+                "prompts": list(skill.prompts),
+            }
+            for skill in container.skills.all()
+        ]
+    }
