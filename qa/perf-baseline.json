@@ -1,0 +1,116 @@
+{
+  "run_at": "2026-09-17T07:16:52.631Z",
+  "chrome": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "engine": {
+    "source": "metrics-live.json",
+    "run_at": "2026-09-10T21:29:51+00:00",
+    "e2e_latency_ms": {
+      "p50": 6,
+      "p95": 8
+    },
+    "stages_latency_ms": {
+      "asset-planner": {
+        "p50": 0.1,
+        "p95": 0.1
+      },
+      "brief-analyzer": {
+        "p50": 0.1,
+        "p95": 0.2
+      },
+      "content-generator": {
+        "p50": 0.1,
+        "p95": 0.3
+      },
+      "layout-planner": {
+        "p50": 0.1,
+        "p95": 0.2
+      },
+      "page-planner": {
+        "p50": 0.1,
+        "p95": 0.2
+      }
+    },
+    "cost_per_successful_page": 0.011099
+  },
+  "pages": [
+    {
+      "name": "ai-saas-en-001",
+      "renderMs": 20,
+      "loadMs": 595,
+      "lcpMs": 308,
+      "cls": 0.07,
+      "inpMs": 0,
+      "documentBytes": 9026,
+      "images": [
+        {
+          "src": "file:///C:/assets/asset/asset%3Ahero-saas",
+          "format": "",
+          "naturalWidth": 0,
+          "naturalHeight": 0,
+          "width": 96,
+          "height": 18,
+          "complete": true
+        }
+      ],
+      "imageTransferBytes": 0,
+      "within_budgets": true
+    },
+    {
+      "name": "ai-vet-ar-001",
+      "renderMs": 10,
+      "loadMs": 568,
+      "lcpMs": 156,
+      "cls": 0.066,
+      "inpMs": 0,
+      "documentBytes": 9357,
+      "images": [
+        {
+          "src": "file:///C:/assets/asset/asset%3Ahero-veterinary",
+          "format": "",
+          "naturalWidth": 0,
+          "naturalHeight": 0,
+          "width": 94,
+          "height": 18,
+          "complete": true
+        }
+      ],
+      "imageTransferBytes": 0,
+      "within_budgets": true
+    },
+    {
+      "name": "valid-saas-en-001",
+      "renderMs": 11,
+      "loadMs": 555,
+      "lcpMs": 112,
+      "cls": 0,
+      "inpMs": 0,
+      "documentBytes": 7625,
+      "images": [],
+      "imageTransferBytes": 0,
+      "within_budgets": true
+    },
+    {
+      "name": "valid-vet-ar-001",
+      "renderMs": 3,
+      "loadMs": 578,
+      "lcpMs": 140,
+      "cls": 0.078,
+      "inpMs": 0,
+      "documentBytes": 9162,
+      "images": [
+        {
+          "src": "file:///C:/assets/asset/asset%3Ahero-vet",
+          "format": "",
+          "naturalWidth": 0,
+          "naturalHeight": 0,
+          "width": 147,
+          "height": 18,
+          "complete": true
+        }
+      ],
+      "imageTransferBytes": 0,
+      "within_budgets": true
+    }
+  ],
+  "budget_breaches": []
+}

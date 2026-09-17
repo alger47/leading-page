@@ -18,6 +18,7 @@
     "test:integration": "turbo test:integration",
     "qa": "node scripts/qa.mjs",
     "qa:update": "node scripts/qa.mjs --update",
+    "perf": "node scripts/perf.mjs",
     "codegen": "turbo codegen",
     "prepare": "husky install"
   },

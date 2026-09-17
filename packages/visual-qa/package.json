@@ -10,7 +10,8 @@
     "build": "tsc && node scripts/bundle-lib.mjs",
     "bundle": "node scripts/bundle.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --pool=forks --poolOptions.forks.singleFork",
+    "test:parallel": "vitest run",
     "gate": "node dist/cli.mjs"
   },
   "dependencies": {

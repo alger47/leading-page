@@ -21,6 +21,8 @@ export { runVisualPublishGate, gatePasses, isVisualPublishGateEnabled } from './
 export type { VisualPublishGateResult } from './gate.js';
 export { buildBaseline, diffAgainstBaseline } from './baseline.js';
 export type { BaselineSnapshot, BaselinePage, BaselineDiff, BaselineResult } from './baseline.js';
+export { measureVitals, withinBudgets } from './vitals.js';
+export type { PageVitals, PageImageSample } from './vitals.js';
 
 export interface VisualQaOptions {
   /** Explicit Chrome/Edge executable; defaults to resolution of the system install. */

@@ -70,3 +70,6 @@ jobs:
           pnpm --filter @landing-ai/web test
       - name: QA gate (L1/L2 fixtures · L3 baseline · publish budget)
         run: pnpm qa
+      - name: Performance harness (§5.7 vitals · engine latency snapshot)
+        if: always()
+        run: pnpm perf --quiet --json qa/perf-ci.json
