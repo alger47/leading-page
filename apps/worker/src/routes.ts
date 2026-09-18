@@ -54,6 +54,21 @@ const POST_JOB_SCHEMA = {
     targetSectionId: { type: 'string', minLength: 1, maxLength: 64 },
     page: { type: 'object' },
     generateImages: { type: 'boolean' },
+    suppliedImages: {
+      type: 'array',
+      minItems: 0,
+      maxItems: 4,
+      items: {
+        type: 'object',
+        required: ['ref', 'mime', 'data_b64'],
+        additionalProperties: false,
+        properties: {
+          ref: { type: 'string', minLength: 1, maxLength: 256 },
+          mime: { type: 'string', enum: ['image/png', 'image/jpeg', 'image/webp', 'image/avif', 'image/gif'] },
+          data_b64: { type: 'string', minLength: 1, maxLength: 1_600_000 },
+        },
+      },
+    },
   },
 } as const;
 
@@ -160,7 +175,14 @@ export function registerRoutes(app: FastifyInstance, ctx: WorkerContext): void {
 
 function fingerprintFallback(request: GenerationRequest): string {
   // Deterministic derived key when the client sends no Idempotency-Key, so a
-  // duplicate POST of the same payload does not spawn a second job.
+  // duplicate POST of the same payload does not spawn a second job. Supplied
+  // images enter the canonical only as (count + sorted ref list): the bytes
+  // are effect-identical, so hashing them would make the key unstable.
+  const suppliedKey = (request.suppliedImages ?? [])
+    .map((img) => img.ref)
+    .slice()
+    .sort()
+    .join('|');
   const canonical = [
     request.brief,
     request.locale ?? '',
@@ -169,6 +191,7 @@ function fingerprintFallback(request: GenerationRequest): string {
     request.mode ?? 'full',
     request.targetSectionId ?? '',
     String(request.generateImages ?? ''),
+    `${(request.suppliedImages ?? []).length}:${suppliedKey}`,
   ].join('\n');
   return `derived:${createHash('sha256').update(canonical).digest('hex')}`;
 }

@@ -10,14 +10,47 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.api.container import Container
 from app.api.deps import require_internal_token
 from app.core.errors import BriefValidationError
 
 router = APIRouter()
+
+_IMAGE_MIME = {"image/png", "image/jpeg", "image/jpg", "image/webp", "image/avif", "image/gif"}
+
+
+class SuppliedImage(BaseModel):
+    """A real product raster (product-link generation, Phase 16 part 2). The
+    worker forwards `ref`/`mime`/`data_b64` verbatim; the asset-renderer uses
+    the bytes directly instead of calling an image model."""
+
+    ref: str = Field(min_length=1, max_length=256)
+    mime: str = Field(pattern=r"^image/(png|jpe?g|webp|avif|gif)$")
+    data_b64: str = Field(min_length=1)
+
+    @field_validator("data_b64")
+    @classmethod
+    def _decodable(cls, v: str) -> str:
+        try:
+            base64.b64decode(v, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise ValueError("supplied image is not valid base64") from exc
+        return v
+
+
+def _supplied_images(models: list[SuppliedImage]):
+    from app.services.asset_renderer import SuppliedImage as InternalSuppliedImage
+
+    return [
+        InternalSuppliedImage(ref=m.ref, mime=m.mime, data=base64.b64decode(m.data_b64, validate=True))
+        for m in models
+    ]
 
 
 class JobRequest(BaseModel):
@@ -29,6 +62,9 @@ class JobRequest(BaseModel):
     # Stage 6 asset-renderer opt-in. The engine feature itself stays OFF until
     # AI_IMAGE_PROVIDER + credentials are configured (asset_renderer.enabled()).
     generate_images: bool = False
+    # Product-link raster bytes (Phase 16 part 2). Bounded: the worker caps this
+    # at image_max entries; the renderer also truncates defensively.
+    supplied_images: list[SuppliedImage] = Field(default_factory=list, max_length=8)
 
 
 class RegenerateSectionRequest(BaseModel):
@@ -75,6 +111,7 @@ async def generate(request: Request, body: JobRequest) -> dict:
             job_id=body.job_id,
             budget_usd=body.budget_usd,
             generate_images=body.generate_images,
+            supplied_images=_supplied_images(body.supplied_images),
         )
     except BriefValidationError as exc:
         raise HTTPException(status_code=422, detail={"code": exc.code, "message": str(exc)}) from exc

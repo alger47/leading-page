@@ -66,12 +66,29 @@ Page detail for preview.
 ## Generation
 
 ### `POST /generate`
-Body: `{ projectId, pageId, brief, locale: 'ar'|'fr'|'en', tone }`.
+Body: `{ projectId, pageId, brief, locale: 'ar'|'fr'|'en', tone, productUrl? }`.
 - `202` `{ jobId, status: 'QUEUED' }` — job created and handed to the worker.
 - `200` `{ jobId, status }` — idempotent replay: the same body + same project
   + same page returns the existing in-flight/terminal job.
 - `401`/`403` auth/CSRF; `404` foreign project/page; `422` `E-VAL-BRIEF`
-  (brief too short/too long/blank, bad locale or unsupported tone).
+  (brief too short/too long/blank, bad locale or unsupported tone); `400`
+  `E-PROD-001` (Phase 16 part 2 — product URL failed the allowlist/fetch/parse).
+
+Optional `productUrl` (Phase 16 part 2): the server fetches the allowlisted
+product page (`PRODUCT_SOURCE_ALLOWLIST`, default `aliexpress.com`), extracts
+title/bullets/images, pre-fills the brief and forwards real product rasters as
+`suppliedImages` into the job (see ADR-0013). Supplied rasters are used in
+place of generated ones at zero cost; on failure the manual brief path stays
+available with `E-PROD-001`.
+
+### `POST /product/extract`
+Body: `{ url }` — parse-only preview (Phase 16 part 2), same allowlist + caps
+as `POST /generate` but no job is created.
+- `200` `{ product: { title, price, bullets, images } }` — images are
+  server-downloaded absolute URLs, deduped, ≤ 8.
+- `200` `{ product: EMPTY_PRODUCT }` — page parsed but nothing recognized
+  (manual brief hint, not an error). `400` `E-PROD-001` on fetch/allowlist/parse
+  failure.
 
 Idempotency: the key is `doc:{userId}:{pageId}:{retryNonce}` where retryNonce
 is the number of prior terminal `FAILED`/`CANCELLED` jobs for that page — a new

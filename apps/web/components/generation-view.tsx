@@ -50,12 +50,33 @@ export interface GenerationViewProps {
 
 const BRIEF_MIN_LENGTH = 10;
 
+interface ProductThumbnail {
+  url: string;
+  width: number;
+  height: number;
+}
+
+interface ExtractResponse {
+  product?: {
+    title?: string | null;
+    price?: string | null;
+    bullets?: string[];
+    suggestedBrief?: string;
+    images?: ProductThumbnail[];
+  };
+  error?: { code?: string; message?: string };
+}
+
 export function GenerationView({ projectId, pageId, hasVersion, activeJob }: GenerationViewProps) {
   const router = useRouter();
   const [brief, setBrief] = useState('');
   const [locale, setLocale] = useState<'ar' | 'fr' | 'en'>('fr');
   const [tone, setTone] = useState('warm-professional');
   const [generateImages, setGenerateImages] = useState(false);
+  const [productUrl, setProductUrl] = useState('');
+  const [productImages, setProductImages] = useState<ProductThumbnail[]>([]);
+  const [loadingProduct, setLoadingProduct] = useState(false);
+  const [productError, setProductError] = useState<string | null>(null);
   const [job, setJob] = useState<JobView | null>(() =>
     activeJob
       ? { jobId: activeJob.id, status: activeJob.status, attemptsMade: 0, errorCode: null, errorMessage: null, briefIncomplete: activeJob.briefIncomplete, demoMode: activeJob.demoMode }
@@ -101,7 +122,7 @@ export function GenerationView({ projectId, pageId, hasVersion, activeJob }: Gen
     try {
       const res = await apiFetch<{ jobId?: string; status?: string; error?: { code?: string; message?: string } }>(
         '/api/v1/generate',
-        { method: 'POST', body: JSON.stringify({ projectId, pageId, brief, locale, tone, generateImages }) },
+        { method: 'POST', body: JSON.stringify({ projectId, pageId, brief, locale, tone, generateImages, ...(productUrl.trim() !== '' ? { productUrl: productUrl.trim() } : {}) }) },
       );
       if (res.status !== 202 && res.status !== 200) {
         setError(res.body?.error?.message ?? 'Could not start generation.');
@@ -112,6 +133,28 @@ export function GenerationView({ projectId, pageId, hasVersion, activeJob }: Gen
       setError('Network error. Could not reach the generator.');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function loadProduct() {
+    const url = productUrl.trim();
+    if (url === '') return;
+    setProductError(null);
+    setLoadingProduct(true);
+    try {
+      const res = await apiFetch<ExtractResponse>('/api/v1/product/extract', { method: 'POST', body: JSON.stringify({ url }) });
+      if (res.status !== 200 || !res.body.product) {
+        setProductError(res.body?.error?.message ?? 'Could not read this product page.');
+        return;
+      }
+      const p = res.body.product;
+      if (p.suggestedBrief) setBrief(p.suggestedBrief);
+      setProductImages(p.images ?? []);
+      setError(null);
+    } catch {
+      setProductError('Network error. Could not read this product page.');
+    } finally {
+      setLoadingProduct(false);
     }
   }
 
@@ -171,6 +214,38 @@ export function GenerationView({ projectId, pageId, hasVersion, activeJob }: Gen
               required
             />
           </label>
+          <div className="product-link">
+            <label>
+              Product link (optional)
+              <div className="product-link-row">
+                <input
+                  type="url"
+                  value={productUrl}
+                  onChange={(e) => setProductUrl(e.target.value)}
+                  placeholder="https://www.aliexpress.com/item/…"
+                  list="product-hosts"
+                  aria-label="Product page URL"
+                />
+                <button type="button" className="load" onClick={() => void loadProduct()} disabled={loadingProduct || productUrl.trim() === ''}>
+                  {loadingProduct ? 'Reading…' : 'Load product'}
+                </button>
+              </div>
+            </label>
+            <datalist id="product-hosts">
+              <option value="https://www.aliexpress.com/item/1005000000000000.html" />
+            </datalist>
+            {productImages.length > 0 && (
+              <div className="product-thumbs" role="group" aria-label="Product images found">
+                {productImages.map((img) => (
+                  <img key={img.url} src={img.url} alt="" width={img.width} height={img.height} loading="lazy" />
+                ))}
+              </div>
+            )}
+            {productError && <p className="product-error" role="alert">{productError}</p>}
+            <p className="hint">
+              Paste an AliExpress product link to auto-fill the brief and reuse the product photos in the landing page.
+            </p>
+          </div>
           <label className="generate-images">
             <input type="checkbox" checked={generateImages} onChange={(e) => setGenerateImages(e.target.checked)} />
             Generate AI images for the page (best-effort — placeholders stay where generation is unavailable)
@@ -245,6 +320,13 @@ export function GenerationView({ projectId, pageId, hasVersion, activeJob }: Gen
         .brief-form textarea { resize: vertical; }
         .brief-form button { justify-self: start; padding: 10px 18px; border: 0; border-radius: var(--radius-sm); background: var(--color-primary); color: var(--color-on-primary); cursor: pointer; }
         .brief-form button:disabled { opacity: 0.6; cursor: default; }
+        .product-link { display: grid; gap: 6px; }
+        .product-link-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+        .product-link-row input { width: 100%; }
+        .product-link-row .load { justify-self: auto; background: var(--color-surface-alt); color: var(--color-text); border: 1px solid var(--color-border); }
+        .product-thumbs { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+        .product-thumbs img { max-height: 64px; max-width: 96px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); object-fit: cover; }
+        .product-error { color: #b91c1c; font-size: 0.8125rem; margin: 0; }
         .error { color: #b91c1c; font-size: 0.875rem; margin: 0; }
         .hint { color: var(--color-text-muted); font-size: 0.875rem; }
         .hint--warn { color: #92400e; }

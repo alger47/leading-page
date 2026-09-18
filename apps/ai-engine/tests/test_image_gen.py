@@ -148,6 +148,125 @@ def test_generate_images_opt_out_skips_stage():
     assert job["assets"] == []
 
 
+def test_asset_renderer_uses_supplied_images_verbatim():
+    from app.api.container import build_container
+    from app.cost.ledger import JobLedger
+    from app.services.asset_renderer import SuppliedImage
+
+    supplied = [
+        SuppliedImage(ref="product-1", mime="image/png", data=b"\x89PNG\r\n\x1a\nPRODUCTRASTER-1"),
+        SuppliedImage(ref="product-2", mime="image/webp", data=b"RIFF....WEBPproduct2"),
+    ]
+    container = build_container(settings=_stub_settings())
+    ledger = JobLedger(container.routing, container.settings, 1.0)
+    stage, blobs = asyncio.run(container.images.render(requirements=REQS, tone=None, ledger=ledger, supplied=supplied))
+
+    assert stage.ok is True
+    images = (stage.data or {}).get("images") or []
+    assert len(images) == 2
+    assert images[0]["source"] == "supplied"
+    assert images[1]["source"] == "supplied"
+    assert blobs[0]["data"] == b"\x89PNG\r\n\x1a\nPRODUCTRASTER-1"
+    assert blobs[1]["data"] == b"RIFF....WEBPproduct2"
+    assert all(a.model_class == "supplied" for a in stage.attempts)
+    assert all(a.prompt_ref == "supplied@product" for a in stage.attempts)
+    assert all(a.cost_usd == 0.0 for a in stage.attempts)
+    assert all(a.provider == "product" for a in stage.attempts)
+
+
+def test_asset_renderer_supplied_covers_only_its_count_then_generates():
+    from app.api.container import build_container
+    from app.cost.ledger import JobLedger
+    from app.services.asset_renderer import SuppliedImage
+
+    supplied = [SuppliedImage(ref="product-1", mime="image/png", data=b"\x89PNG\r\n\x1a\nPRODUCTRASTER-1")]
+    container = build_container(settings=_stub_settings())
+    ledger = JobLedger(container.routing, container.settings, 1.0)
+    stage, blobs = asyncio.run(container.images.render(requirements=REQS, tone=None, ledger=ledger, supplied=supplied))
+
+    images = (stage.data or {}).get("images") or []
+    assert [e["source"] for e in images] == ["supplied", "generated"]
+    assert [a.model_class for a in stage.attempts] == ["supplied", "image"]
+    assert blobs[0]["data"] == b"\x89PNG\r\n\x1a\nPRODUCTRASTER-1"
+    assert blobs[1]["data"].startswith(b"\x89PNG")
+
+
+def test_asset_renderer_supplied_oversize_becomes_placeholder_issue():
+    from app.api.container import build_container
+    from app.cost.ledger import JobLedger
+    from app.services.asset_renderer import SuppliedImage
+
+    # Oversized relative to the cap, and a second valid one: the oversized one
+    # is dropped (E-IMG-001), the valid one is used.
+    big = SuppliedImage(ref="product-1", mime="image/png", data=b"\x89PNG\r\n\x1a\n" + b"x" * (2 * 1024 * 1024))
+    small = SuppliedImage(ref="product-2", mime="image/png", data=b"\x89PNG\r\n\x1a\nPRODUCTRASTER-2")
+    container = build_container(settings=_stub_settings())
+    ledger = JobLedger(container.routing, container.settings, 1.0)
+    stage, _blobs = asyncio.run(container.images.render(requirements=REQS, tone=None, ledger=ledger, supplied=[big, small]))
+
+    assert stage.ok is True
+    assert stage.draft is True
+    images = (stage.data or {}).get("images") or []
+    # First requirement got the oversize supplied → skipped; second used small;
+    # third kept its placeholder (nothing left). Order: hero-saas, feat-illustration.
+    assert len(images) == 1
+    assert images[0]["ref"] == "asset:feat-illustration"
+    assert images[0]["source"] == "supplied"
+    assert any(issue["ruleId"] == IMAGE_ISSUE_RULE for issue in stage.issues)
+
+
+def test_generate_with_supplied_images_route_and_caps():
+    import base64
+
+    from fastapi.testclient import TestClient
+
+    from app.api.container import build_container
+    from app.main import create_app
+
+    container = build_container(settings=_stub_settings())
+    app = create_app(container=container)
+    supplied = [
+        {"ref": "product-1", "mime": "image/png", "data_b64": base64.b64encode(b"\x89PNG\r\n\x1a\nRASTER-1").decode()},
+        {"ref": "product-2", "mime": "image/webp", "data_b64": base64.b64encode(b"RIFF....WEBPRASTER-2").decode()},
+    ]
+    with TestClient(app) as client:
+        res = client.post(
+            "/internal/v1/generate",
+            headers={"X-Internal-Token": "dev-internal-token"},
+            json={"brief": "Boutique hotel near the old town. Target: couples for a relaxing weekend.", "generate_images": True, "supplied_images": supplied},
+        )
+    assert res.status_code == 200, res.text
+    job = res.json()["job"]
+    assert job["status"] == "COMPLETED"
+    assert job["assets"]
+    assert all(a["source"] in ("supplied", "generated") for a in job["assets"])
+    assert any(a["source"] == "supplied" for a in job["assets"])
+    supplied_ref = next(a["ref"] for a in job["assets"] if a["source"] == "supplied")
+    assert container.assets.get(job["job_id"], supplied_ref) is not None
+
+
+def test_generate_rejects_invalid_supplied_base64():
+    from fastapi.testclient import TestClient
+
+    from app.api.container import build_container
+    from app.main import create_app
+
+    container = build_container(settings=_stub_settings())
+    app = create_app(container=container)
+    with TestClient(app) as client:
+        res = client.post(
+            "/internal/v1/generate",
+            headers={"X-Internal-Token": "dev-internal-token"},
+            json={
+                "brief": "Boutique hotel near the old town. Target: couples for a relaxing weekend.",
+                "generate_images": True,
+                "supplied_images": [{"ref": "product-1", "mime": "image/png", "data_b64": "!!!not-base64!!!"}],
+            },
+        )
+    assert res.status_code == 422
+    assert "supplied image" in res.text
+
+
 def test_hf_image_provider_ok_bytes():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path.endswith("/FLUX-test")

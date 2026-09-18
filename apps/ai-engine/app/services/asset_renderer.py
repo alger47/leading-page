@@ -17,6 +17,7 @@ Honest-failure posture:
 from __future__ import annotations
 
 import time
+from dataclasses import dataclass
 from typing import Any
 
 from app.config import Settings
@@ -30,6 +31,19 @@ from app.routing.config import RoutingConfig
 IMAGE_STAGE = "asset-renderer"
 IMAGE_ISSUE_RULE = "E-IMG-001"
 _GENERATED_KINDS = ("image", "illustration")
+
+
+@dataclass(frozen=True)
+class SuppliedImage:
+    """A real product raster carried into the job (product-link generation).
+
+    The stage uses it verbatim (no model call) instead of generating a
+    placeholder lookalike; manifest refs stay logical ``asset:<requirement>``.
+    """
+
+    ref: str
+    mime: str
+    data: bytes
 
 _TONE_STYLE: dict[str, str] = {
     "warm-professional": "warm, professional, softly lit, photo-realistic",
@@ -57,10 +71,15 @@ class AssetRenderer:
         requirements: list[dict[str, Any]],
         tone: str | None,
         ledger: JobLedger,
+        supplied: list[SuppliedImage] | None = None,
     ) -> tuple[StageResult, list[dict[str, Any]]]:
         """Generate raster assets for the planner's `image`/`illustration`
         requirements. Returns (StageResult, blobs) — blobs are the raw bytes
-        for the pipeline to stash in the ephemeral JobAssetStore."""
+        for the pipeline to stash in the ephemeral JobAssetStore.
+
+        `supplied` (product-link generation, Phase 16 part 2) short-circuits
+        the model call: those real product rasters are used verbatim, in
+        planner order, and generation covers the remaining requirements."""
         blobs: list[dict[str, Any]] = []
         empty = StageResult(stage=IMAGE_STAGE, ok=True, data={"images": []})
         if not self.enabled():
@@ -81,6 +100,12 @@ class AssetRenderer:
             if isinstance(r, dict) and r.get("kind") in _GENERATED_KINDS and isinstance(r.get("id"), str) and r["id"].strip()
         ][: self.settings.image_max]
 
+        try:
+            source_images = (supplied or [])[: self.settings.image_max]
+        except TypeError:
+            source_images = []
+        supplied_iter = iter(source_images)
+
         attempts: list[GenerationAttempt] = []
         issues: list[dict[str, Any]] = []
         manifest: list[dict[str, Any]] = []
@@ -89,19 +114,37 @@ class AssetRenderer:
             rid = req["id"]
             prompt = self._prompt(subject=req.get("subject", ""), orientation=req.get("orientation", "landscape"), kind=req.get("kind", "image"), tone=tone)
             started = time.perf_counter()
-            try:
-                result = await provider.generate(prompt=prompt, size=size)
-            except Exception as exc:  # noqa: BLE001 — bounded per-image outcome, never a job-killer
-                result = ImageResult(ok=False, message=f"image provider raised: {exc}", model=model_id, latency_ms=(time.perf_counter() - started) * 1000.0)
 
-            cost = image_def.cost_per_image if result.ok and result.data else 0.0
+            supplied_image = next(supplied_iter, None)
+            if supplied_image is not None:
+                if len(supplied_image.data) > self.settings.image_max_bytes:
+                    issues.append(
+                        {
+                            "severity": "warning",
+                            "ruleId": IMAGE_ISSUE_RULE,
+                            "path": f"/images/{rid}",
+                            "message": f"supplied product image exceeds the {self.settings.image_max_bytes}-byte cap — placeholder will be used",
+                        }
+                    )
+                    continue
+                result = ImageResult(ok=True, data=bytes(supplied_image.data), mime=supplied_image.mime, model="supplied", latency_ms=0.0, message="")
+                cost = 0.0
+                source = "supplied"
+            else:
+                try:
+                    result = await provider.generate(prompt=prompt, size=size)
+                except Exception as exc:  # noqa: BLE001 — bounded per-image outcome, never a job-killer
+                    result = ImageResult(ok=False, message=f"image provider raised: {exc}", model=model_id, latency_ms=(time.perf_counter() - started) * 1000.0)
+                cost = image_def.cost_per_image if result.ok and result.data else 0.0
+                source = "generated"
+
             attempt = GenerationAttempt(
                 stage=IMAGE_STAGE,
                 attempt_number=i,
-                prompt_ref=f"image@{model_id}",
-                model_class="image",
-                provider=getattr(provider, "name", "?"),
-                model_id=model_id,
+                prompt_ref="supplied@product" if supplied_image is not None else f"image@{model_id}",
+                model_class="supplied" if supplied_image is not None else "image",
+                provider=getattr(provider, "name", "?") if supplied_image is None else "product",
+                model_id="supplied" if supplied_image is not None else model_id,
                 usage=Usage(0, 0),
                 cost_usd=cost,
                 latency_ms=result.latency_ms,
@@ -118,7 +161,7 @@ class AssetRenderer:
             if result.ok and result.data and len(result.data) <= self.settings.image_max_bytes:
                 data = bytes(result.data)
                 ref = f"asset:{rid}"
-                manifest.append({"ref": ref, "requirement_id": rid, "mime": result.mime, "size_bytes": len(data), "source": "generated"})
+                manifest.append({"ref": ref, "requirement_id": rid, "mime": result.mime, "size_bytes": len(data), "source": source})
                 blobs.append({"ref": ref, "mime": result.mime, "data": data})
             elif result.ok:
                 issues.append(

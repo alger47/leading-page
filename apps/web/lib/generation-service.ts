@@ -41,6 +41,9 @@ export interface StartGenerationInput {
    * the engine feature is off, the job simply completes without an asset
    * manifest and placeholders are used. */
   generateImages?: boolean;
+  /** Product-link rasters (Phase 16 part 2): real product image bytes the
+   * engine uses verbatim. Derived server-side from `productUrl`, capped. */
+  suppliedImages?: Array<{ ref: string; mime: string; data_b64: string }>;
 }
 
 /** Phase 8 J2: regenerate ONE section. The `page` is the current draft
@@ -169,6 +172,7 @@ export class GenerationService {
         locale: input.locale,
         tone: input.tone,
         generateImages: input.generateImages,
+        suppliedImages: input.suppliedImages,
       });
       return { jobId: created.id, created: res.created, status: 'QUEUED' };
     } catch (error) {

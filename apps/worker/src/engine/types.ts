@@ -68,6 +68,15 @@ export interface EngineJobPayload {
   assets?: EngineAssetManifestEntry[];
 }
 
+/** A product raster carried verbatim into the engine's asset-renderer
+ * (product-link generation, Phase 16 part 2). data_b64 is the raw image bytes;
+ * the engine skips the image model for these and uses them directly. */
+export interface SuppliedImage {
+  ref: string;
+  mime: string;
+  data_b64: string;
+}
+
 export interface GenerateRequest {
   brief: string;
   locale?: string;
@@ -75,6 +84,7 @@ export interface GenerateRequest {
   job_id?: string;
   budget_usd?: number;
   generate_images?: boolean;
+  supplied_images?: SuppliedImage[];
 }
 
 /** A generated raster fetched from the engine's ephemeral store. */

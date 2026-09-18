@@ -86,6 +86,32 @@ describe('image asset relay (Stage 6)', () => {
     }
   });
 
+  it('forwards supplied product rasters verbatim to the engine (Phase 16 part 2)', async () => {
+    const harness = await makeHarness({ scenario: { mode: 'ok' } });
+    try {
+      const created = await harness.app.inject({
+        method: 'POST',
+        url: '/api/jobs',
+        payload: {
+          brief: 'Product: Wireless Earbuds Pro.',
+          generateImages: true,
+          suppliedImages: [{ ref: 'product-1', mime: 'image/png', data_b64: Buffer.from([0x89, 0x50, 0x4e, 0x47]).toString('base64') }],
+        },
+        headers: { 'idempotency-key': 'ia-4' },
+      });
+      expect(created.statusCode).toBe(202);
+      const jobId = (created.json() as { jobId: string }).jobId;
+
+      await harness.resumeWorker();
+      await waitCompleted(harness, jobId);
+
+      const call = harness.fake!.calls[0];
+      expect(call.supplied_images).toEqual([{ ref: 'product-1', mime: 'image/png', data_b64: Buffer.from([0x89, 0x50, 0x4e, 0x47]).toString('base64') }]);
+    } finally {
+      await harness.close();
+    }
+  });
+
   it('returns an empty list when the job never opted into images', async () => {
     const harness = await makeHarness({ scenario: { mode: 'ok' } });
     try {

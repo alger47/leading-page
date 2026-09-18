@@ -30,6 +30,7 @@ export interface EngineCall {
   target_section_id?: string;
   page?: Record<string, unknown>;
   generate_images?: boolean;
+  supplied_images?: Array<{ ref: string; mime: string; data_b64: string }>;
 }
 
 export interface FakeEngine {

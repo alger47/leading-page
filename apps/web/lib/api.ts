@@ -14,6 +14,7 @@ import {
 } from '@landing-ai/database';
 import { WorkerCallError } from './worker-client';
 import { GenerationInputError, SectionNotFoundError } from './generation-service';
+import { ProductSourceError } from './product-source';
 import { CSRF_COOKIE, csrfTokensMatch } from './auth/csrf';
 import { config } from './env';
 
@@ -50,6 +51,7 @@ export function statusAndCodeFor(error: unknown): { status: number; code: string
   if (error instanceof WorkerCallError) return { status: error.status, code: error.code };
   if (error instanceof GenerationInputError) return { status: 422, code: error.code };
   if (error instanceof SectionNotFoundError) return { status: 404, code: error.code };
+  if (error instanceof ProductSourceError) return { status: 400, code: error.code };
   return { status: 500, code: 'E-INTERNAL-001' };
 }
 

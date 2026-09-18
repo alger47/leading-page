@@ -532,3 +532,23 @@ This document records the implementation progress phase by phase, per master pro
 **Known limitations:** raster bytes are ephemeral (restart/eviction ⇒ placeholders until the job is re-run); no auto-persist to S3 (manual editor upload is the permanence path); HF free tier is rate/latency variable (hence per-image `E-IMG-001` + placeholder, ADR-0012).
 
 **Next:** Phase 16 **part 2** — page generation from a product link (AliExpress-style): normalized product data (title/bullets/hero image) → brief → reuse product images through the same asset-ref plumbing.
+
+---
+
+## Phase 16 part 2 — page generation from a product link
+
+**Date:** 2026-09-18  
+**Objective:** let the user paste a product URL (AliExpress-style) and build the landing page from the *real product* — title/bullets pre-fill the brief and the product photos become the page's rasters **for free** (zero generation cost), all through the part-1 ephemeral asset flow (ADR-0012 / ADR-0013). Manual brief always remains available.
+
+**Implemented:**
+- **Server-side bounded product fetch** (`apps/web/lib/product-source.ts`): allowlist-gated host check (`PRODUCT_SOURCE_ALLOWLIST`, default `aliexpress.com`; http/https only, SSRF-safe), 2 MiB document cap, 1 MiB per-image cap (oversize ⇒ skip image, not job), max 4 images, mime sniffed from bytes and cross-checked with `content-type`. Any failure → `E-PROD-001` (400) surfaced in the UI while the manual brief stays editable.
+- **Layered extractor** (`apps/web/lib/product-extract.ts`): Layer 1 recursive walk of `runParams`-style JSON; Layer 2 regex fallbacks + Open-Graph tags; caps + normalization + dedupe; `EMPTY_PRODUCT` degrades cleanly.
+- **Supplied-raster flow:** web `productUrl` → `suppliedImages` (ref/mime/data_b64) → worker (`suppliedImages` in `POST_JOB_SCHEMA`, fingerprint over count + sorted refs) → engine `supplied_images` (base64 validated/decoded) → `AssetRenderer` consumes supplied rasters in order (hero first), `model_class="supplied"`, `prompt_ref="supplied@product"`, `provider="product"`, **0 cost**, FLUX fallback for the rest, oversize ⇒ `E-IMG-001` + placeholder.
+- **UI** (`components/generation-view.tsx`): product-link field, Load action, thumbnails, auto-filled brief from title+bullets.
+- New endpoint `POST /api/v1/product/extract` for the parse-only live preview.
+
+**Created:** `lib/product-extract.ts`, `lib/product-source.ts`, `app/api/v1/product/extract/route.ts`, `tests/product-extract.test.ts`, `tests/product-source.test.ts`, `docs/adr/ADR-0013-product-link-generation.md`.
+
+**Tests:** engine `test_image_gen.py` **14/14** (+5; ruff + mypy clean), worker **29/29** (typecheck clean), web unit **94/94**, `api.integration.test.ts` **37/37** (product-link describe inside). Full-suite e2e (`j1/j2/j4/j5-e2e`) is infra-gated and needs a live engine+worker bridge.
+
+**Known limitations:** extraction is AliExpress-oriented and heuristic (other hosts need allowlist + tolerance; messy pages ⇒ `EMPTY_PRODUCT`, never a fake parse); supplied rasters are ephemeral like generated ones (ADR-0012/0013).

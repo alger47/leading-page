@@ -52,6 +52,10 @@ export interface CreateJobInput {
   /** Opt into engine Stage 6 image generation (Phase 16). Best-effort: the
    * engine/storage may be unconfigured, in which case placeholders are used. */
   generateImages?: boolean;
+  /** Product-link rasters (Phase 16 part 2): real product image bytes carried
+   * to the engine's asset-renderer, which uses them verbatim. Built
+   * server-side from a product URL — never taken from the client untouched. */
+  suppliedImages?: Array<{ ref: string; mime: string; data_b64: string }>;
 }
 
 /** Worker-cached generated raster (GET /api/jobs/:id/assets, Phase 16). */
@@ -102,7 +106,7 @@ export class HttpWorkerClient implements WorkerClient {
     const res = await this.request('/api/jobs', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'idempotency-key': input.idempotencyKey, ...this.headers },
-      body: JSON.stringify({ brief: input.brief, locale: input.locale, tone: input.tone, budgetUsd: input.budgetUsd, mode: input.mode, targetSectionId: input.targetSectionId, page: input.page, generateImages: input.generateImages }),
+      body: JSON.stringify({ brief: input.brief, locale: input.locale, tone: input.tone, budgetUsd: input.budgetUsd, mode: input.mode, targetSectionId: input.targetSectionId, page: input.page, generateImages: input.generateImages, suppliedImages: input.suppliedImages }),
     }, CREATE_TIMEOUT_MS);
 
     const body = (await res.json()) as { jobId?: string; status?: string; error?: { code?: string; message?: string } };

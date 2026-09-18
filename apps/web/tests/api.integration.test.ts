@@ -7,7 +7,9 @@
  * worker is the executor, the DB mirrors it.
  */
 
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createServer, type Server } from 'node:http';
+import { once } from 'node:events';
 import { GenerationService, setGenerationServiceFactory } from '../lib/generation-service';
 import { getRasterStore } from '../lib/assets';
 import { getPrismaClient } from '@landing-ai/database';
@@ -15,6 +17,10 @@ import { config } from '../lib/env';
 import { getPublishedViewByHost } from '../lib/public';
 import { renderPublishedHtml } from './render-html.js';
 import { FakeWorkerClient, makeApiClient, publishableEnvelope, samplePageSchema, waitFor, type ApiClient } from './harness.js';
+
+// Product-link generation (Phase 16 part 2) overrides the SSRF allowlist so
+// the integration fixtures on 127.0.0.1 are reachable in tests.
+process.env.PRODUCT_SOURCE_ALLOWLIST = process.env.PRODUCT_SOURCE_ALLOWLIST ?? 'aliexpress.com,127.0.0.1,localhost';
 
 const BRIEF = 'Une agence digitale qui bâtit des sites vitrine élégants : page de garde, services, témoignages, contact.';
 const LOCALE = 'fr' as const;
@@ -735,5 +741,105 @@ describe('guards', () => {
     const { GET } = await import('../app/api/v1/healthz/route');
     const res = await GET();
     expect(res.status).toBe(200);
+  });
+});
+
+describe('product-link generation (Phase 16 part 2)', () => {
+  const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const TINY_PNG = Buffer.from([...PNG_SIG, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x0a, 0x00, 0x00, 0x00, 0x08]);
+  const PAGE_HTML = `<!doctype html><html><head><script>
+window.runParams = {"data":{"root":{"fields":{
+  "titleModule":{"subject":"Product-Link Integration Item"},
+  "priceModule":{"formatedActivityPrice":"EUR 39,00"},
+  "featureList":[{"text":"Original item"},{"text":"Fast dispatch"}],
+  "imagePathList":["http://127.0.0.1:PORT/1.webp","http://127.0.0.1:PORT/2.webp"]}
+}}};
+</script></head></html>`;
+
+  let server: Server | null = null;
+  let base = '';
+
+  beforeAll(async () => {
+    server = createServer((req, res) => {
+      const url = req.url ?? '';
+      const port = portOf();
+      if (url === '/product') {
+        res.writeHead(200, { 'content-type': 'text/html' });
+        res.end(PAGE_HTML.replaceAll('PORT', String(port)));
+        return;
+      }
+      if (url === '/1.webp' || url === '/2.webp') {
+        res.writeHead(200, { 'content-type': 'image/webp' });
+        res.end(TINY_PNG);
+        return;
+      }
+      res.writeHead(404, { 'content-type': 'text/plain' });
+      res.end('not found');
+    });
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    base = `http://127.0.0.1:${portOf()}`;
+  });
+
+  function portOf(): number {
+    const address = server?.address();
+    return typeof address === 'object' && address !== null ? address.port : 0;
+  }
+
+  afterAll(async () => {
+    await new Promise<void>((resolve) => (server ? server.close(() => resolve()) : resolve()));
+  });
+
+  it('extract endpoint reads a product page into a suggested brief + thumbnails', async () => {
+    const api = await makeUser('prod-extract@example.com');
+    expect(api.cookies.session.length).toBeGreaterThan(0);
+
+    const res = await api.call('POST', '/api/v1/product/extract', { url: `${base}/product` });
+    expect(res.status).toBe(200);
+    const product = (await jsonOf<{ product: { title: string; suggestions?: string; suggestedBrief: string; images: unknown[] } }>(res)).product;
+    expect(product.title).toBe('Product-Link Integration Item');
+    expect(product.suggestedBrief).toContain('Product-Link Integration Item');
+    expect(product.images).toHaveLength(2);
+  });
+
+  it('generate with productUrl re-derives supplied rasters server-side and relays them', async () => {
+    const api = await makeUser('prod-gen@example.com');
+    const { projectId, pageId } = await makeProjectAndPage(api);
+
+    const created = await generate(api, projectId, pageId, { generateImages: true, productUrl: `${base}/product` });
+    expect(created.status).toBe(202);
+    const jobId = (await jsonOf<{ jobId: string }>(created)).jobId;
+
+    const createCall = worker.creates.find((c) => c.jobId === jobId);
+    const supplied = createCall?.input.suppliedImages as Array<{ ref: string; mime: string; data_b64: string }> | undefined;
+    expect(supplied).toHaveLength(2);
+    expect(supplied![0].ref).toBe('product-1');
+    expect(supplied![0].mime).toBe('image/png');
+    expect(Buffer.from(supplied![0].data_b64, 'base64').subarray(0, 8).equals(PNG_SIG)).toBe(true);
+    expect(supplied![1].ref).toBe('product-2');
+
+    const ref = 'asset:hero-x';
+    worker.setAssets(jobId, [{ ref, mime: 'image/png', source: 'supplied', requirement_id: 'hero-1', data_b64: TINY_PNG.toString('base64') }]);
+    worker.setStatus(jobId, 'COMPLETED', {
+      result: {
+        page: samplePageSchema(),
+        assets: [{ ref, requirement_id: 'hero-1', mime: 'image/png', size_bytes: TINY_PNG.length, source: 'supplied' }],
+      },
+    });
+
+    await waitFor(async () => (await fetchJob(api, jobId)).job?.status === 'COMPLETED');
+
+    const hit = getRasterStore().get(ref);
+    expect(hit).toBeDefined();
+    expect(hit?.mime).toBe('image/png');
+    expect(Array.from(hit!.bytes)).toEqual(Array.from(TINY_PNG));
+  });
+
+  it('returns a red honest error for a disallowed product host', async () => {
+    const api = await makeUser('prod-bad@example.com');
+    const { projectId, pageId } = await makeProjectAndPage(api);
+    const res = await generate(api, projectId, pageId, { generateImages: true, productUrl: 'https://example.com/item/1' });
+    expect(res.status).toBe(400);
+    expect((await jsonOf<{ error: { code: string } }>(res)).error.code).toBe('E-PROD-001');
   });
 });

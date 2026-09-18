@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import time
 import uuid
+from typing import Any
 
 from app.config import Settings, inter_stage_delay
 from app.contracts import JobResult, StageResult, generation_mode_for
@@ -66,6 +67,7 @@ class Pipeline:
         job_id: str | None = None,
         budget_usd: float | None = None,
         generate_images: bool = False,
+        supplied_images: list[Any] | None = None,
     ) -> JobResult:
         start_ms = time.perf_counter() * 1000
         result = JobResult(job_id=job_id or f"job-{uuid.uuid4().hex[:12]}", status="RUNNING", start_ms=int(start_ms))
@@ -81,7 +83,7 @@ class Pipeline:
         ledger = JobLedger(self.routing, self.settings, budget_usd)
 
         try:
-            return await self._run_stages(result, flags["brief"], resolved_locale, tone, ledger, start_ms, generate_images)
+            return await self._run_stages(result, flags["brief"], resolved_locale, tone, ledger, start_ms, generate_images, supplied_images)
         except ProviderHardError as exc:
             if exc.attempt is not None:
                 result.stages.append(
@@ -107,6 +109,7 @@ class Pipeline:
         ledger: JobLedger,
         start_ms: float,
         generate_images: bool,
+        supplied_images: list[Any] | None = None,
     ) -> JobResult:
         # Stage 1 — BriefAnalyzer
         s1 = await self.runner.run(
@@ -166,12 +169,14 @@ class Pipeline:
         # Stage 6 — AssetRenderer (image generation, opt-in). Off unless the
         # request asked for images AND AI_IMAGE_PROVIDER is enabled. Bounded
         # per-image failures never fail the job: the ref keeps the placeholder.
+        # Product-link rasters (supplied_images) short-circuit the model call.
         if generate_images and self.images.enabled():
             await self._pace()
             s6, blobs = await self.images.render(
                 requirements=(s5.data or {}).get("requirements") or [],
                 tone=tone,
                 ledger=ledger,
+                supplied=supplied_images,
             )
             result.stages.append(s6)
             for blob in blobs:

@@ -34,9 +34,9 @@ export class FakeWorkerClient implements WorkerClient {
   private readonly jobs = new Map<string, FakeJob>();
   private readonly assetCache = new Map<string, WorkerAsset[]>();
   /** Last CREATE inputs seen, keyed by job id (for generateImages assertions). */
-  readonly creates: Array<{ jobId: string; input: { generateImages?: boolean } }> = [];
+  readonly creates: Array<{ jobId: string; input: { generateImages?: boolean; suppliedImages?: unknown } }> = [];
 
-  create(input: { idempotencyKey: string; brief: string; locale?: 'ar' | 'fr' | 'en'; tone?: string; budgetUsd?: number; mode?: 'full' | 'section'; targetSectionId?: string; page?: unknown; generateImages?: boolean }) {
+  create(input: { idempotencyKey: string; brief: string; locale?: 'ar' | 'fr' | 'en'; tone?: string; budgetUsd?: number; mode?: 'full' | 'section'; targetSectionId?: string; page?: unknown; generateImages?: boolean; suppliedImages?: unknown }) {
     const jobId = fakeJobId(input.idempotencyKey);
     const existing = this.jobs.get(jobId);
     if (existing) return Promise.resolve({ jobId: existing.id, created: false });
@@ -276,6 +276,7 @@ async function routeFor(method: string, path: string) {
     themes: '../app/api/v1/themes/route',
     assets: '../app/api/v1/assets/route',
     generate: '../app/api/v1/generate/route',
+    productExtract: '../app/api/v1/product/extract/route',
     jobId: '../app/api/v1/generation-jobs/[jobId]/route',
     healthz: '../app/api/v1/healthz/route',
   };
@@ -294,6 +295,7 @@ async function routeFor(method: string, path: string) {
   else if (routePath === '/api/v1/themes') mod = mods.themes;
   else if (routePath === '/api/v1/assets') mod = mods.assets;
   else if (routePath === '/api/v1/generate') mod = mods.generate;
+  else if (routePath === '/api/v1/product/extract') mod = mods.productExtract;
   else if (routePath.match(/^\/api\/v1\/generation-jobs\/[^/]+$/)) mod = mods.jobId;
   if (!mod) throw new Error(`no route mapping for ${method} ${routePath}`);
 

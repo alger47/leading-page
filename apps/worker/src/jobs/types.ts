@@ -3,7 +3,7 @@
  * E-JOB-0xx: cancelled / worker crash recovery / idempotency conflict.
  */
 
-import type { EngineJobPayload } from '../engine/types.js';
+import type { EngineJobPayload, SuppliedImage } from '../engine/types.js';
 
 export type JobStatus = 'QUEUED' | 'RUNNING' | 'VALIDATING' | 'RENDERING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 
@@ -63,6 +63,10 @@ export interface GenerationRequest {
    * feature itself stays OFF until AI_IMAGE_PROVIDER is configured, so this
    * flag is harmless when the deployment has no image provider. Phase 16. */
   generateImages?: boolean;
+  /** Product-link rasters (Phase 16 part 2): real product images carried to
+   * the engine, which uses them verbatim instead of the image model. Bounded
+   * by the web route to image_max entries, each ≤ 1 MiB. */
+  suppliedImages?: SuppliedImage[];
 }
 
 /** Serialized onto the BullMQ job. */
