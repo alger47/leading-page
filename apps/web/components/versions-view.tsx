@@ -55,8 +55,11 @@ export function VersionsView({ pageId, currentVersion }: VersionsViewProps) {
       if (!alive) return;
       if (res.status === 200 && res.body.versions) {
         setVersions(res.body.versions);
-        const previous = res.body.versions.filter((v) => v.versionNumber !== currentVersion).pop();
-        setTo(previous ? previous.versionNumber : res.body.versions[0]?.versionNumber ?? -1);
+        setFrom(currentVersion);
+        const target = [...res.body.versions]
+          .sort((a, b) => b.versionNumber - a.versionNumber)
+          .find((v) => v.versionNumber !== currentVersion);
+        setTo(target ? target.versionNumber : -1);
       } else {
         setError(res.body?.error?.message ?? 'Could not load the version history.');
       }
@@ -145,26 +148,41 @@ export function VersionsView({ pageId, currentVersion }: VersionsViewProps) {
 
         <div className="versions-compare-panel">
           <h3 className="panel-title">Compare</h3>
-          <div className="compare-controls">
-            <select value={from} onChange={(e) => setFrom(Number(e.target.value))}>
-              {versions.map((v) => (
-                <option key={v.versionNumber} value={v.versionNumber}>
-                  v{v.versionNumber}
-                </option>
-              ))}
-            </select>
-            <span className="compare-sep">vs</span>
-            <select value={to} onChange={(e) => setTo(Number(e.target.value))}>
-              {versions.map((v) => (
-                <option key={v.versionNumber} value={v.versionNumber}>
-                  v{v.versionNumber}
-                </option>
-              ))}
-            </select>
-            <button type="button" className="primary-btn" onClick={() => void runCompare()} disabled={versions.length < 2}>
-              Compare
-            </button>
-          </div>
+
+          {versions.length >= 2 ? (
+            <>
+              <div className="compare-controls">
+                <select value={from} onChange={(e) => setFrom(Number(e.target.value))}>
+                  {versions.map((v) => (
+                    <option key={v.versionNumber} value={v.versionNumber}>
+                      v{v.versionNumber}
+                    </option>
+                  ))}
+                </select>
+                <span className="compare-sep">vs</span>
+                <select value={to} onChange={(e) => setTo(Number(e.target.value))}>
+                  {versions.map((v) => (
+                    <option key={v.versionNumber} value={v.versionNumber}>
+                      v{v.versionNumber}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="primary-btn"
+                  onClick={() => void runCompare()}
+                  disabled={from === to || from < 1 || to < 1}
+                >
+                  Compare
+                </button>
+              </div>
+              {from === to && <p className="version-hint">Pick two different versions to see what changed.</p>}
+            </>
+          ) : (
+            <p className="version-hint">
+              Compare needs at least two versions. Edit this page in the Editor and save to create version 2.
+            </p>
+          )}
 
           {diff && (
             <div className="diff">
@@ -234,6 +252,7 @@ export function VersionsView({ pageId, currentVersion }: VersionsViewProps) {
         .diff-slots code { font-family: ui-monospace, monospace; font-size: 0.6875rem; color: #92400e; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 4px; padding: 0 4px; }
         .version-error { color: #b91c1c; font-size: 0.8125rem; margin: 8px 0 0; }
         .version-notice { color: #166534; font-size: 0.8125rem; margin: 8px 0 0; }
+        .version-hint { color: var(--color-text-muted); font-size: 0.8125rem; margin: 8px 0 0; }
       `}</style>
     </div>
   );
