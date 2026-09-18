@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
       brief?: unknown;
       locale?: unknown;
       tone?: unknown;
+      generateImages?: unknown;
     } | null;
     if (!body) return jsonError(badRequest('invalid JSON body'));
 
@@ -38,6 +39,7 @@ export async function POST(request: NextRequest) {
       locale: body.locale as 'ar' | 'fr' | 'en',
       tone: body.tone as string,
       clientIdempotencyKey: clientKey,
+      generateImages: body.generateImages === true,
     });
 
     return jsonOk({ jobId: result.jobId, status: result.status }, result.created ? 202 : 200);

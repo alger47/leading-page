@@ -15,6 +15,34 @@ from app.contracts import Outcome, Usage
 from app.prompts.assets import PromptAsset
 
 
+class ImageResult(BaseModel):
+    """One raster-image generation result (Stage 6 asset-renderer)."""
+
+    ok: bool
+    data: bytes | None = None
+    mime: str = "image/png"
+    message: str = ""
+    model: str = ""
+    latency_ms: float = 0.0
+
+
+@runtime_checkable
+class ImageProvider(Protocol):
+    """Image generation (text-to-image) — the ONLY way business code generates
+    a raster asset. Implementations: stub (tests/dev), huggingface (real HTTP)."""
+
+    name: str
+
+    async def generate(self, *, prompt: str, size: str) -> ImageResult:
+        """One bounded image generation call.
+
+        Returns an ImageResult with `ok=True` and non-empty `data` on success;
+        callers treat any non-ok result as a per-image failure (placeholder
+        fallback, honest E-IMG-001 issue) — never a job-killing exception.
+        """
+        ...
+
+
 class GenerationParams(BaseModel):
     model: str
     temperature: float = 0.0

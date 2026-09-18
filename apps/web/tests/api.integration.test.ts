@@ -9,6 +9,7 @@
 
 import { afterAll, describe, expect, it } from 'vitest';
 import { GenerationService, setGenerationServiceFactory } from '../lib/generation-service';
+import { getRasterStore } from '../lib/assets';
 import { getPrismaClient } from '@landing-ai/database';
 import { config } from '../lib/env';
 import { getPublishedViewByHost } from '../lib/public';
@@ -152,6 +153,41 @@ describe('generation lifecycle (fake worker)', () => {
     expect(latest).not.toBeNull();
     expect(latest!.versionNumber).toBe(1);
     expect((latest!.content as { page: { title: string } }).page.title).toBe('Agence Bakhti');
+  });
+
+  it('forwards generateImages and relays generated rasters on completion (Phase 16)', async () => {
+    const api = await makeUser('gen-assets@example.com');
+    const { projectId, pageId } = await makeProjectAndPage(api);
+
+    const created = await generate(api, projectId, pageId, { generateImages: true });
+    expect(created.status).toBe(202);
+    const jobId = (await jsonOf<{ jobId: string }>(created)).jobId;
+
+    const createCall = worker.creates.find((c) => c.jobId === jobId);
+    expect(createCall?.input.generateImages).toBe(true);
+
+    const ref = `asset:hero-${jobId}`;
+    worker.setAssets(jobId, [{ ref, mime: 'image/png', source: 'generated', data_b64: Buffer.from([0x89, 0x50, 0x4e, 0x47]).toString('base64') }]);
+    worker.setStatus(jobId, 'COMPLETED', {
+      result: {
+        page: samplePageSchema(),
+        assets: [{ ref, requirement_id: 'hero-1', mime: 'image/png', size_bytes: 4, source: 'generated' }],
+      },
+    });
+
+    await waitFor(async () => (await fetchJob(api, jobId)).job?.status === 'COMPLETED');
+
+    const hit = getRasterStore().get(ref);
+    expect(hit).toBeDefined();
+    expect(hit?.mime).toBe('image/png');
+    expect(Array.from(hit!.bytes)).toEqual([0x89, 0x50, 0x4e, 0x47]);
+
+    // Opt-out jobs never ask the worker for images.
+    const api2 = await makeUser('gen-noassets@example.com');
+    const { projectId: p2, pageId: g2 } = await makeProjectAndPage(api2);
+    const second = await generate(api2, p2, g2);
+    const jobId2 = (await jsonOf<{ jobId: string }>(second)).jobId;
+    expect(worker.creates.find((c) => c.jobId === jobId2)?.input.generateImages).toBe(false);
   });
 
   it('generation ledger: persists engine attempts as GenerationAttempt rows (GAP-2)', async () => {

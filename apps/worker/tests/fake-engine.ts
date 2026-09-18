@@ -13,6 +13,12 @@ export interface Scenario {
   mode: ScenarioMode;
   transientRemaining?: number;
   delayMs?: number;
+  /** Emit a Stage 6 asset-renderer manifest in the COMPLETED envelope and
+   * serve the fake bytes via GET /internal/v1/assets/:jobId/:ref. */
+  assets?: boolean;
+  /** Keep the manifest but make the bytes endpoint 404 — simulates engine
+   * restart/eviction; the worker must fall back to the placeholder. */
+  assetsMissing?: boolean;
 }
 
 export interface EngineCall {
@@ -23,6 +29,7 @@ export interface EngineCall {
   budget_usd?: number;
   target_section_id?: string;
   page?: Record<string, unknown>;
+  generate_images?: boolean;
 }
 
 export interface FakeEngine {
@@ -49,7 +56,7 @@ function stage(name: string, ok = true): Record<string, unknown> {
   };
 }
 
-function okPayload(jobId?: string): Record<string, unknown> {
+function okPayload(jobId?: string, assets?: boolean): Record<string, unknown> {
   return {
     job: {
       job_id: jobId ?? 'engine-job-1',
@@ -64,6 +71,14 @@ function okPayload(jobId?: string): Record<string, unknown> {
         stage('schema-builder'),
         stage('page-validator'),
       ],
+      ...(assets === true
+        ? {
+            assets: [
+              { ref: 'asset:hero-x', requirement_id: 'hero-x', mime: 'image/png', size_bytes: 12, source: 'generated' },
+              { ref: 'asset:feat-y', requirement_id: 'feat-y', mime: 'image/png', size_bytes: 12, source: 'generated' },
+            ],
+          }
+        : {}),
       ledger: {
         attempts: 7,
         cost_usd: 0.007,
@@ -154,14 +169,14 @@ export function makeFakeEngine(): FakeEngine {
           reply.status(503).send({ detail: 'upstream temporarily unavailable' });
           return reply;
         }
-        reply.send(okPayload(body.job_id));
+        reply.send(okPayload(body.job_id, scenario.assets === true));
         return reply;
       }
       case 'timeout': {
         if ((scenario.delayMs ?? 0) > 0) {
           await new Promise((resolve) => setTimeout(resolve, scenario.delayMs));
         }
-        reply.send(okPayload(body.job_id));
+        reply.send(okPayload(body.job_id, scenario.assets === true));
         return reply;
       }
       case 'malformed':
@@ -177,7 +192,7 @@ export function makeFakeEngine(): FakeEngine {
         reply.status(422).send({ detail: { code: 'E-AI-001', message: 'brief rejected: injection detected' } });
         return reply;
       default:
-        reply.send(okPayload(body.job_id));
+        reply.send(okPayload(body.job_id, scenario.assets === true));
         return reply;
     }
   });
@@ -210,6 +225,16 @@ export function makeFakeEngine(): FakeEngine {
     return reply;
   });
 
+  // Stage 6 ephemeral asset store (Phase 16). Serves the fake bytes when the
+  // scenario asked for assets and the bytes weren't marked missing.
+  app.get<{ Params: { jobId: string; ref: string } }>('/internal/v1/assets/:jobId/:ref', async (_request, reply) => {
+    if (scenario.assets === true && scenario.assetsMissing !== true) {
+      return reply.type('image/png').send(Buffer.from('fakepngbytes'));
+    }
+    reply.status(404).send({ detail: 'asset not found in the ephemeral store' });
+    return reply;
+  });
+
   return {
     app,
     scenario,
@@ -219,6 +244,8 @@ export function makeFakeEngine(): FakeEngine {
       this.scenario.mode = s.mode;
       this.scenario.transientRemaining = s.transientRemaining;
       this.scenario.delayMs = s.delayMs;
+      this.scenario.assets = s.assets;
+      this.scenario.assetsMissing = s.assetsMissing;
     },
     async start(): Promise<string> {
       await app.listen({ host: '127.0.0.1', port: 0 });

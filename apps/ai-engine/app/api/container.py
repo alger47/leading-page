@@ -12,6 +12,8 @@ from app.prompts.registry import PromptStore
 from app.providers.factory import ProviderRegistry
 from app.providers.protocol import StructuredLLMProvider
 from app.routing.config import RoutingConfig
+from app.services.asset_renderer import AssetRenderer
+from app.services.asset_store import JobAssetStore
 from app.services.pipeline import Pipeline
 from app.services.regenerate import SectionRegenerator
 from app.services.stage_runner import StageRunner
@@ -50,6 +52,8 @@ class Container:
     regenerator: SectionRegenerator
     skills: SkillsRegistry
     jobs: JobStore
+    assets: JobAssetStore
+    images: AssetRenderer
 
 
 def build_container(
@@ -72,7 +76,9 @@ def build_container(
         for model_class, provider in provider_overrides.items():
             providers.force_for_tests(model_class, provider)
     runner = StageRunner(routing=routing, providers=providers, prompts=prompts, schemas=schemas)
-    pipeline = Pipeline(runner=runner, routing=routing, settings=settings)
+    assets = JobAssetStore()
+    images = AssetRenderer(routing=routing, settings=settings, providers=providers)
+    pipeline = Pipeline(runner=runner, routing=routing, settings=settings, assets=assets, images=images)
     regenerator = SectionRegenerator(runner=runner, routing=routing, settings=settings)
     skills = SkillsRegistry(prompts=prompts)
     return Container(
@@ -86,4 +92,6 @@ def build_container(
         regenerator=regenerator,
         skills=skills,
         jobs=JobStore(),
+        assets=assets,
+        images=images,
     )

@@ -49,6 +49,19 @@ export interface CreateJobInput {
   mode?: 'full' | 'section';
   targetSectionId?: string;
   page?: unknown;
+  /** Opt into engine Stage 6 image generation (Phase 16). Best-effort: the
+   * engine/storage may be unconfigured, in which case placeholders are used. */
+  generateImages?: boolean;
+}
+
+/** Worker-cached generated raster (GET /api/jobs/:id/assets, Phase 16). */
+export interface WorkerAsset {
+  ref: string;
+  mime: string;
+  size_bytes?: number;
+  source?: string;
+  requirement_id?: string;
+  data_b64?: string;
 }
 
 export interface WorkerClient {
@@ -56,6 +69,10 @@ export interface WorkerClient {
   get(jobId: string): Promise<WorkerJobView | null>;
   getEvents(jobId: string): Promise<WorkerJobEvent[] | null>;
   cancel(jobId: string): Promise<boolean>;
+  /** Optional (transport seam for e2e fakes): generated rasters cached on the
+   * worker after the engine relay. Returns null when the worker has no bytes
+   * for this job (restart / eviction / feature off) — fall back to placeholder. */
+  getAssets?(jobId: string): Promise<WorkerAsset[] | null>;
 }
 
 export class WorkerCallError extends Error {
@@ -85,7 +102,7 @@ export class HttpWorkerClient implements WorkerClient {
     const res = await this.request('/api/jobs', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'idempotency-key': input.idempotencyKey, ...this.headers },
-      body: JSON.stringify({ brief: input.brief, locale: input.locale, tone: input.tone, budgetUsd: input.budgetUsd, mode: input.mode, targetSectionId: input.targetSectionId, page: input.page }),
+      body: JSON.stringify({ brief: input.brief, locale: input.locale, tone: input.tone, budgetUsd: input.budgetUsd, mode: input.mode, targetSectionId: input.targetSectionId, page: input.page, generateImages: input.generateImages }),
     }, CREATE_TIMEOUT_MS);
 
     const body = (await res.json()) as { jobId?: string; status?: string; error?: { code?: string; message?: string } };
@@ -116,6 +133,14 @@ export class HttpWorkerClient implements WorkerClient {
     if (res.status === 404) return false;
     if (res.status === 409) return false; // already terminal
     return res.status === 200;
+  }
+
+  async getAssets(jobId: string): Promise<WorkerAsset[] | null> {
+    const res = await this.request(`/api/jobs/${encodeURIComponent(jobId)}/assets`, { method: 'GET', headers: this.headers }, POLL_TIMEOUT_MS);
+    if (res.status === 404) return null;
+    if (!res.ok) return null;
+    const body = (await res.json()) as { assets?: WorkerAsset[] };
+    return body.assets ?? [];
   }
 
   private async request(path: string, init: RequestInit, timeoutMs: number): Promise<Response> {

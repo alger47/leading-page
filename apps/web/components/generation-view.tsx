@@ -55,6 +55,7 @@ export function GenerationView({ projectId, pageId, hasVersion, activeJob }: Gen
   const [brief, setBrief] = useState('');
   const [locale, setLocale] = useState<'ar' | 'fr' | 'en'>('fr');
   const [tone, setTone] = useState('warm-professional');
+  const [generateImages, setGenerateImages] = useState(false);
   const [job, setJob] = useState<JobView | null>(() =>
     activeJob
       ? { jobId: activeJob.id, status: activeJob.status, attemptsMade: 0, errorCode: null, errorMessage: null, briefIncomplete: activeJob.briefIncomplete, demoMode: activeJob.demoMode }
@@ -100,7 +101,7 @@ export function GenerationView({ projectId, pageId, hasVersion, activeJob }: Gen
     try {
       const res = await apiFetch<{ jobId?: string; status?: string; error?: { code?: string; message?: string } }>(
         '/api/v1/generate',
-        { method: 'POST', body: JSON.stringify({ projectId, pageId, brief, locale, tone }) },
+        { method: 'POST', body: JSON.stringify({ projectId, pageId, brief, locale, tone, generateImages }) },
       );
       if (res.status !== 202 && res.status !== 200) {
         setError(res.body?.error?.message ?? 'Could not start generation.');
@@ -170,6 +171,10 @@ export function GenerationView({ projectId, pageId, hasVersion, activeJob }: Gen
               required
             />
           </label>
+          <label className="generate-images">
+            <input type="checkbox" checked={generateImages} onChange={(e) => setGenerateImages(e.target.checked)} />
+            Generate AI images for the page (best-effort — placeholders stay where generation is unavailable)
+          </label>
           {brief.trim().length > 0 && brief.trim().length < BRIEF_MIN_LENGTH && (
             <p className="hint hint--warn" role="note">
               Brief looks short — add the business name, category and audience for a tailored page.
@@ -235,6 +240,7 @@ export function GenerationView({ projectId, pageId, hasVersion, activeJob }: Gen
         .brief-form { display: grid; gap: 14px; max-width: 640px; }
         .brief-form h2 { margin: 0; }
         .brief-form label { display: grid; gap: 6px; font-size: 0.875rem; }
+        .brief-form label.generate-images { display: flex; align-items: center; gap: 8px; font-size: 0.8125rem; color: var(--color-text-muted); }
         .brief-form input, .brief-form select, .brief-form textarea { padding: 9px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
         .brief-form textarea { resize: vertical; }
         .brief-form button { justify-self: start; padding: 10px 18px; border: 0; border-radius: var(--radius-sm); background: var(--color-primary); color: var(--color-on-primary); cursor: pointer; }

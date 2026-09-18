@@ -17,7 +17,7 @@ import { makeBullQueue, makeRedis, startBullWorker } from './queue/bullmq.js';
 import { makeMemoryDriver } from './queue/memory.js';
 import type { EnqueueDriver, WorkerHandle } from './queue/ports.js';
 import { buildServer } from './server.js';
-import { MemoryJobStore } from './store.js';
+import { MemoryAssetStore, MemoryJobStore } from './store.js';
 import { MemorySpanStore } from './telemetry.js';
 import type { JobPayload } from './jobs/types.js';
 import type { Redis } from 'ioredis';
@@ -37,13 +37,14 @@ async function main(): Promise<void> {
 
   const store = new MemoryJobStore();
   const spans = new MemorySpanStore();
+  const assets = new MemoryAssetStore();
   const engine = new EngineClient({ baseUrl: config.engineUrl, token: config.engineToken, timeoutMs: config.engineTimeoutMs });
 
   let backend: QueueBackend;
   let redis: Redis | undefined;
 
   if (isMemoryRedis(config.redisUrl)) {
-    const processor = makeProcessor({ engine, store, spans });
+    const processor = makeProcessor({ engine, store, spans, assets });
     const driver = makeMemoryDriver<JobPayload>(config.queueName, {
       maxAttempts: config.maxAttempts,
       retryAfterMs: config.retryAfterMs,
@@ -65,7 +66,7 @@ async function main(): Promise<void> {
     }
     redis = connection;
 
-    const processor = makeProcessor({ engine, store, spans });
+    const processor = makeProcessor({ engine, store, spans, assets });
     const queue = makeBullQueue<JobPayload>({
       queueName: config.queueName,
       connection,
@@ -86,7 +87,7 @@ async function main(): Promise<void> {
     backend = { queue, worker };
   }
 
-  const app = buildServer({ store, spans, queue: backend.queue, engine, config });
+  const app = buildServer({ store, spans, queue: backend.queue, engine, config, assets });
   await app.listen({ port: config.port, host: '0.0.0.0' });
   console.log(`[worker] serving /api/jobs on :${config.port}; queue=${config.queueName}; engine=${config.engineUrl}`);
 

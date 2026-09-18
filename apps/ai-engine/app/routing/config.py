@@ -7,7 +7,7 @@ config change + an evaluation run — never a code edit.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -36,12 +36,23 @@ class StageRoute:
     max_output_tokens: int = 2048
 
 
+@dataclass(frozen=True)
+class ImageDef:
+    """Stage 6 asset-renderer route (images: section in routing config)."""
+
+    provider: str
+    model_id: str
+    cost_per_image: float
+    size: str = "1024x1024"
+
+
 @dataclass
 class RoutingConfig:
     models: dict[str, ModelDef]
     stages: dict[str, StageRoute]
     job_max_total_attempts: int
     job_default_budget_usd: float
+    images: dict[str, ImageDef] = field(default_factory=dict)
     # When enabled, the brief-analyzer alone is routed through an LLM model
     # class (keyword matching is a weak detector). Default off: the classic
     # deterministic analyzer runs until credentials exist and the operator
@@ -81,11 +92,20 @@ class RoutingConfig:
                 max_output_tokens=int(s.get("max_output_tokens", 2048)),
             )
         job = raw.get("job") or {}
+        images: dict[str, ImageDef] = {}
+        for name, im in (raw.get("images") or {}).items():
+            images[name] = ImageDef(
+                provider=im["provider"],
+                model_id=im.get("model_id", name),
+                cost_per_image=float(im.get("cost_per_image", 0.0)),
+                size=str(im.get("size", "1024x1024")),
+            )
         return cls(
             models=models,
             stages=stages,
             job_max_total_attempts=int(job.get("max_total_attempts", 18)),
             job_default_budget_usd=float(job.get("default_budget_usd", 0.25)),
+            images=images,
         )
 
     def route(self, stage: str) -> StageRoute:
@@ -119,3 +139,11 @@ class RoutingConfig:
         if model is None:
             raise RoutingConfigError(f"no model definition for {model_class!r} (E-AI-006)")
         return model
+
+    def image(self, key: str = "default") -> ImageDef:
+        """Image route for Stage 6, or RoutingConfigError when the routing
+        config has no images: section (feature disabled at the config layer)."""
+        image = self.images.get(key)
+        if image is None:
+            raise RoutingConfigError(f"no images definition for {key!r} in routing config (E-AI-006)")
+        return image

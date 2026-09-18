@@ -64,6 +64,20 @@ class Settings(BaseSettings):
     # analyzer on a hard provider error.
     brief_analyzer_llm: bool = False
 
+    # Stage 6 asset-renderer (image generation). Feature is OFF by default:
+    # pipeline runs skip stage 6 unless a provider is enabled here AND the
+    # request opted in. `stub` is for tests/dev/CI; `huggingface` calls the
+    # Hugging Face Inference (free) API with AI_IMAGE_HF_TOKEN.
+    image_provider: str = "off"  # off | stub | huggingface
+    image_hf_token: str = ""
+    image_hf_base_url: str = "https://api-inference.huggingface.co/models"
+    # Empty => the images.<key>.model_id from the routing config wins.
+    image_hf_model: str = ""
+    image_size: str = "1024x1024"
+    image_max: int = 4  # max raster images generated per job
+    image_max_bytes: int = 800_000  # per-image transfer cap (bytes)
+    image_timeout_s: float = 120.0
+
 
 @lru_cache
 def get_settings() -> Settings:

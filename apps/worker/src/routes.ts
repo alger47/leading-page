@@ -17,7 +17,7 @@ import { E_JOB, isTerminal } from './jobs/types.js';
 import type { GenerationRequest } from './jobs/types.js';
 import type { WorkerConfig } from './config.js';
 import type { EnqueueDriver } from './queue/ports.js';
-import type { JobRecordStore } from './store.js';
+import type { AssetStore, JobRecordStore } from './store.js';
 import type { SpanStore } from './telemetry.js';
 import type { JobPayload } from './jobs/types.js';
 
@@ -27,6 +27,7 @@ export interface WorkerContext {
   queue: EnqueueDriver<JobPayload>;
   engine: EngineClient;
   config: WorkerConfig;
+  assets: AssetStore;
 }
 
 function errorEnvelope(code: string, message: string, details?: Record<string, unknown>): Record<string, unknown> {
@@ -52,6 +53,7 @@ const POST_JOB_SCHEMA = {
     mode: { type: 'string', enum: ['full', 'section'] },
     targetSectionId: { type: 'string', minLength: 1, maxLength: 64 },
     page: { type: 'object' },
+    generateImages: { type: 'boolean' },
   },
 } as const;
 
@@ -92,6 +94,28 @@ export function registerRoutes(app: FastifyInstance, ctx: WorkerContext): void {
       return reply;
     }
     return jobView(record);
+  });
+
+  // Phase 16: generated rasters cached on the worker after the engine relay.
+  // Only the manifest refs exist for a completed job; refs whose bytes the
+  // engine could no longer serve are simply absent (web → deterministic
+  // placeholder). No auth leak: requires the internal token like every route.
+  app.get<{ Params: { id: string } }>('/api/jobs/:id/assets', async (request, reply) => {
+    const record = ctx.store.get(request.params.id);
+    if (record === undefined) {
+      reply.status(404).send(errorEnvelope('E-JOB-NOT-FOUND', `job ${request.params.id} not found`));
+      return reply;
+    }
+    const assets = ctx.assets.list(record.id).map((asset) => {
+      const entry = record.result?.assets?.find((e) => e.ref === asset.ref);
+      return {
+        ref: asset.ref,
+        mime: asset.mime,
+        ...(entry !== undefined ? { size_bytes: entry.size_bytes, source: entry.source, requirement_id: entry.requirement_id } : {}),
+        data_b64: asset.dataB64,
+      };
+    });
+    return { jobId: record.id, assets };
   });
 
   app.get<{ Params: { id: string } }>('/api/jobs/:id/events', async (request, reply) => {
@@ -144,6 +168,7 @@ function fingerprintFallback(request: GenerationRequest): string {
     String(request.budgetUsd ?? ''),
     request.mode ?? 'full',
     request.targetSectionId ?? '',
+    String(request.generateImages ?? ''),
   ].join('\n');
   return `derived:${createHash('sha256').update(canonical).digest('hex')}`;
 }

@@ -18,7 +18,7 @@ import type { EngineJobPayload } from './engine/types.js';
 import { E_JOB, STAGE_EVENT_BY_ENGINE_STAGE, isTerminal, labelFor } from './jobs/types.js';
 import type { JobPayload, JobRecord } from './jobs/types.js';
 import type { JobLike } from './queue/ports.js';
-import type { JobRecordStore } from './store.js';
+import type { AssetStore, JobRecordStore } from './store.js';
 import type { SpanStore } from './telemetry.js';
 import { createTraceId, trace } from './telemetry.js';
 
@@ -26,6 +26,7 @@ export interface ProcessorDeps {
   engine: EngineClient;
   store: JobRecordStore;
   spans: SpanStore;
+  assets: AssetStore;
 }
 
 export const JOB_STARTED = 'job.started' as const;
@@ -58,6 +59,7 @@ function ensureRecord(deps: ProcessorDeps, jobId: string, payload: JobPayload): 
       mode: payload.mode,
       targetSectionId: payload.targetSectionId,
       page: payload.page,
+      generateImages: payload.generateImages,
     },
     traceId: createTraceId(),
     status: 'QUEUED',
@@ -146,6 +148,7 @@ export async function processJob(deps: ProcessorDeps, job: JobLike, token?: stri
                 tone: record.request.tone,
                 budget_usd: record.request.budgetUsd,
                 job_id: jobId,
+                generate_images: record.request.generateImages,
               });
             } catch (cause) {
               if (cause instanceof EngineError) {
@@ -156,7 +159,7 @@ export async function processJob(deps: ProcessorDeps, job: JobLike, token?: stri
             }
           },
         );
-        await finalizeSuccess(record, result, job, token);
+        await finalizeSuccess(deps, record, result, job, token);
       } catch (cause) {
         const code = cause instanceof EngineError ? cause.code : 'E-JOB-001';
         root.fail(code, cause instanceof Error ? cause.message : String(cause));
@@ -169,7 +172,7 @@ export async function processJob(deps: ProcessorDeps, job: JobLike, token?: stri
   );
 }
 
-async function finalizeSuccess(record: JobRecord, result: EngineJobPayload, job: JobLike, token?: string): Promise<void> {
+async function finalizeSuccess(deps: ProcessorDeps, record: JobRecord, result: EngineJobPayload, job: JobLike, token?: string): Promise<void> {
   for (const evt of stageEventsFor(result)) {
     emit(record, evt.type as JobRecord['events'][number]['type'], evt.detail !== undefined ? { detail: evt.detail } : undefined);
   }
@@ -192,6 +195,26 @@ async function finalizeSuccess(record: JobRecord, result: EngineJobPayload, job:
   record.errorMessage = undefined;
   const mode = (result.brief_flags as Record<string, unknown> | undefined)?.generation_mode ?? 'stub';
   emit(record, JOB_COMPLETED, { detail: JSON.stringify({ mode }) });
+
+  // Stage 6 asset relay: fetch the generated rasters from the engine's
+  // ephemeral store once, cache them locally, and let the web pull them via
+  // GET /api/jobs/:id/assets. Best-effort — any ref the engine can no longer
+  // serve (restart / eviction) simply stays on the deterministic placeholder.
+  if (result.assets !== undefined && result.assets.length > 0) {
+    await relayAssets(deps, record.id, result.assets);
+  }
+}
+
+async function relayAssets(
+  deps: ProcessorDeps,
+  jobId: string,
+  manifest: NonNullable<EngineJobPayload['assets']>,
+): Promise<void> {
+  for (const entry of manifest) {
+    const asset = await deps.engine.fetchAsset(jobId, entry.ref);
+    if (asset === null) continue;
+    deps.assets.put(jobId, { ref: entry.ref, mime: asset.mime, dataB64: asset.data_b64 });
+  }
 }
 
 async function handleTerminalFailure(record: JobRecord, job: JobLike, token: string | undefined, code: string, cause: unknown): Promise<void> {

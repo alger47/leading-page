@@ -32,6 +32,43 @@ export class MemoryJobStore implements JobRecordStore {
   }
 }
 
+/** A generated raster cached on the worker after the engine relay (Phase 16). */
+export interface StoredAsset {
+  ref: string;
+  mime: string;
+  dataB64: string;
+}
+
+export interface AssetStore {
+  get(jobId: string, ref: string): StoredAsset | undefined;
+  put(jobId: string, asset: StoredAsset): void;
+  list(jobId: string): StoredAsset[];
+}
+
+/** Ephemeral per-job asset cache. Restart-safe by design: the web falls back
+ * to its deterministic placeholder whenever a ref is missing here. */
+export class MemoryAssetStore implements AssetStore {
+  private readonly byJob = new Map<string, Map<string, StoredAsset>>();
+
+  get(jobId: string, ref: string): StoredAsset | undefined {
+    return this.byJob.get(jobId)?.get(ref);
+  }
+
+  put(jobId: string, asset: StoredAsset): void {
+    let perJob = this.byJob.get(jobId);
+    if (perJob === undefined) {
+      perJob = new Map<string, StoredAsset>();
+      this.byJob.set(jobId, perJob);
+    }
+    perJob.set(asset.ref, asset);
+  }
+
+  list(jobId: string): StoredAsset[] {
+    const perJob = this.byJob.get(jobId);
+    return perJob === undefined ? [] : [...perJob.values()];
+  }
+}
+
 export interface JobContext {
   store: JobRecordStore;
   spans: SpanStore;

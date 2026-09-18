@@ -8,7 +8,7 @@
 import { createHash } from 'node:crypto';
 import { NextRequest, type NextResponse } from 'next/server';
 import { config } from '../lib/env';
-import type { WorkerClient, WorkerJobEvent, WorkerJobView, WorkerStatus } from '../lib/worker-client';
+import type { WorkerClient, WorkerAsset, WorkerJobEvent, WorkerJobView, WorkerStatus } from '../lib/worker-client';
 
 /** Same derivation as enqueue.ts: gen_ + sha256(key).hex[0:24]. */
 export const fakeJobId = (key: string): string => `gen_${createHash('sha256').update(key).digest('hex').slice(0, 24)}`;
@@ -32,11 +32,15 @@ interface FakeJob {
 
 export class FakeWorkerClient implements WorkerClient {
   private readonly jobs = new Map<string, FakeJob>();
+  private readonly assetCache = new Map<string, WorkerAsset[]>();
+  /** Last CREATE inputs seen, keyed by job id (for generateImages assertions). */
+  readonly creates: Array<{ jobId: string; input: { generateImages?: boolean } }> = [];
 
-  create(input: { idempotencyKey: string; brief: string; locale?: 'ar' | 'fr' | 'en'; tone?: string; budgetUsd?: number; mode?: 'full' | 'section'; targetSectionId?: string; page?: unknown }) {
+  create(input: { idempotencyKey: string; brief: string; locale?: 'ar' | 'fr' | 'en'; tone?: string; budgetUsd?: number; mode?: 'full' | 'section'; targetSectionId?: string; page?: unknown; generateImages?: boolean }) {
     const jobId = fakeJobId(input.idempotencyKey);
     const existing = this.jobs.get(jobId);
     if (existing) return Promise.resolve({ jobId: existing.id, created: false });
+    this.creates.push({ jobId, input });
     const now = new Date().toISOString();
     this.jobs.set(jobId, {
       id: jobId,
@@ -75,6 +79,15 @@ export class FakeWorkerClient implements WorkerClient {
     job.updatedAt = new Date().toISOString();
     job.events.push({ type: 'job.cancelled', at: job.updatedAt });
     return Promise.resolve(true);
+  }
+
+  getAssets(jobId: string): Promise<WorkerAsset[] | null> {
+    return Promise.resolve(this.assetCache.get(jobId) ?? []);
+  }
+
+  /** Test hook: simulate the worker's post-relay asset cache (Phase 16). */
+  setAssets(jobId: string, assets: WorkerAsset[]): void {
+    this.assetCache.set(jobId, assets);
   }
 
   /** Test hook: advance the worker state like the real pipeline would. */

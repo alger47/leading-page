@@ -61,6 +61,37 @@ export const STOCK_ASSETS: readonly StockAsset[] = [
   },
 ];
 
+/**
+ * Phase 16: in-process cache of engine-generated rasters. The web relays the
+ * bytes from the worker once on job completion and serves them memory-first in
+ * /assets/asset/[ref]; any ref absent here falls back to the deterministic
+ * placeholder. Server-side only — instance memory, restart-safe by design.
+ */
+export interface RasterRecord {
+  mime: string;
+  bytes: Uint8Array;
+}
+
+export class RasterMemoryStore {
+  private readonly byRef = new Map<string, RasterRecord>();
+
+  put(ref: string, record: RasterRecord): void {
+    this.byRef.set(ref, record);
+  }
+
+  get(ref: string): RasterRecord | undefined {
+    return this.byRef.get(ref);
+  }
+}
+
+const _global = globalThis as { __landingRasterStore?: RasterMemoryStore };
+
+/** Singleton surviving Next.js module reloads during development. */
+export function getRasterStore(): RasterMemoryStore {
+  _global.__landingRasterStore ??= new RasterMemoryStore();
+  return _global.__landingRasterStore;
+}
+
 export function getStockAsset(id: string): StockAsset | undefined {
   return STOCK_ASSETS.find((a) => a.id === id);
 }

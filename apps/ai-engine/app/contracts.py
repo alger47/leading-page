@@ -164,6 +164,11 @@ class JobResult:
     page: dict[str, Any] | None = None
     page_validation: dict[str, Any] | None = None
     build_issues: list[ValidationIssue] = field(default_factory=list)
+    # Generated raster assets (Stage 6) — MANIFEST only, never the bytes: the
+    # pipeline stores bytes in the JobAssetStore (ephemeral) and this list lets
+    # the worker/web know which refs were generated, so they can fetch/serve
+    # them and fall back to the deterministic placeholder for the rest.
+    assets: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def total_attempts(self) -> int:
@@ -201,5 +206,6 @@ class JobResult:
             "page": self.page,
             "page_validation": self.page_validation,
             "build_issues": self.build_issues,
+            "assets": self.assets,
             "headers_preview": {s.stage: (s.data.get("title", "") if s.data else "") for s in self.stages},
         }

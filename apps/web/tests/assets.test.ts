@@ -4,7 +4,7 @@
  * deterministic placeholder builder.
  */
 import { describe, expect, it } from 'vitest';
-import { buildPlaceholderSvg, resolveAssetUrl } from '../lib/assets.js';
+import { buildPlaceholderSvg, RasterMemoryStore, resolveAssetUrl } from '../lib/assets.js';
 
 describe('resolveAssetUrl', () => {
   it('maps asset: refs to the self-hosted placeholder path', () => {
@@ -46,5 +46,27 @@ describe('buildPlaceholderSvg', () => {
     expect(svg).toContain('&amp;');
     expect(svg).toContain('&quot;');
     expect(svg).not.toMatch(/<text[^>]*>[^<]*<script/);
+  });
+});
+
+describe('RasterMemoryStore (Phase 16)', () => {
+  it('round-trips generated rasters by ref and misses unknown refs', () => {
+    const store = new RasterMemoryStore();
+    const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+    store.put('asset:hero-saas', { mime: 'image/png', bytes });
+    const hit = store.get('asset:hero-saas');
+    expect(hit).toBeDefined();
+    expect(hit?.mime).toBe('image/png');
+    expect(hit?.bytes).toEqual(bytes);
+    expect(store.get('asset:unknown')).toBeUndefined();
+  });
+
+  it('overwrites on the same ref (relay replays)', () => {
+    const store = new RasterMemoryStore();
+    store.put('asset:a', { mime: 'image/png', bytes: new Uint8Array([1]) });
+    store.put('asset:a', { mime: 'image/jpeg', bytes: new Uint8Array([2, 3]) });
+    const hit = store.get('asset:a');
+    expect(hit?.mime).toBe('image/jpeg');
+    expect(Array.from(hit!.bytes)).toEqual([2, 3]);
   });
 });

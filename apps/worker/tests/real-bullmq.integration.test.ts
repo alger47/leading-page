@@ -13,7 +13,7 @@ import { EngineClient } from '../src/engine/client.js';
 import { makeProcessor } from '../src/processor.js';
 import { makeBullQueue, makeRedis, startBullWorker } from '../src/queue/bullmq.js';
 import { buildServer } from '../src/server.js';
-import { MemoryJobStore } from '../src/store.js';
+import { MemoryAssetStore, MemoryJobStore } from '../src/store.js';
 import { MemorySpanStore } from '../src/telemetry.js';
 import type { FastifyInstance } from 'fastify';
 import { makeFakeEngine } from './fake-engine.js';
@@ -58,6 +58,7 @@ describeOrSkip('real BullMQ stack (Redis present)', () => {
   let app: FastifyInstance;
   let store: MemoryJobStore;
   let spans: MemorySpanStore;
+  let assets: MemoryAssetStore;
   let fake: ReturnType<typeof makeFakeEngine> | undefined;
 
   async function start(skipEngine = false, workerPaused = false, overrides: Partial<WorkerConfig> = {}): Promise<void> {
@@ -71,13 +72,14 @@ describeOrSkip('real BullMQ stack (Redis present)', () => {
     const engine = new EngineClient({ baseUrl: cfg.engineUrl, token: cfg.engineToken, timeoutMs: cfg.engineTimeoutMs });
     store = new MemoryJobStore();
     spans = new MemorySpanStore();
+    assets = new MemoryAssetStore();
     queue = makeBullQueue({
       queueName: cfg.queueName,
       connection: redis,
       maxAttempts: cfg.maxAttempts,
       retryAfterMs: cfg.retryAfterMs,
     });
-    const processor = makeProcessor({ engine, store, spans });
+    const processor = makeProcessor({ engine, store, spans, assets });
     worker = startBullWorker({
       queueName: cfg.queueName,
       connection: redis,
@@ -87,7 +89,7 @@ describeOrSkip('real BullMQ stack (Redis present)', () => {
       processor: (job, token) => processor.run(job, token),
       onFailed: (id, error) => void processor.finalizeFailure(id, error),
     });
-    app = buildServer({ store, spans, queue, engine, config: cfg });
+    app = buildServer({ store, spans, queue, engine, config: cfg, assets });
     await app.listen({ port: 0, host: '127.0.0.1' });
   }
 

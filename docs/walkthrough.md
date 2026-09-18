@@ -512,3 +512,23 @@ This document records the implementation progress phase by phase, per master pro
 **Tests:** web unit (incl. new `env.test.ts` and the HSTS assertion in `security-headers.test.ts`), typecheck, `pnpm qa`, and root build green; `docker-compose.yml` validated with the official `docker compose config` binary (v5.5.1: services/volumes/contexts/`depends_on` gating/required-var guards all resolve) and Dockerfiles statically audited. Full command list in the phase status report.
 
 **Known limitations:** the images are **not built/run** here (no Docker daemon; `docker compose build && docker compose up` is a mandatory pre-deploy gate); no external APM/error-reporting SDK is wired (documented seams); `__Host-` cookie prefix, session rotation, engine input provenance and published-route `EXPLAIN` tuning remain residual risks (production-readiness §10). The exposed Groq key was rotated in `apps/ai-engine/.env` on 2026-09-17 (new key verified live against the Groq models endpoint) and the plaintext duplicate `مفتاح.txt` removed; the OLD key still needs revocation in the Groq console.
+
+## Phase 16 — AI image generation (part 1: generated rasters)
+
+**Date:** 2026-09-18  
+**Objective:** Phase 16 part 1 — generate real raster art for fresh landing pages from the asset planner, at deterministic cost, on the free-tier stack (no GPU, no object store): a code stage after asset-planner + an ephemeral in-memory byte flow engine → worker → web with honest per-image fallback.
+
+**Implemented:**
+- **Engine Stage 6 `asset-renderer`** (`app/services/asset_renderer.py`, wired in `app/services/pipeline.py` between s5 and the SchemaBuilder now renumbered Stage 7): deterministic per-requirement prompts from the planner's `image`/`illustration` slices (subject + orientation, tone→style map), capped (`AI_IMAGE_MAX=4`, `AI_IMAGE_MAX_BYTES=800_000`), gated by kind (icons skipped), **OFF by default** (`AI_IMAGE_PROVIDER=off`) and no-op when disabled.
+- **Image providers** (`app/providers/{protocol,image_providers,stub,factory}.py`): HF Falcon Inference provider (huggingface.co free tier, injectable transport, bounded/retried errors), deterministic `StubImageProvider`, factory via the settings singletons + test swap.
+- **Ephemeral raster flow:** engine `JobAssetStore` → worker `MemoryAssetStore` → web `RasterMemoryStore`; refs stay the logical `asset:<id>` form (SEM-011) and the DB/schema shape is unchanged. New endpoints: engine `GET /internal/v1/assets/{job_id}/{ref}`, worker `GET /api/jobs/:id/assets`, web `/assets/asset/{ref}` (memory-first, placeholder SVG fallback).
+- **Opt-in + honest failures:** request flag `generate_images` flows web route → `GenerationService` → worker job (`POST_JOB_SCHEMA` + fingerprint) → engine (`JobRequest.generate_images`); failing images are warning `E-IMG-001` + `draft=True` + placeholder, never a fake success; budget overflow stays honest `E-AI-002`.
+- **No new worker stable event; `WorkerClient.getAssets` is optional** (e2e in-process fake stays source-compatible).
+
+**Created:** engine `asset_renderer.py`/`asset_store.py`/`image_providers.py`/`test_image_gen.py`; worker `store.ts` + `tests/image-assets.integration.test.ts`; web `lib/assets.ts` rasters + asset route + `tests/assets.test.ts` + Phase 16 integration test; `docs/adr/ADR-0012-image-generation.md`.
+
+**Tests:** engine **157/157** (+9; ruff + mypy clean — suite ~5 min), worker **28/28** (typecheck clean), web unit **85/85** + DB-backed integration **38/38**, typecheck + `turbo build --filter @landing-ai/web` green.
+
+**Known limitations:** raster bytes are ephemeral (restart/eviction ⇒ placeholders until the job is re-run); no auto-persist to S3 (manual editor upload is the permanence path); HF free tier is rate/latency variable (hence per-image `E-IMG-001` + placeholder, ADR-0012).
+
+**Next:** Phase 16 **part 2** — page generation from a product link (AliExpress-style): normalized product data (title/bullets/hero image) → brief → reuse product images through the same asset-ref plumbing.

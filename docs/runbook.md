@@ -215,6 +215,8 @@ store dumps off-host. Verify a restore into a scratch DB once per release cycle.
 | `429 RATE_LIMITED` in normal use | limit too low / shared IP | raise capacity, or `RATE_LIMIT_DISABLED=1` for internal tools |
 | Local `j*-e2e` hang (240 s) | `apps/ai-engine/.env` points at a real provider | rename/remove `apps/ai-engine/.env` for the run (local only) |
 | Local engine CLI hangs | same `.env`/`routing.local.yaml` cause | same fix; use the stub config for local CI |
+| Pages show placeholder images with `E-IMG-001` warnings | HF inference rate/quota/timeout per image | benign by design (ADR-0012): re-run the job, or set `AI_IMAGE_PROVIDER=huggingface` + valid `AI_IMAGE_HF_TOKEN`; cap is `AI_IMAGE_MAX=4` |
+| Placeholders despite a successful run | generated raster bytes are in-memory and were evicted/restarted | expected ephemerality: re-run the job (same brief, new idempotency key); no auto-persist to S3 |
 
 ---
 
@@ -224,8 +226,10 @@ Rotate `AI_INTERNAL_TOKEN` (engine ↔ worker) and `WORKER_INTERNAL_TOKEN`
 (web ↔ worker) by updating **both** sides and restarting the two services; a
 mismatch is visible as `401` on the affected hop. Rotate the provider key in the
 provider console, update `AI_OPENAI_API_KEY` in the platform environment only,
-and restart `ai-engine`. Rotate the database password through the platform's
-managed credentials (no app code change; `DATABASE_URL` is injected). Rotating a
+and restart `ai-engine`. Image generation needs `AI_IMAGE_HF_TOKEN` (HF inference
+API) whenever `AI_IMAGE_PROVIDER=huggingface`; rotate it the same way and restart
+`ai-engine`. Rotate the database password through the platform's managed
+credentials (no app code change; `DATABASE_URL` is injected). Rotating a
 service token does **not** invalidate user sessions (those are DB-backed).
 
 ---

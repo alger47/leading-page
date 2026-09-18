@@ -41,6 +41,14 @@ export interface EngineLedger {
   attempts_detail: EngineAttemptDetail[];
 }
 
+export interface EngineAssetManifestEntry {
+  ref: string;
+  requirement_id: string;
+  mime: string;
+  size_bytes: number;
+  source: string;
+}
+
 export interface EngineJobPayload {
   job_id: string;
   status: 'RUNNING' | 'COMPLETED' | 'FAILED';
@@ -54,6 +62,10 @@ export interface EngineJobPayload {
   page_validation?: Record<string, unknown> | null;
   build_issues: unknown[];
   headers_preview: Record<string, string>;
+  /** Stage 6 asset-renderer manifest. Present only when the job opted into
+   * image generation; the byte payloads are fetched separately from the
+   * engine's ephemeral store (GET /internal/v1/assets/:jobId/:ref). */
+  assets?: EngineAssetManifestEntry[];
 }
 
 export interface GenerateRequest {
@@ -62,6 +74,14 @@ export interface GenerateRequest {
   tone?: string;
   job_id?: string;
   budget_usd?: number;
+  generate_images?: boolean;
+}
+
+/** A generated raster fetched from the engine's ephemeral store. */
+export interface EngineAsset {
+  ref: string;
+  mime: string;
+  data_b64: string;
 }
 
 /** Single-section regeneration (Phase 8 J2): the engine splices the rebuilt

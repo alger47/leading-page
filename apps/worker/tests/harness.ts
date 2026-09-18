@@ -13,7 +13,7 @@ import type { JobPayload } from '../src/jobs/types.js';
 import { makeMemoryDriver } from '../src/queue/memory.js';
 import type { EnqueueDriver, WorkerHandle } from '../src/queue/ports.js';
 import { buildServer } from '../src/server.js';
-import { MemoryJobStore } from '../src/store.js';
+import { MemoryAssetStore, MemoryJobStore } from '../src/store.js';
 import { MemorySpanStore } from '../src/telemetry.js';
 import { makeFakeEngine, type FakeEngine, type Scenario } from './fake-engine.js';
 
@@ -37,6 +37,7 @@ export interface HarnessOptions {
 export interface Harness {
   store: MemoryJobStore;
   spans: MemorySpanStore;
+  assets: MemoryAssetStore;
   queue: EnqueueDriver<JobPayload>;
   worker?: WorkerHandle;
   app: FastifyInstance;
@@ -62,9 +63,10 @@ export async function makeHarness(opts: HarnessOptions = {}): Promise<Harness> {
   const engine = new EngineClient({ baseUrl: engineBase, token: 'test-token', timeoutMs: engineTimeoutMs });
   const store = new MemoryJobStore();
   const spans = new MemorySpanStore();
+  const assets = new MemoryAssetStore();
 
   const includeWorker = opts.includeWorker !== false;
-  const processor = includeWorker ? makeProcessor({ engine, store, spans }) : undefined;
+  const processor = includeWorker ? makeProcessor({ engine, store, spans, assets }) : undefined;
   const running = makeMemoryDriver<JobPayload>(queueName, {
     maxAttempts,
     retryAfterMs,
@@ -91,7 +93,7 @@ export async function makeHarness(opts: HarnessOptions = {}): Promise<Harness> {
     retryAfterMs,
   };
 
-  const app = buildServer({ store, spans, queue, engine, config });
+  const app = buildServer({ store, spans, queue, engine, config, assets });
 
   if (opts.auth !== false) {
     // Tests are about the pipeline, not the auth envelope: default the shared
@@ -108,6 +110,7 @@ export async function makeHarness(opts: HarnessOptions = {}): Promise<Harness> {
   return {
     store,
     spans,
+    assets,
     queue,
     worker,
     app,

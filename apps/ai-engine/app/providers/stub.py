@@ -7,6 +7,7 @@ without network or cost. Outputs are valid by construction.
 
 from __future__ import annotations
 
+import base64
 import json
 import time
 from typing import Any
@@ -14,7 +15,15 @@ from typing import Any
 from app.contracts import Outcome, Usage
 from app.prompts.assets import PromptAsset
 from app.providers import stub_data
-from app.providers.protocol import GenerationParams, ProviderResult
+from app.providers.protocol import GenerationParams, ImageResult, ProviderResult
+
+# 1x1 transparent PNG — deterministic, valid, offline (tests/dev/CI). Mirrors a
+# "perfect" image model so the asset-renderer machinery is fully exercised.
+_STUB_PNG_BYTES = bytes(
+    base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    )
+)
 
 _STAGE_BUILDERS: dict[str, Any] = {
     "stage1-brief-analyzer": lambda inputs: stub_data.analyze(inputs["brief"], inputs["locale"]),
@@ -25,6 +34,22 @@ _STAGE_BUILDERS: dict[str, Any] = {
     ),
     "stage5-asset-planner": lambda inputs: stub_data.assets(inputs["plan"]),
 }
+
+
+class StubImageProvider:
+    """Deterministic offline image provider (tests/dev/CI)."""
+
+    name = "stub"
+
+    async def generate(self, *, prompt: str, size: str) -> ImageResult:
+        return ImageResult(
+            ok=True,
+            data=bytes(_STUB_PNG_BYTES),
+            mime="image/png",
+            message="ok",
+            model=f"stub-image:{size}",
+            latency_ms=0.1,
+        )
 
 
 class StubProvider:

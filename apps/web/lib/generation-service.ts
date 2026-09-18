@@ -24,6 +24,7 @@ import {
 import { labelForFeedback } from './validation';
 import { deriveIdempotencyKey, jobIdForIdempotencyKey } from './generation-key';
 import { mapEngineAttemptsToDb } from './generation-attempts';
+import { getRasterStore } from './assets';
 import { HttpWorkerClient, WorkerCallError, type WorkerClient } from './worker-client';
 import { webConfig, DEV_WORKER_TOKEN, type WebConfig } from './env';
 import { validateBriefInput } from './validation';
@@ -36,6 +37,10 @@ export interface StartGenerationInput {
   locale: 'ar' | 'fr' | 'en';
   tone: string;
   clientIdempotencyKey?: string;
+  /** Opt into engine Stage 6 image generation (Phase 16). Best-effort: when
+   * the engine feature is off, the job simply completes without an asset
+   * manifest and placeholders are used. */
+  generateImages?: boolean;
 }
 
 /** Phase 8 J2: regenerate ONE section. The `page` is the current draft
@@ -141,7 +146,7 @@ export class GenerationService {
     }
 
     const now = new Date();
-    const request = { brief: input.brief, locale: input.locale, tone: input.tone };
+    const request = { brief: input.brief, locale: input.locale, tone: input.tone, ...(input.generateImages === true ? { generateImages: true } : {}) };
     const created = await jobs.create(input.owner, input.projectId, {
       id: jobId,
       label: labelForFeedback(input.brief),
@@ -163,6 +168,7 @@ export class GenerationService {
         brief: input.brief,
         locale: input.locale,
         tone: input.tone,
+        generateImages: input.generateImages,
       });
       return { jobId: created.id, created: res.created, status: 'QUEUED' };
     } catch (error) {
@@ -380,6 +386,11 @@ export class GenerationService {
               event: { type: 'job.completed', at: new Date().toISOString() },
             })
             .catch(() => undefined);
+          // Phase 16: relay the generated rasters from the worker's asset cache
+          // into the server-side store so /assets/asset/[ref] can serve bytes
+          // memory-first. Best-effort — a missing relay just keeps the
+          // deterministic placeholder (never a broken <img>).
+          await this.relayAssets(view, jobId).catch(() => undefined);
           return jobs.get(owner, projectId, jobId);
         } catch (error) {
           // Invalid schema from the engine would have been caught by L1 inside
@@ -429,6 +440,31 @@ export class GenerationService {
     const rows = mapEngineAttemptsToDb(detail);
     for (const input of rows) {
       await jobs.recordAttempt(owner, projectId, jobId, input).catch(() => undefined);
+    }
+  }
+
+  /** Phase 16: move the worker-cached generated rasters into the server-side
+   * RasterMemoryStore so the /assets/asset/[ref] route serves bytes it has. */
+  private async relayAssets(
+    view: Awaited<ReturnType<WorkerClient['get']>>,
+    jobId: string,
+  ): Promise<void> {
+    const manifest = (view?.result as { assets?: readonly unknown[] } | null)?.assets;
+    if (!Array.isArray(manifest) || manifest.length === 0) return;
+    if (this.worker.getAssets === undefined) return;
+    const assets = await this.worker.getAssets(jobId);
+    if (!assets || assets.length === 0) return;
+    const store = getRasterStore();
+    for (const asset of assets) {
+      if (typeof asset.ref !== 'string' || typeof asset.data_b64 !== 'string' || asset.data_b64 === '') continue;
+      let bytes: Buffer;
+      try {
+        bytes = Buffer.from(asset.data_b64, 'base64');
+      } catch {
+        continue; // corrupt relay entry — placeholder wins, never a broken byte burst
+      }
+      if (bytes.length === 0) continue;
+      store.put(asset.ref, { mime: asset.mime || 'image/png', bytes });
     }
   }
 }

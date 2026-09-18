@@ -21,11 +21,13 @@ from app.core.brief_validation import validate_brief
 from app.core.errors import AiEngineError, ProviderHardError
 from app.cost.ledger import JobLedger
 from app.routing.config import RoutingConfig
+from app.services.asset_renderer import AssetRenderer
+from app.services.asset_store import JobAssetStore
 from app.services.page_validator import PageValidationError, validate_page
 from app.services.schema_builder import assemble
 from app.services.stage_runner import StageRunner
 
-ALL_STAGES = ("brief-analyzer", "page-planner", "layout-planner", "content-generator", "asset-planner")
+ALL_STAGES = ("brief-analyzer", "page-planner", "layout-planner", "content-generator", "asset-planner", "asset-renderer")
 PARALLEL_STAGES = ("content-generator", "asset-planner")
 
 
@@ -35,10 +37,20 @@ class Pipeline:
     # short pause after each finished stage keeps the bucket from exhausting.
     inter_stage_delay_s: float = 30.0
 
-    def __init__(self, *, runner: StageRunner, routing: RoutingConfig, settings: Settings) -> None:
+    def __init__(
+        self,
+        *,
+        runner: StageRunner,
+        routing: RoutingConfig,
+        settings: Settings,
+        assets: JobAssetStore,
+        images: AssetRenderer,
+    ) -> None:
         self.runner = runner
         self.routing = routing
         self.settings = settings
+        self.assets = assets
+        self.images = images
         self._max_delay = max(0.0, inter_stage_delay(self.settings))
 
     async def _pace(self) -> None:
@@ -53,6 +65,7 @@ class Pipeline:
         tone: str | None = None,
         job_id: str | None = None,
         budget_usd: float | None = None,
+        generate_images: bool = False,
     ) -> JobResult:
         start_ms = time.perf_counter() * 1000
         result = JobResult(job_id=job_id or f"job-{uuid.uuid4().hex[:12]}", status="RUNNING", start_ms=int(start_ms))
@@ -68,7 +81,7 @@ class Pipeline:
         ledger = JobLedger(self.routing, self.settings, budget_usd)
 
         try:
-            return await self._run_stages(result, flags["brief"], resolved_locale, tone, ledger, start_ms)
+            return await self._run_stages(result, flags["brief"], resolved_locale, tone, ledger, start_ms, generate_images)
         except ProviderHardError as exc:
             if exc.attempt is not None:
                 result.stages.append(
@@ -93,6 +106,7 @@ class Pipeline:
         tone: str | None,
         ledger: JobLedger,
         start_ms: float,
+        generate_images: bool,
     ) -> JobResult:
         # Stage 1 — BriefAnalyzer
         s1 = await self.runner.run(
@@ -148,6 +162,21 @@ class Pipeline:
         result.stages.append(s5)
         if not (s4.ok and s5.ok):
             return self._fail(result, start_ms, ledger)
+
+        # Stage 6 — AssetRenderer (image generation, opt-in). Off unless the
+        # request asked for images AND AI_IMAGE_PROVIDER is enabled. Bounded
+        # per-image failures never fail the job: the ref keeps the placeholder.
+        if generate_images and self.images.enabled():
+            await self._pace()
+            s6, blobs = await self.images.render(
+                requirements=(s5.data or {}).get("requirements") or [],
+                tone=tone,
+                ledger=ledger,
+            )
+            result.stages.append(s6)
+            for blob in blobs:
+                self.assets.put(result.job_id, blob["ref"], blob["mime"], bytes(blob["data"]))
+            result.assets = list((s6.data or {}).get("images") or [])
 
         # Stage 7 — SchemaBuilder (deterministic code, never the LLM; §6.1).
         schema, build_issues = assemble(

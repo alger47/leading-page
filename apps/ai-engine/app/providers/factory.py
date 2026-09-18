@@ -16,8 +16,9 @@ from app.providers.http_providers import (
     OpenAIProvider,
     QwenProvider,
 )
-from app.providers.protocol import StructuredLLMProvider
-from app.providers.stub import StubProvider
+from app.providers.image_providers import HuggingFaceImageProvider
+from app.providers.protocol import ImageProvider, StructuredLLMProvider
+from app.providers.stub import StubImageProvider, StubProvider
 from app.routing.config import RoutingConfig
 
 _HTTP_PROVIDERS: dict[str, type] = {
@@ -41,11 +42,48 @@ class ProviderRegistry:
         self.settings = settings
         self.routing = routing
         self._stub = StubProvider()
+        self._stub_image = StubImageProvider()
         self._built: dict[str, StructuredLLMProvider] = {}
+        self._image_built: dict[str, ImageProvider] = {}
         self._overrides: dict[str, StructuredLLMProvider] = {}
+        self._image_override: ImageProvider | None = None
 
     def force_for_tests(self, model_class: str, provider: StructuredLLMProvider) -> None:
         self._overrides[model_class] = provider
+
+    def force_image_for_tests(self, provider: ImageProvider) -> None:
+        self._image_override = provider
+
+    def image_provider(self) -> ImageProvider | None:
+        """Image provider for Stage 6, or None when the feature is off.
+
+        Driven by AI_IMAGE_PROVIDER (off | stub | huggingface). `stub` is used
+        by tests/dev/CI; `huggingface` requires a token and an images: section
+        in the routing config. A request-level flag also gates the pipeline,
+        so image generation stays OFF by default in production.
+        """
+        if self._image_override is not None:
+            return self._image_override
+        mode = self.settings.image_provider
+        if mode in ("off", ""):
+            return None
+        if mode == "stub":
+            return self._stub_image
+        if mode == "huggingface":
+            if not self.settings.image_hf_token:
+                raise RoutingConfigError("AI_IMAGE_PROVIDER=huggingface but AI_IMAGE_HF_TOKEN is unset (E-AI-006)")
+            image_def = self.routing.image()
+            model_id = self.settings.image_hf_model or image_def.model_id
+            key = f"huggingface:{model_id}"
+            if key not in self._image_built:
+                self._image_built[key] = HuggingFaceImageProvider(
+                    token=self.settings.image_hf_token,
+                    model=model_id,
+                    base_url=self.settings.image_hf_base_url,
+                    timeout_s=self.settings.image_timeout_s,
+                )
+            return self._image_built[key]
+        raise RoutingConfigError(f"unknown AI_IMAGE_PROVIDER {mode!r} (E-AI-006)")
 
     def get(self, model_class: str) -> StructuredLLMProvider:
         """Return the provider instance for a routing model class."""

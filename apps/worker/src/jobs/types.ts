@@ -59,6 +59,10 @@ export interface GenerationRequest {
   targetSectionId?: string;
   /** Current Page Schema, required when mode === 'section'. */
   page?: unknown;
+  /** Opt into engine Stage 6 image generation (asset-renderer). The engine
+   * feature itself stays OFF until AI_IMAGE_PROVIDER is configured, so this
+   * flag is harmless when the deployment has no image provider. Phase 16. */
+  generateImages?: boolean;
 }
 
 /** Serialized onto the BullMQ job. */

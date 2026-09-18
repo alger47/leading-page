@@ -105,6 +105,10 @@ bold values**; the fail-closed guards (§5) refuse to boot otherwise.
 | `AI_PAGE_SCHEMA_DIR` | repo path | `/packages/page-schema/schema` (Docker image bakes it) |
 | `AI_OPENAI_API_KEY` / `AI_OPENAI_BASE_URL` | empty / OpenAI | **provider key** / `https://api.groq.com/openai/v1` |
 | `AI_JOB_DEFAULT_BUDGET_USD`, `AI_JOB_MAX_TOTAL_ATTEMPTS`, `AI_MAX_BRIEF_LENGTH` | `0.25` / `18` / `4000` | tune per cost policy |
+| `AI_IMAGE_PROVIDER` | `off` | **`off`** by default; `stub` for tests/demos, `huggingface` for real generation (must be enabled **and** the request must set `generate_images: true`) |
+| `AI_IMAGE_HF_TOKEN` | empty | HF token when `AI_IMAGE_PROVIDER=huggingface` (inference API, FLUX.1-schnell) |
+| `AI_IMAGE_HF_MODEL` | `black-forest-labs/FLUX.1-schnell` | any HF image model (falls back to routing `images.default.model_id`) |
+| `AI_IMAGE_MAX`, `AI_IMAGE_MAX_BYTES`, `AI_IMAGE_TIMEOUT_S`, `AI_IMAGE_SIZE` | `4` / `800000` / `120` / `1024x1024` | per-image cap; per-image failures are benign warning `E-IMG-001` + placeholder |
 
 ### database / backups (`packages/database/.env.example`)
 
@@ -256,6 +260,15 @@ platform logs + the health endpoints + the engine's committed reports.
   uploads; `NEXT_PUBLIC_ASSET_S3_BASE_URL` points the renderer at a CDN host
   (`img-src` in the CSP already allows `https:`). Default stays the
   self-hosted `/assets/asset/{ref}` placeholder.
+- **Generated rasters (Phase 16):** engine-generated images travel
+  **in-memory** end-to-end (engine `JobAssetStore` → worker `MemoryAssetStore` →
+  web `RasterMemoryStore`) and `/assets/asset/{ref}` serves them memory-first,
+  falling back to the deterministic placeholder SVG. Manifest refs (`asset:…`)
+  are **logical and permanent** in the schema; the **bytes are ephemeral** —
+  lost on instance restart/eviction. To recover bytes, re-run the same brief
+  (new idempotency-key job). There is **no auto-persist** of generated rasters
+  to S3; uploading a generated asset to storage is a manual editor flow (image
+  upload remains available).
 - **CDN (optional):** published HTML is immutable per snapshot; a CDN can cache
   the public `[host]` route. Cookie-bearing dashboard routes must not be cached.
   No CDN is configured by default (nothing to invalidate, no cache-poisoning
@@ -293,6 +306,11 @@ platform logs + the health endpoints + the engine's committed reports.
 8. **Ownership-check ordering** — `POST /projects/{id}/pages` and `/generate`
    validate the body before the ownership check (they never leak foreign
    content; ordering polish only).
+9. **Generated-image bytes are ephemeral** (ADR-0012) — engine/worker/web try
+   to keep rasters only in memory; no object-store persistence, so a restarted
+   instance serves placeholders until the job is re-run. Free-tier HF inference
+   is rate/latency variable; per-image failure is benign (warning
+   `E-IMG-001` + placeholder), never a fake success.
 
 ---
 

@@ -7,7 +7,7 @@
  * - malformed envelope (non-JSON, wrong shape)  -> E-JOB-004, not retryable
  */
 
-import type { GenerateRequest, GenerateResponse, RegenerateSectionRequest, EngineJobPayload } from './types.js';
+import type { EngineAsset, GenerateRequest, GenerateResponse, RegenerateSectionRequest, EngineJobPayload } from './types.js';
 
 export interface EngineErrorOptions {
   code: string;
@@ -78,6 +78,29 @@ export class EngineClient {
 
   async generate(req: GenerateRequest): Promise<EngineJobPayload> {
     return this.postJob('/internal/v1/generate', 'generate', req);
+  }
+
+  /** Generated raster bytes for a single asset-ref (ephemeral engine store).
+   * Fails fast: this is a best-effort post-COMPLETED fetch — the web layer
+   * falls back to its deterministic placeholder when the bytes are gone
+   * (instance restarted, eviction, rendering tip of the iceberg). */
+  async fetchAsset(jobId: string, ref: string): Promise<EngineAsset | null> {
+    const path = `/internal/v1/assets/${encodeURIComponent(jobId)}/${encodeURIComponent(ref)}`;
+    let res: Response;
+    try {
+      res = await this.request(path, { method: 'GET' });
+    } catch {
+      return null;
+    }
+    if (res.status === 404) return null;
+    if (!res.ok) return null;
+    const mime = res.headers.get('content-type') ?? 'application/octet-stream';
+    const buffer = await res.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (const b of bytes) binary += String.fromCharCode(b);
+    const data_b64 = btoa(binary);
+    return { ref, mime, data_b64 };
   }
 
   async regenerateSection(req: RegenerateSectionRequest): Promise<EngineJobPayload> {
