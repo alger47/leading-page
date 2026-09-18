@@ -29,6 +29,7 @@ CANONICAL_STAGES: frozenset[str] = frozenset(
         "layout-planner",
         "content-generator",
         "asset-planner",
+        "asset-renderer",
     }
 )
 

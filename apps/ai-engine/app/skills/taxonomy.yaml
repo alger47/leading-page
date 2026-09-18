@@ -2,7 +2,7 @@ skills:
   - id: landing-page-production
     name: Landing page production
     description: End-to-end generation of a validated single-page landing site from a brief.
-    stages: [brief-analyzer, page-planner, layout-planner, content-generator, asset-planner]
+    stages: [brief-analyzer, page-planner, layout-planner, content-generator, asset-planner, asset-renderer]
     prompts: [stage1-brief-analyzer, stage2-page-planner, stage3-layout-planner, stage4-content-generator, stage5-asset-planner, judge-rubric]
   - id: brief-analysis
     name: Brief analysis

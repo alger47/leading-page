@@ -60,6 +60,16 @@ stages:
     max_attempts: 3
     max_output_tokens: 1000
     fallbacks: [fast, premium]
+  # Stage 6 asset-renderer — deterministic image-generation stage (no LLM
+  # routing). Entry is descriptive for the stage catalog/healthz; it runs only
+  # when AI_IMAGE_PROVIDER is enabled AND the request opts in (generate_images).
+  asset-renderer:
+    prompt: stage6-asset-renderer
+    model_class: fast
+    temperature: 0
+    max_attempts: 1
+    max_output_tokens: 100
+    fallbacks: [fast]
 
 # Stage 6 asset-renderer. OFF until AI_IMAGE_PROVIDER=huggingface AND
 # AI_IMAGE_HF_TOKEN are set on the engine service (sync:false env var).

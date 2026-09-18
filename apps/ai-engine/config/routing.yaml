@@ -66,6 +66,15 @@ stages:
     temperature: 0
     max_attempts: 2
     fallbacks: [fast, premium]
+  # Stage 6 asset-renderer — deterministic image-generation stage (no LLM
+  # routing). Entry is descriptive for the stage catalog/healthz; it runs only
+  # when AI_IMAGE_PROVIDER is enabled AND the request opts in (generate_images).
+  asset-renderer:
+    prompt: stage6-asset-renderer
+    model_class: fast
+    temperature: 0
+    max_attempts: 1
+    fallbacks: [fast]
 
 # Stage 6 asset-renderer (image generation). The entrypoint env var
 # AI_IMAGE_PROVIDER (off|stub|huggingface) decides whether stage 6 runs at all;
