@@ -25,7 +25,7 @@ from app.routing.config import RoutingConfig
 from app.services.asset_renderer import AssetRenderer
 from app.services.asset_store import JobAssetStore
 from app.services.page_validator import PageValidationError, validate_page
-from app.services.schema_builder import assemble
+from app.services.schema_builder import assemble, bind_generated_assets
 from app.services.stage_runner import StageRunner
 
 ALL_STAGES = ("brief-analyzer", "page-planner", "layout-planner", "content-generator", "asset-planner", "asset-renderer")
@@ -194,6 +194,12 @@ class Pipeline:
             prompt_versions=_prompt_versions(result.stages),
             model=_primary_model(result.stages),
         )
+        # Phase 16: bind the generated raster manifest into the schema's image
+        # slots (hero media, features/gallery items) as `asset:` refs so the
+        # public renderer displays real images instead of placeholders. Schema-
+        # builder code, deterministic (never the LLM). Runs before the envelope
+        # is validated so L1 checks see the final content shape.
+        bind_generated_assets(schema, result.assets)
         envelope = self.settings.page_schema_dir / self.settings.envelope_schema_name
         try:
             page_validation = validate_page(schema, envelope_path=envelope)

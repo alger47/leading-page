@@ -235,3 +235,65 @@ def assemble(
         },
     }
     return schema, issues
+
+
+def _section_image_slots(sections: list[dict[str, Any]]) -> list[tuple[dict[str, Any], str]]:
+    """Deterministic page-order image slots across the assembled sections.
+
+    Returns ``(owner_dict, key)`` pairs where ``owner_dict[key]`` is the slot
+    value. Slot order = section order (hero first per SEM-001), then item
+    order within a section — matching the asset-renderer manifest order
+    (requirements are consumed in planner order, hero first).
+    """
+    slots: list[tuple[dict[str, Any], str]] = []
+    for section in sections:
+        stype = section.get("type")
+        if not isinstance(section, dict):
+            continue
+        content = section.get("content")
+        if not isinstance(content, dict):
+            continue
+        if stype == "hero":
+            slots.append((content, "media"))
+        elif stype in ("features", "gallery"):
+            items = content.get("items")
+            if not isinstance(items, list):
+                continue
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                key = "media" if stype == "features" and isinstance(item.get("media"), (str, dict)) else "image"
+                if key in item:
+                    slots.append((item, key))
+    return slots
+
+
+def bind_generated_assets(schema: dict[str, Any], manifest: list[dict[str, Any]]) -> None:
+    """Bind the Stage 6 raster manifest into the schema's image slots (Phase 16).
+
+    Deterministic code, never the LLM (§SEM-011): the envelope stores LOGICAL
+    refs (`asset:<requirement_id>`) — the DB never changes. Generated rasters
+    are consumed in manifest (planner) order, hero first; each manifest entry
+    fills the corresponding image slot (hero `media`, features `media`,
+    gallery `image`) as a ``{assetRef, alt}`` ref the public renderer resolves
+    to a servable URL. Slots already carrying an ``asset:`` ref are never
+    overwritten; leftover manifest entries stay registered in ``schema.assets``
+    so editor surfaces can still offer them.
+    """
+    raw_sections = schema.get("sections") or [] if isinstance(schema, dict) else []
+    slots = _section_image_slots(list(raw_sections) if isinstance(raw_sections, list) else [])
+    for (owner, key), entry in zip(slots, manifest):
+        if not isinstance(entry, dict) or not isinstance(entry.get("ref"), str) or not entry["ref"].startswith("asset:"):
+            continue
+        current = owner.get(key)
+        if isinstance(current, dict) and isinstance(current.get("assetRef"), str) and current["assetRef"].startswith("asset:"):
+            continue
+        requirement = str(entry.get("requirement_id") or entry["ref"][len("asset:") :])
+        alt = ""
+        if isinstance(current, dict) and isinstance(current.get("alt"), str):
+            alt = current["alt"].strip()
+        elif isinstance(current, str) and current.strip() and not current.strip().startswith(("placeholder-", "asset:")):
+            alt = current.strip()
+        if not alt:
+            alt = requirement.replace("-", " ").replace("_", " ").strip().capitalize()
+        owner[key] = {"assetRef": entry["ref"], "alt": alt or "Generated image for this section"}

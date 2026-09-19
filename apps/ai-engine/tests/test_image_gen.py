@@ -364,6 +364,66 @@ def test_pollinations_image_provider_rejects_non_image_body():
     assert res.data is None
 
 
+def test_bind_generated_assets_maps_manifest_into_content_slots():
+    from app.services.schema_builder import bind_generated_assets
+
+    schema = {
+        "sections": [
+            {"id": "hero-1", "type": "hero", "content": {"title": "T", "media": "placeholder-1"}},
+            {
+                "id": "gallery-1",
+                "type": "gallery",
+                "content": {"items": [{"image": "placeholder-2"}, {"image": "placeholder-3"}]},
+            },
+        ]
+    }
+    manifest = [
+        {"ref": "asset:hero-bg", "requirement_id": "hero-bg", "mime": "image/jpeg", "size_bytes": 1},
+        {"ref": "asset:gallery-look", "requirement_id": "gallery-look", "mime": "image/jpeg", "size_bytes": 1},
+    ]
+    bind_generated_assets(schema, manifest)
+
+    hero_media = schema["sections"][0]["content"]["media"]
+    assert hero_media == {"assetRef": "asset:hero-bg", "alt": "Hero bg"}
+    gallery_items = schema["sections"][1]["content"]["items"]
+    assert gallery_items[0]["image"] == {"assetRef": "asset:gallery-look", "alt": "Gallery look"}
+    # leftover manifest entries stay unbound (still registered in schema.assets
+    # by the caller); the third slot keeps its placeholder string.
+    assert gallery_items[1]["image"] == "placeholder-3"
+
+
+def test_bind_generated_assets_never_overwrites_existing_asset_ref():
+    from app.services.schema_builder import bind_generated_assets
+
+    schema = {
+        "sections": [
+            {"id": "hero-1", "type": "hero", "content": {"media": {"assetRef": "asset:kept", "alt": "kept"}}},
+            {"id": "gallery-1", "type": "gallery", "content": {"items": [{"image": {"assetRef": "asset:kept-g", "alt": "g"}}]}},
+        ]
+    }
+    bind_generated_assets(schema, [{"ref": "asset:hero-bg", "requirement_id": "hero-bg"}])
+    assert schema["sections"][0]["content"]["media"]["assetRef"] == "asset:kept"
+    assert schema["sections"][1]["content"]["items"][0]["image"]["assetRef"] == "asset:kept-g"
+
+
+def test_bind_generated_assets_creates_hero_media_when_absent():
+    from app.services.schema_builder import bind_generated_assets
+
+    schema = {"sections": [{"id": "hero-1", "type": "hero", "content": {"title": "Ghardaia"}}]}
+    bind_generated_assets(schema, [{"ref": "asset:hero-bg", "requirement_id": "hero-bg"}])
+    media = schema["sections"][0]["content"]["media"]
+    assert media["assetRef"] == "asset:hero-bg"
+    assert media["alt"]
+
+
+def test_bind_generated_assets_ignores_non_asset_manifest_entries():
+    from app.services.schema_builder import bind_generated_assets
+
+    schema = {"sections": [{"id": "hero-1", "type": "hero", "content": {"media": "x"}}]}
+    bind_generated_assets(schema, [{"ref": "NOT-ASSET", "requirement_id": "hero-bg"}])
+    assert schema["sections"][0]["content"]["media"] == "x"
+
+
 def test_factory_builds_pollinations_provider_without_token():
     from app.config import Settings
     from app.providers.factory import ProviderRegistry
