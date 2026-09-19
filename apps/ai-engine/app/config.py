@@ -67,12 +67,15 @@ class Settings(BaseSettings):
     # Stage 6 asset-renderer (image generation). Feature is OFF by default:
     # pipeline runs skip stage 6 unless a provider is enabled here AND the
     # request opted in. `stub` is for tests/dev/CI; `huggingface` calls the
-    # Hugging Face Inference (free) API with AI_IMAGE_HF_TOKEN.
-    image_provider: str = "off"  # off | stub | huggingface
+    # Hugging Face Inference API with AI_IMAGE_HF_TOKEN; `pollinations` calls
+    # the tokenless Pollinations API (zero-credential fallback).
+    image_provider: str = "off"  # off | stub | huggingface | pollinations
     image_hf_token: str = ""
-    image_hf_base_url: str = "https://api-inference.huggingface.co/models"
+    image_hf_base_url: str = "https://router.huggingface.co/hf-inference/models"
     # Empty => the images.<key>.model_id from the routing config wins.
     image_hf_model: str = ""
+    image_pollinations_base_url: str = "https://image.pollinations.ai/prompt"
+    image_pollinations_model: str = ""  # empty => vendor default model
     image_size: str = "1024x1024"
     image_max: int = 4  # max raster images generated per job
     image_max_bytes: int = 800_000  # per-image transfer cap (bytes)

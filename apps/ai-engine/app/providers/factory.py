@@ -16,7 +16,7 @@ from app.providers.http_providers import (
     OpenAIProvider,
     QwenProvider,
 )
-from app.providers.image_providers import HuggingFaceImageProvider
+from app.providers.image_providers import HuggingFaceImageProvider, PollinationsImageProvider
 from app.providers.protocol import ImageProvider, StructuredLLMProvider
 from app.providers.stub import StubImageProvider, StubProvider
 from app.routing.config import RoutingConfig
@@ -57,10 +57,11 @@ class ProviderRegistry:
     def image_provider(self) -> ImageProvider | None:
         """Image provider for Stage 6, or None when the feature is off.
 
-        Driven by AI_IMAGE_PROVIDER (off | stub | huggingface). `stub` is used
-        by tests/dev/CI; `huggingface` requires a token and an images: section
-        in the routing config. A request-level flag also gates the pipeline,
-        so image generation stays OFF by default in production.
+        Driven by AI_IMAGE_PROVIDER (off | stub | huggingface | pollinations).
+        `stub` is used by tests/dev/CI; `huggingface` requires a token and an
+        images: section in the routing config; `pollinations` needs no
+        credential. A request-level flag also gates the pipeline, so image
+        generation stays OFF by default in production.
         """
         if self._image_override is not None:
             return self._image_override
@@ -69,6 +70,15 @@ class ProviderRegistry:
             return None
         if mode == "stub":
             return self._stub_image
+        if mode == "pollinations":
+            key = f"pollinations:{self.settings.image_pollinations_model or 'default'}"
+            if key not in self._image_built:
+                self._image_built[key] = PollinationsImageProvider(
+                    base_url=self.settings.image_pollinations_base_url,
+                    model=self.settings.image_pollinations_model,
+                    timeout_s=self.settings.image_timeout_s,
+                )
+            return self._image_built[key]
         if mode == "huggingface":
             if not self.settings.image_hf_token:
                 raise RoutingConfigError("AI_IMAGE_PROVIDER=huggingface but AI_IMAGE_HF_TOKEN is unset (E-AI-006)")

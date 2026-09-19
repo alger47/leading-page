@@ -63,7 +63,7 @@ class AssetRenderer:
     def enabled(self) -> bool:
         """Stage 6 runs only when a provider is configured AND the routing
         config declares an images: section."""
-        return self.settings.image_provider in ("stub", "huggingface") and bool(self.routing.images)
+        return self.settings.image_provider in ("stub", "huggingface", "pollinations") and bool(self.routing.images)
 
     async def render(
         self,
@@ -92,7 +92,10 @@ class AssetRenderer:
         if provider is None:
             return empty, blobs
 
-        model_id = self.settings.image_hf_model or image_def.model_id
+        if getattr(provider, "name", "") == "pollinations":
+            model_id = self.settings.image_pollinations_model or "pollinations"
+        else:
+            model_id = self.settings.image_hf_model or image_def.model_id
         size = self.settings.image_size or image_def.size
         selected = [
             r

@@ -11,7 +11,7 @@ import asyncio
 
 import httpx
 
-from app.providers.image_providers import HuggingFaceImageProvider
+from app.providers.image_providers import HuggingFaceImageProvider, PollinationsImageProvider
 from app.providers.protocol import ImageResult
 from app.providers.stub import StubImageProvider
 from app.services.asset_renderer import IMAGE_ISSUE_RULE, IMAGE_STAGE
@@ -301,3 +301,90 @@ def test_hf_image_provider_network_failure_is_bounded():
     res = asyncio.run(provider.generate(prompt="a cat", size="512x512"))
     assert res.ok is False
     assert res.data is None
+
+
+def test_pollinations_image_provider_ok_bytes_and_size():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path.endswith("/a%20red%20apple") or "red%20apple" in str(request.url)
+        assert request.url.params["width"] == "768"
+        assert request.url.params["height"] == "512"
+        assert request.url.params["nologo"] == "true"
+        assert "model" not in request.url.params
+        return httpx.Response(200, content=b"\xff\xd8\xff\xe0jpegdata", headers={"content-type": "image/jpeg"})
+
+    provider = PollinationsImageProvider(transport=httpx.MockTransport(handler))
+    res = asyncio.run(provider.generate(prompt="a red apple", size="768x512"))
+    assert res.ok is True
+    assert res.data == b"\xff\xd8\xff\xe0jpegdata"
+    assert res.mime == "image/jpeg"
+    assert res.model == "pollinations"
+    assert res.latency_ms >= 0.0
+
+
+def test_pollinations_image_provider_sends_model_when_configured():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["model"] == "flux"
+        return httpx.Response(200, content=b"imgdata", headers={"content-type": "image/png"})
+
+    provider = PollinationsImageProvider(model="flux", transport=httpx.MockTransport(handler))
+    res = asyncio.run(provider.generate(prompt="x", size="1024x1024"))
+    assert res.ok is True
+    assert res.model == "flux"
+
+
+def test_pollinations_image_provider_error_is_bounded():
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, text="internal server error")
+
+    provider = PollinationsImageProvider(transport=httpx.MockTransport(handler))
+    res = asyncio.run(provider.generate(prompt="a cat", size="1024x1024"))
+    assert res.ok is False
+    assert res.data is None
+    assert "500" in res.message
+
+
+def test_pollinations_image_provider_network_failure_is_bounded():
+    def handler(_request: httpx.Request) -> httpx.Response:
+        raise RuntimeError("connection refused")
+
+    provider = PollinationsImageProvider(transport=httpx.MockTransport(handler))
+    res = asyncio.run(provider.generate(prompt="a cat", size="1024x1024"))
+    assert res.ok is False
+    assert res.data is None
+
+
+def test_pollinations_image_provider_rejects_non_image_body():
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="<html>not an image</html>", headers={"content-type": "text/html"})
+
+    provider = PollinationsImageProvider(transport=httpx.MockTransport(handler))
+    res = asyncio.run(provider.generate(prompt="a cat", size="1024x1024"))
+    assert res.ok is False
+    assert res.data is None
+
+
+def test_factory_builds_pollinations_provider_without_token():
+    from app.config import Settings
+    from app.providers.factory import ProviderRegistry
+    from app.routing.config import RoutingConfig
+
+    settings = Settings()
+    settings.image_provider = "pollinations"
+    routing_cfg = RoutingConfig.from_path(settings.routing_config_path)
+    providers = ProviderRegistry(settings, routing_cfg)
+    provider = providers.image_provider()
+    assert provider is not None
+    assert provider.name == "pollinations"
+
+
+def test_asset_renderer_enabled_for_pollinations():
+    from app.config import Settings
+    from app.routing.config import RoutingConfig
+    from app.services.asset_renderer import AssetRenderer
+
+    settings = Settings()
+    settings.image_provider = "pollinations"
+    routing_cfg = RoutingConfig.from_path(settings.routing_config_path)
+    renderer = AssetRenderer(routing=routing_cfg, settings=settings, providers=None)  # type: ignore[arg-type]
+    assert renderer.enabled() is True
