@@ -192,19 +192,28 @@ async function finalizeSuccess(deps: ProcessorDeps, record: JobRecord, result: E
   if (record.status === 'CANCELLED') return; // cancelled while running: never mark completed
 
   record.result = result;
+
+  // Stage 6 asset relay: fetch the generated rasters from the engine's
+  // ephemeral store once, cache them locally, and let the web pull them via
+  // GET /api/jobs/:id/assets. This MUST happen BEFORE the job flips to
+  // COMPLETED: the web marks a job done the moment it sees COMPLETED and pulls
+  // the asset cache once — a COMPLETED poll racing an in-flight relay would
+  // ship a page with placeholders even though images were generated. Best-effort
+  // any ref the engine can no longer serve (restart / eviction) simply stays on
+  // the deterministic placeholder.
+  if (result.assets !== undefined && result.assets.length > 0) {
+    try {
+      await relayAssets(deps, record.id, result.assets);
+    } catch {
+      /* best-effort: a failed relay still completes the job */
+    }
+  }
+
   record.status = 'COMPLETED';
   record.errorCode = undefined;
   record.errorMessage = undefined;
   const mode = (result.brief_flags as Record<string, unknown> | undefined)?.generation_mode ?? 'stub';
   emit(record, JOB_COMPLETED, { detail: JSON.stringify({ mode }) });
-
-  // Stage 6 asset relay: fetch the generated rasters from the engine's
-  // ephemeral store once, cache them locally, and let the web pull them via
-  // GET /api/jobs/:id/assets. Best-effort — any ref the engine can no longer
-  // serve (restart / eviction) simply stays on the deterministic placeholder.
-  if (result.assets !== undefined && result.assets.length > 0) {
-    await relayAssets(deps, record.id, result.assets);
-  }
 }
 
 async function relayAssets(
