@@ -223,6 +223,16 @@ class Pipeline:
         result.build_issues = build_issues
         result.brief_flags["generation_mode"] = generation_mode_for(result, self.routing)
 
+        # Fail the job when the assembled schema is NOT L1-valid: a page that
+        # cannot pass the publish gate must never be handed back as COMPLETED
+        # (review "semantic gate" P0 — distinguish model-call success from
+        # draft validity). Model calls can be perfect and the output still
+        # broken; the ledger keeps the reason honest.
+        gate = _validation_gate(page_validation)
+        if gate is not None:
+            code, message = gate
+            return self._fail_with(result, start_ms, code, message)
+
         result.status = "COMPLETED"
         result.end_ms = int(time.perf_counter() * 1000)
         return result
@@ -240,6 +250,20 @@ class Pipeline:
         result.error_code = code
         result.error_message = message
         return result
+
+
+def _validation_gate(page_validation: dict) -> tuple[str, str] | None:
+    """L1 publish gate for the assembled schema. Returns (error_code, message)
+    when the page must NOT be handed back as COMPLETED, else None."""
+    if page_validation.get("valid", False):
+        return None
+    errors = page_validation.get("errors") or []
+    first = errors[0] if errors else {}
+    detail = first.get("message") or "assembled schema failed canonical validation"
+    return (
+        "E-VAL-L1",
+        f"schema invalid at {first.get('path') or '/'} (rule {first.get('ruleId') or 'E-VAL-L1'}): {detail}",
+    )
 
 
 def _prompt_versions(stages: list[StageResult]) -> dict[str, str]:

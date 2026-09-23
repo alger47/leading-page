@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 
 import httpx
+import pytest
 
 from app.providers.image_providers import HuggingFaceImageProvider, PollinationsImageProvider
 from app.providers.protocol import ImageResult
@@ -362,6 +363,44 @@ def test_pollinations_image_provider_rejects_non_image_body():
     res = asyncio.run(provider.generate(prompt="a cat", size="1024x1024"))
     assert res.ok is False
     assert res.data is None
+
+
+def test_assert_safe_egress_rejects_cross_host():
+    from app.providers.image_providers import assert_safe_egress
+
+    with pytest.raises(ValueError, match="not in allowlist"):
+        assert_safe_egress("https://169.254.169.254/latest/meta-data", {"image.pollinations.ai"})
+    assert (
+        assert_safe_egress("https://image.pollinations.ai/prompt/a", {"image.pollinations.ai"})
+        == "image.pollinations.ai"
+    )
+
+
+def test_assert_safe_egress_rejects_loopback_for_public_provider():
+    from app.providers.image_providers import assert_safe_egress
+
+    with pytest.raises(ValueError, match="not in allowlist"):
+        assert_safe_egress("http://127.0.0.1:8000/health", {"image.pollinations.ai"})
+
+
+def test_pollinations_redirect_to_foreign_host_is_blocked_ssrf():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "image.pollinations.ai":
+            return httpx.Response(302, headers={"location": "https://evil.example/steal"})
+        return httpx.Response(200, content=b"\xff\xd8\xff\xe0jpegdata", headers={"content-type": "image/jpeg"})
+
+    provider = PollinationsImageProvider(transport=httpx.MockTransport(handler))
+    res = asyncio.run(provider.generate(prompt="a cat", size="1024x1024"))
+    assert res.ok is False
+    assert res.data is None
+    assert "not in allowlist" in res.message
+
+
+def test_hf_image_provider_blocked_before_request_when_base_host_foreign():
+    provider = HuggingFaceImageProvider(token="tok", model="FLUX-test", base_url="https://169.254.169.254")
+    res = asyncio.run(provider.generate(prompt="a cat", size="512x512"))
+    assert res.ok is False
+    assert "blocked" in res.message
 
 
 def test_bind_generated_assets_maps_manifest_into_content_slots():

@@ -18,6 +18,8 @@ returns a raster directly, no auth. Used as the zero-credential image provider.
 
 from __future__ import annotations
 
+import ipaddress
+import socket
 import time
 from typing import Any
 from urllib.parse import quote
@@ -25,6 +27,52 @@ from urllib.parse import quote
 import httpx
 
 from app.providers.protocol import ImageResult
+
+
+def _host_of(url: str) -> str:
+    try:
+        parsed = httpx.URL(url)
+        return parsed.host.lower() if parsed.host is not None else "invalid"
+    except Exception:  # noqa: BLE001 — unparseable URLs fail closed
+        return "invalid"
+
+
+def _is_private_host(host: str) -> bool:
+    """Best-effort DNS resolution → reject loopback/private/link-local/multicast/
+    reserved ranges (SSRF defense-in-depth). Unresolvable (tests, offline) hosts
+    are treated as safe so local transports keep working; the allowlist below is
+    the primary gate and is never skipped."""
+    try:
+        for info in socket.getaddrinfo(host, None):
+            ip = ipaddress.ip_address(info[4][0])
+            if (
+                ip.is_loopback
+                or ip.is_private
+                or ip.is_link_local
+                or ip.is_multicast
+                or ip.is_reserved
+                or ip.is_unspecified
+            ):
+                return True
+    except OSError:
+        pass
+    return False
+
+
+def assert_safe_egress(url: str, allow_hosts: set[str]) -> str:
+    """Fail-closed egress guard for the image providers (review ط SSRF).
+
+    The ONLY hosts the renderer may talk to are the configured provider hosts
+    (env/base_url, never schema content). A redirect to any other host — or to a
+    private/loopback IP behind a public hostname — turns the request into an
+    SSRF probe of the Render internal network, so it is rejected before the
+    bytes are trusted. Returns the (harmless) scheme prefix for diagnostics."""
+    host = _host_of(url)
+    if host == "invalid" or host not in allow_hosts:
+        raise ValueError(f"image provider egress blocked: host {host!r} not in allowlist")
+    if _is_private_host(host):
+        raise ValueError(f"image provider egress blocked: host {host!r} resolves to a private address")
+    return host
 
 
 class HuggingFaceImageProvider:
@@ -44,10 +92,20 @@ class HuggingFaceImageProvider:
         self.base_url = base_url.rstrip("/")
         self.timeout_s = timeout_s
         self.transport = transport
+        self._allow_hosts = {_host_of(self.base_url)}
 
     async def generate(self, *, prompt: str, size: str) -> ImageResult:
         started = time.perf_counter()
         url = f"{self.base_url}/{self.model}"
+        try:
+            assert_safe_egress(url, self._allow_hosts)
+        except ValueError as exc:
+            return ImageResult(
+                ok=False,
+                message=str(exc),
+                model=self.model,
+                latency_ms=(time.perf_counter() - started) * 1000.0,
+            )
         headers = {
             "Authorization": f"Bearer {self.token}",
             "x-wait-for-model": "true",
@@ -96,6 +154,7 @@ class PollinationsImageProvider:
         self.model = model
         self.timeout_s = timeout_s
         self.transport = transport
+        self._allow_hosts = {_host_of(self.base_url)}
 
     async def generate(self, *, prompt: str, size: str) -> ImageResult:
         started = time.perf_counter()
@@ -120,6 +179,15 @@ class PollinationsImageProvider:
             )
 
         latency_ms = (time.perf_counter() - started) * 1000.0
+        try:
+            assert_safe_egress(str(res.url), self._allow_hosts)
+        except ValueError as exc:
+            return ImageResult(
+                ok=False,
+                message=str(exc),
+                model=model_label,
+                latency_ms=latency_ms,
+            )
         content_type = res.headers.get("content-type", "image/jpeg").split(";")[0].strip()
         if res.status_code != 200 or not content_type.startswith("image/") or not res.content:
             return ImageResult(

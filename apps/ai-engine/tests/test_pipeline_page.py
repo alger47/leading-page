@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
+from app.services.pipeline import _validation_gate
+
 AR_BRIEF = "عيادة بيطرية تقدم رعاية للقطط والكلاب."
 
 
@@ -57,3 +59,34 @@ def test_pages_endpoint_roundtrip(client, auth_headers) -> None:
     assert page.status_code == 200
     assert page.json()["page"] == resp.json()["job"]["page"]
     assert client.get("/internal/v1/pages/does-not-exist", headers=auth_headers).status_code == 404
+
+
+def test_validation_gate_passes_valid_schema() -> None:
+    assert _validation_gate({"valid": True, "errors": [], "warnings": [], "issues": []}) is None
+
+
+def test_validation_gate_fails_invalid_schema() -> None:
+    invalid = {
+        "valid": False,
+        "errors": [
+            {
+                "layer": "structural",
+                "ruleId": "E-BUILD-001",
+                "severity": "error",
+                "path": "/sections/1/title",
+                "message": "missing title",
+            }
+        ],
+        "warnings": [],
+        "issues": [],
+    }
+    code, message = _validation_gate(invalid)
+    assert code == "E-VAL-L1"
+    assert "missing title" in message
+    assert "/sections/1/title" in message
+
+
+def test_validation_gate_fails_without_error_detail() -> None:
+    code, message = _validation_gate({"valid": False, "errors": [], "warnings": [], "issues": []})
+    assert code == "E-VAL-L1"
+    assert "failed canonical validation" in message
