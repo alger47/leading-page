@@ -56,6 +56,16 @@ export const SEMANTIC_RULES: SemanticRule[] = [
     severity: 'error',
     description: 'Page ends with a footer',
   },
+  {
+    id: 'SEM-005',
+    severity: 'error',
+    description: 'Every internal #anchor resolves to an existing section id',
+  },
+  {
+    id: 'SEM-006',
+    severity: 'error',
+    description: 'No template placeholders ([...]) reach the publish gate',
+  },
 ];
 
 interface PageSchema {
@@ -214,14 +224,99 @@ function validateSEM004(schema: PageSchema): ValidationError[] {
   if (!lastSection || lastSection.type !== 'footer') {
     errors.push({
       layer: 'semantic',
-      ruleId: 'SEM-004',
+ruleId: 'SEM-004',
       severity: 'error',
       path: '$.sections',
       message: 'Page must end with a footer section',
       fixable: true,
     });
   }
-  
+
+  return errors;
+}
+
+const PLACEHOLDER = /(?:^|[\s.:\-،,])\[[^\]\n]{1,60}\](?:[\s.:\-،,]|$)/;
+const ANCHOR = /^#([a-z][a-z0-9-]*[a-z0-9])$/;
+
+/**
+ * SEM-005: every internal `#anchor` must resolve to a section id. Anchors that
+ * go nowhere are broken navigational promises — a "CTA to nothing" must never
+ * pass the publish gate (review و, internal-refs).
+ */
+function validateSEM005(schema: PageSchema): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const ids = new Set(schema.sections.map((s) => s.id));
+
+  function walkTargets(node: unknown, path: string): void {
+    if (node === null || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      node.forEach((item, index) => walkTargets(item, `${path}[${index}]`));
+      return;
+    }
+    for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+      const currentPath = `${path}.${key}`;
+      if ((key === 'href' || key === 'url') && typeof value === 'string' && value.startsWith('#')) {
+        const match = ANCHOR.exec(value);
+        if (match && !ids.has(match[1])) {
+          errors.push({
+            layer: 'semantic',
+            ruleId: 'SEM-005',
+            severity: 'error',
+            path: currentPath,
+            message: `Internal anchor "${value}" does not resolve to any section id`,
+            fixable: true,
+          });
+        }
+      }
+      walkTargets(value, currentPath);
+    }
+  }
+
+  for (const [index, section] of schema.sections.entries()) {
+    walkTargets(section.content ?? {}, `$.sections[${index}].content`);
+  }
+  return errors;
+}
+
+/**
+ * SEM-006: template placeholders ([...] like "[Business name]", "[Phone]")
+ * must never be published as public content. The engine legitimately emits
+ * drafts with placeholders; only the publish gate (TS L2) rejects them, so an
+ * operator must fill them before go-live.
+ */
+function validateSEM006(schema: PageSchema): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const TEXT_KEYS = new Set([
+    'title', 'subtitle', 'eyebrow', 'brandName', 'description', 'label', 'value',
+    'message', 'quote', 'author', 'role', 'city', 'name', 'caption', 'address',
+    'hours', 'note', 'tagline', 'legal', 'alt',
+  ]);
+
+  function walkText(node: unknown, path: string): void {
+    if (node === null || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      node.forEach((item, index) => walkText(item, `${path}[${index}]`));
+      return;
+    }
+    for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+      const currentPath = `${path}.${key}`;
+      if (TEXT_KEYS.has(key) && typeof value === 'string' && PLACEHOLDER.test(value.trim())) {
+        errors.push({
+          layer: 'semantic',
+          ruleId: 'SEM-006',
+          severity: 'error',
+          path: currentPath,
+          message: `Template placeholder "${value.trim()}" must be filled before publishing`,
+          fixable: true,
+        });
+      }
+      walkText(value, currentPath);
+    }
+  }
+
+  for (const [index, section] of schema.sections.entries()) {
+    walkText(section.content ?? {}, `$.sections[${index}].content`);
+  }
   return errors;
 }
 
@@ -234,16 +329,18 @@ function validateSEM004(schema: PageSchema): ValidationError[] {
 export function validateSemantic(schema: unknown): ValidationResult {
   const pageSchema = schema as PageSchema;
   const allErrors: ValidationError[] = [];
-  
+
   // Run all semantic validators
   allErrors.push(...validateSEM001(pageSchema));
   allErrors.push(...validateSEM002(pageSchema));
   allErrors.push(...validateSEM003(pageSchema));
   allErrors.push(...validateSEM004(pageSchema));
-  
+  allErrors.push(...validateSEM005(pageSchema));
+  allErrors.push(...validateSEM006(pageSchema));
+
   const errors = allErrors.filter((e) => e.severity === 'error');
   const warnings = allErrors.filter((e) => e.severity === 'warning');
-  
+
   return {
     valid: errors.length === 0,
     errors,

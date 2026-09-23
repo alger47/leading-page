@@ -7,7 +7,7 @@
 
 export * from './tokens';
 export type { Theme, DensityFactor } from './themes';
-export { THEMES, getTheme, resolveTheme, warmProfessional } from './themes';
+export { THEMES, getTheme, resolveTheme, warmProfessional, densityFactor } from './themes';
 export { getFontFamily, getFontStack, headingLineHeight, typeScale } from './typography';
 export type { Script, FontStack } from './typography';
 export {

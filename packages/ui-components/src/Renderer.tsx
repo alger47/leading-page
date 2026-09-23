@@ -153,6 +153,7 @@ export function Render({ schema, onLog, assetUrlFor = defaultAssetUrlFor }: Rend
               id={id}
               content={(section.content as Record<string, unknown>) ?? {}}
               layoutHint={(section.layoutHint as Record<string, unknown>) ?? {}}
+              variant={typeof section.variant === 'string' ? section.variant : undefined}
             />
           </SectionErrorBoundary>
         );

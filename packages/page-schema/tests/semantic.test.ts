@@ -16,7 +16,10 @@ import { validateSemantic } from '../src/validators/semantic';
 import validVetAr from '../examples/valid-vet-ar-001.json';
 import validSaasEn from '../examples/valid-saas-en-001.json';
 
-// AI-generated fixtures (Phase 5 — SchemaBuilder exports, engine drift-guarded)
+// AI-generated fixtures (Phase 5 — SchemaBuilder exports, engine drift-guarded).
+// These are RAW engine snapshots: the stub intentionally keeps `[Placeholder]`
+// slots (engine = draft producer); the web publish path fills them before the
+// L2 gate, so the raw snapshots must FAIL SEM-006 but still pass SEM-001..005.
 import aiVetAr from '../examples/ai-vet-ar-001.json';
 import aiSaasEn from '../examples/ai-saas-en-001.json';
 
@@ -37,16 +40,13 @@ describe('L2 Semantic Validation', () => {
       expect(result.errors).toHaveLength(0);
     });
 
-    it('should validate ai-vet-ar-001.json with no errors (SchemaBuilder output)', () => {
-      const result = validateSemantic(aiVetAr);
-      expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
-    });
-
-    it('should validate ai-saas-en-001.json with no errors (SchemaBuilder output)', () => {
-      const result = validateSemantic(aiSaasEn);
-      expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
+    it('ai snapshots pass SEM-001..005 but carry raw placeholders (SEM-006 not yet filled)', () => {
+      for (const doc of [aiVetAr, aiSaasEn]) {
+        const result = validateSemantic(doc);
+        expect(result.errors.some((e) => e.ruleId === 'SEM-006')).toBe(true);
+        const nonPlaceholder = result.errors.filter((e) => e.ruleId !== 'SEM-006');
+        expect(nonPlaceholder).toHaveLength(0);
+      }
     });
   });
 
@@ -154,6 +154,44 @@ describe('L2 Semantic Validation', () => {
       };
       const result = validateSemantic(doc);
       expect(result.errors.some((e) => e.ruleId === 'SEM-004')).toBe(true);
+    });
+  });
+
+  describe('SEM-005: internal anchors resolve (review و)', () => {
+    it('should fail when a #anchor targets a missing section id', () => {
+      const doc = structuredClone(validVetAr) as typeof validVetAr & {
+        sections: Array<{ type: string; content: { primaryCta?: { href?: string }; links?: Array<{ href: string }> } }>;
+      };
+      const cta = doc.sections.find((s: { type: string }) => s.type === 'cta')!;
+      cta.content.primaryCta = { label: 'اتصل بنا', href: '#contact-1' };
+      const result = validateSemantic(doc);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.ruleId === 'SEM-005')).toBe(true);
+    });
+
+    it('passes when every anchor resolves and bare "#" is ignored', () => {
+      const doc = structuredClone(validVetAr) as typeof validVetAr & {
+        sections: Array<{ type: string; content: { primaryCta?: { href?: string }; links?: Array<{ href: string }> } }>;
+      };
+      const cta = doc.sections.find((s: { type: string }) => s.type === 'cta')!;
+      cta.content.primaryCta = { label: 'اتصل بنا', href: '#features-1' };
+      const footer = doc.sections.find((s: { type: string }) => s.type === 'footer')!;
+      footer.content.links = [{ label: 'Top', href: '#' }];
+      const result = validateSemantic(doc);
+      expect(result.errors.some((e) => e.ruleId === 'SEM-005')).toBe(false);
+    });
+  });
+
+  describe('SEM-006: no template placeholders at publish (review و)', () => {
+    it('should fail when any text slot carries a [...] placeholder', () => {
+      const doc = structuredClone(validVetAr) as typeof validVetAr & {
+        sections: Array<{ type: string; content: Record<string, unknown> }>;
+      };
+      const hero = doc.sections.find((s: { type: string }) => s.type === 'hero')!;
+      hero.content.subtitle = 'نص [اسم الشركة] الوصفي';
+      const result = validateSemantic(doc);
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.ruleId === 'SEM-006' && e.path.includes('subtitle'))).toBe(true);
     });
   });
 });

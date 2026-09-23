@@ -72,6 +72,36 @@ describe('Hero', () => {
     );
     expect(screen.getByText('Trust badge')).toBeTruthy();
   });
+
+  it('renders the media image for split/full-bleed variants', () => {
+    render(
+      <Hero
+        variant="full-bleed"
+        content={{
+          title: 'Full Bleed Hero',
+          primaryCta: { label: 'Go', href: '#a' },
+          media: { assetRef: '/assets/asset/asset%3Ahero-bg', alt: 'herobg' },
+        }}
+      />
+    );
+    expect(screen.getByAltText('herobg')).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Full Bleed Hero');
+  });
+
+  it('does not render media for the minimal variant', () => {
+    render(
+      <Hero
+        variant="minimal"
+        content={{
+          title: 'Minimal Hero',
+          primaryCta: { label: 'Go', href: '#a' },
+          media: { assetRef: '/assets/asset/asset%3Ahero-bg', alt: 'herobg' },
+        }}
+      />
+    );
+    expect(screen.queryByAltText('herobg')).toBeNull();
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Minimal Hero');
+  });
 });
 
 describe('Features', () => {

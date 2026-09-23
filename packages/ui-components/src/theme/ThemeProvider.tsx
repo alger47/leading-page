@@ -8,7 +8,7 @@
 
 import React from 'react';
 import type { Theme } from '@landing-ai/design-system';
-import { getFontStack, getFontFamily, typeScale, space, radius as radiusTokens } from '@landing-ai/design-system';
+import { densityFactor, getFontStack, getFontFamily, typeScale, space, radius as radiusTokens } from '@landing-ai/design-system';
 import type { Direction } from '@landing-ai/design-system';
 
 export interface ThemeContextValue {
@@ -59,6 +59,7 @@ export function ThemeProvider({ theme, locale, direction, children }: ThemeProvi
     '--line-height': String(stack.lineHeightRatio),
     '--letter-spacing': stack.letterSpacing,
     '--radius': radiusTokens[theme.radius],
+    '--density': String(densityFactor[theme.density]),
     '--space-1': space[1],
     '--space-2': space[2],
     '--space-3': space[3],

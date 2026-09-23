@@ -11,8 +11,14 @@
 
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
+import ctaSchema from '../../schema/sections/cta.schema.json';
 import envelopeSchema from '../../schema/envelope.schema.json';
+import featuresSchema from '../../schema/sections/features.schema.json';
+import footerSchema from '../../schema/sections/footer.schema.json';
+import headerSchema from '../../schema/sections/header.schema.json';
+import heroSchema from '../../schema/sections/hero.schema.json';
 
+import { isValidSectionVariant, SECTION_REGISTRY } from '../registry.js';
 import { isSafeHref } from '../schemes.js';
 
 export interface ValidationError {
@@ -41,26 +47,118 @@ const validateSchema = ajv.compile(envelopeSchema);
  * @returns ValidationResult with valid flag and any errors
  */
 export function validateStructural(document: unknown): ValidationResult {
-  const valid = validateSchema(document) as boolean;
+  const errors: ValidationError[] = [];
 
-  if (valid) {
-    const hrefErrors = validateHrefSchemes(document as Parameters<typeof validateHrefSchemes>[0]);
-    if (hrefErrors.length > 0) {
-      return { valid: false, errors: hrefErrors };
-    }
-    return { valid: true, errors: [] };
+  const structural = validateSchema(document) as boolean;
+  if (!structural) {
+    errors.push(...(validateSchema.errors || []).map((err) => ({
+      layer: 'structural' as const,
+      ruleId: 'E-VAL-STRUCT-001',
+      severity: 'error' as const,
+      path: err.instancePath || '/',
+      message: err.message || 'Structural validation error',
+      fixable: false,
+    })));
+    return { valid: false, errors };
   }
 
-  const errors: ValidationError[] = (validateSchema.errors || []).map((err) => ({
-    layer: 'structural' as const,
-    ruleId: 'E-VAL-STRUCT-001',
-    severity: 'error' as const,
-    path: err.instancePath || '/',
-    message: err.message || 'Structural validation error',
-    fixable: false,
-  }));
+  errors.push(...validateHrefSchemes(document as Parameters<typeof validateHrefSchemes>[0]));
+  errors.push(...validateSectionPosts(document as Parameters<typeof validateSectionPosts>[0]));
 
-  return { valid: false, errors };
+  return errors.length > 0 ? { valid: false, errors } : { valid: true, errors: [] };
+}
+
+const sectionSchemaCache = new Map<string, ReturnType<typeof ajv.compile> | undefined>();
+
+/** Canonical per-section content schemas (registry §5.5 lockstep). Types lacking
+ * a file (e.g. gallery, contact, testimonials) fall back to registry slot checks. */
+const SECTION_SCHEMAS: Record<string, object> = {
+  cta: ctaSchema,
+  features: featuresSchema,
+  footer: footerSchema,
+  header: headerSchema,
+  hero: heroSchema,
+};
+
+function compileSectionSchema(type: string): ReturnType<typeof ajv.compile> | undefined {
+  if (sectionSchemaCache.has(type)) return sectionSchemaCache.get(type);
+  let compiled: ReturnType<typeof ajv.compile> | undefined;
+  const raw = SECTION_SCHEMAS[type];
+  if (raw !== undefined) {
+    compiled = ajv.compile(raw as Parameters<typeof ajv.compile>[0]);
+  }
+  sectionSchemaCache.set(type, compiled);
+  return compiled;
+}
+
+/**
+ * Bind every section's content to its canonical section schema when one exists,
+ * and check type/variant + requiredSlot conformance against the registry
+ * (review هـ: the envelope alone is too weak — content slots were never
+ * validated, and the envelope enumerates types beyond the registry).
+ */
+export function validateSectionPosts(
+  document: { sections?: Array<{ id: string; type: string; variant: string; content: Record<string, unknown> }> },
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  for (const [index, section] of (document.sections ?? []).entries()) {
+    const basePath = `$.sections[${index}]`;
+    const registered = SECTION_REGISTRY[section.type];
+
+    if (!registered) {
+      errors.push({
+        layer: 'structural',
+        ruleId: 'E-VAL-STRUCT-006',
+        severity: 'error',
+        path: `${basePath}.type`,
+        message: `Section type "${section.type}" is not in the section registry`,
+        fixable: true,
+      });
+      continue;
+    }
+    if (!isValidSectionVariant(section.type, section.variant)) {
+      errors.push({
+        layer: 'structural',
+        ruleId: 'E-VAL-STRUCT-007',
+        severity: 'error',
+        path: `${basePath}.variant`,
+        message: `Variant "${section.variant}" is not valid for section type "${section.type}"`,
+        fixable: true,
+      });
+    }
+    for (const slot of registered.requiredSlots) {
+      if (!(slot in (section.content ?? {}))) {
+        errors.push({
+          layer: 'structural',
+          ruleId: 'E-VAL-STRUCT-008',
+          severity: 'error',
+          path: `${basePath}.content`,
+          message: `Section type "${section.type}" requires content slot "${slot}" (registry §5.5)`,
+          fixable: true,
+        });
+      }
+    }
+
+    const sectionValidate = compileSectionSchema(section.type);
+    if (sectionValidate !== undefined) {
+      const ok = (sectionValidate(section.content ?? {}) as boolean);
+      if (!ok) {
+        for (const err of sectionValidate.errors || []) {
+          errors.push({
+            layer: 'structural',
+            ruleId: 'E-VAL-STRUCT-005',
+            severity: 'error',
+            path: `${basePath}.content${err.instancePath || ''}`,
+            message: `Section "${section.type}" content invalid: ${err.message || 'validation error'}`,
+            fixable: false,
+          });
+        }
+      }
+    }
+  }
+
+  return errors;
 }
 
 /**

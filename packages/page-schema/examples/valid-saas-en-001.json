@@ -26,7 +26,7 @@
         "brandName": "ExpenseFlow",
         "nav": [
           { "label": "Features", "href": "#features-1" },
-          { "label": "Pricing", "href": "#pricing-1" }
+          { "label": "Pricing", "href": "#cta-1" }
         ],
         "navCta": {
           "label": "Start Free",

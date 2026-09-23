@@ -26,6 +26,7 @@ export type SectionRenderer = React.ComponentType<{
   id?: string;
   content: Record<string, unknown>;
   layoutHint?: Record<string, unknown>;
+  variant?: string;
 }>;
 
 export const SECTION_COMPONENTS: Record<string, SectionRenderer> = {

@@ -13,15 +13,22 @@ import type { HeroContent } from '../types';
 export interface HeroSectionProps {
   content: HeroContent;
   layoutHint?: { mediaSide?: 'start' | 'end'; align?: 'start' | 'center' | 'end' };
+  /** Registry variant (split | centered | full-bleed | minimal). */
+  variant?: string;
 }
 
-const sectionPadding: React.CSSProperties = { paddingBlock: 'var(--space-16)' };
+const sectionPadding: React.CSSProperties = {
+  paddingBlock: 'calc(var(--space-16) * var(--density, 1))',
+};
 
-export function Hero({ content, layoutHint }: HeroSectionProps) {
+export function Hero({ content, layoutHint, variant = 'split' }: HeroSectionProps) {
   const { title, subtitle, primaryCta, secondaryCta, media, badges = [] } = content;
   const mediaSide = layoutHint?.mediaSide ?? 'end';
   const align = layoutHint?.align ?? 'start';
-  const isCentered = align === 'center';
+  const isCentered = align === 'center' || variant === 'centered';
+  const fullBleed = variant === 'full-bleed';
+  const minimal = variant === 'minimal' || !media;
+  const showMedia = !minimal && Boolean(media);
 
   const actions = (primaryCta || secondaryCta) ? (
     <div
@@ -104,7 +111,7 @@ export function Hero({ content, layoutHint }: HeroSectionProps) {
     </>
   );
 
-  const mediaBlock = media ? (
+  const mediaBlock = showMedia ? (
     <div style={{ flex: '1 1 40%', minWidth: 0 }}>
       <img
         src={media.assetRef}
@@ -132,18 +139,65 @@ export function Hero({ content, layoutHint }: HeroSectionProps) {
       }}
     >
       <div style={{ flex: '1 1 50%', minWidth: 280 }}>{textBlock}</div>
-      {mediaBlock}
+      {showMedia ? mediaBlock : null}
     </div>
   );
 
   const centeredLayout = (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       {textBlock}
-      {media ? <div style={{ width: '100%', marginTop: 'var(--space-12)' }}>{mediaBlock}</div> : null}
+      {showMedia ? <div style={{ width: '100%', marginTop: 'var(--space-12)' }}>{mediaBlock}</div> : null}
     </div>
   );
 
-  const useSplit = Boolean(media && !isCentered);
+  const useSplit = Boolean(media && !isCentered && !fullBleed);
+
+  if (fullBleed) {
+    return (
+      <section
+        style={{
+          position: 'relative',
+          overflow: 'hidden',
+          backgroundColor: 'var(--color-bg)',
+          color: 'var(--color-heading)',
+        }}
+      >
+        {media && typeof media.assetRef === 'string' ? (
+          <img
+            src={media.assetRef}
+            alt={media.alt}
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+            }}
+          />
+        ) : null}
+        <div
+          style={{
+            position: 'relative',
+            background:
+              'linear-gradient(to top, rgba(0,0,0,0.62), rgba(0,0,0,0.18) 60%, rgba(0,0,0,0.25))',
+            // Legibility over the raster: re-scope the semantic text tokens.
+            '--color-heading': 'rgba(255,255,255,0.96)',
+            '--color-text': 'rgba(255,255,255,0.92)',
+            '--color-text-muted': 'rgba(255,255,255,0.82)',
+          } as React.CSSProperties}
+        >
+          <Container>
+            <div style={{ ...sectionPadding, paddingBottom: 'calc(var(--space-16) * var(--density, 1))', paddingTop: 'calc(var(--space-16) * var(--density, 1))' }}>
+              <div style={{ maxWidth: '42ch', marginInline: '0' }}>
+                {textBlock}
+              </div>
+            </div>
+          </Container>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section style={{ backgroundColor: 'var(--color-bg)' }}>

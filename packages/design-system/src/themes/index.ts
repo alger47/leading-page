@@ -143,6 +143,10 @@ export const THEMES: Record<string, Theme> = {
 
 export const VALID_PRESETS = Object.keys(THEMES);
 
+const FONTS: Theme['font'][] = ['rubik', 'cairo', 'tajawal', 'inter', 'system'];
+const RADII: Theme['radius'][] = ['none', 'small', 'medium', 'large', 'full'];
+const DENSITIES: Theme['density'][] = ['compact', 'comfortable', 'spacious'];
+
 export function getTheme(preset: string): Theme | undefined {
   return THEMES[preset];
 }
@@ -151,14 +155,22 @@ export function getTheme(preset: string): Theme | undefined {
  * Resolve a theme from a Page Schema theme object.
  * Falls back to warm-professional if unknown or missing.
  * NEVER invents a theme at runtime.
+ *
+ * The preset supplies the COLOR ROLES (palette is preset-scoped); the schema's
+ * validated `font`, `radius` and `density` inputs are merged OVER the preset
+ * defaults when present and valid (review ز: theme-picker edits must actually
+ * affect the render). Invalid/absent entries fall back to the preset value.
  */
-export function resolveTheme(
-  schema: Record<string, unknown>
-): Theme {
+export function resolveTheme(schema: Record<string, unknown>): Theme {
   const t = schema?.theme as Partial<Theme> | undefined;
-  const preset = t?.preset;
-  if (preset && THEMES[preset]) {
-    return THEMES[preset];
-  }
-  return warmProfessional;
+  const presetKey = typeof t?.preset === 'string' ? t.preset : 'warm-professional';
+  const base = THEMES[presetKey] ?? warmProfessional;
+
+  const font = FONTS.includes((t?.font as Theme['font'])) ? (t!.font as Theme['font']) : base.font;
+  const radius = RADII.includes((t?.radius as Theme['radius'])) ? (t!.radius as Theme['radius']) : base.radius;
+  const density = DENSITIES.includes((t?.density as Theme['density']))
+    ? (t!.density as Theme['density'])
+    : base.density;
+
+  return { ...base, preset: base.preset, font, radius, density };
 }

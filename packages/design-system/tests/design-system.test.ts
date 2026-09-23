@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { THEMES, getTheme, resolveTheme, warmProfessional, VALID_PRESETS } from '../src/themes';
+import { THEMES, getTheme, resolveTheme, warmProfessional, coolModern, VALID_PRESETS } from '../src/themes';
 import { getFontFamily, getFontStack, typeScale } from '../src/typography';
 import { directionFromLocale, QA_LANES } from '../src/rtl';
 
@@ -27,13 +27,36 @@ describe('Themes', () => {
   });
 
   it('resolveTheme falls back to warm-professional for unknown presets', () => {
-    expect(resolveTheme({ theme: { preset: 'bogus' } })).toBe(warmProfessional);
+    const t = resolveTheme({ theme: { preset: 'bogus' } } as unknown as Record<string, unknown>);
+    expect(t.preset).toBe('warm-professional');
+    expect(t.colors).toEqual(warmProfessional.colors);
     expect(getTheme('bogus')).toBeUndefined();
   });
 
   it('resolveTheme returns the matched preset theme', () => {
     const t = resolveTheme({ theme: { preset: 'cool-modern' } } as unknown as Record<string, unknown>);
     expect(t.preset).toBe('cool-modern');
+  });
+
+  it('resolveTheme merges schema font/radius/density over the preset defaults', () => {
+    const t = resolveTheme({
+      theme: { preset: 'cool-modern', font: 'cairo', radius: 'large', density: 'spacious' },
+    } as unknown as Record<string, unknown>);
+    expect(t.preset).toBe('cool-modern');
+    expect(t.font).toBe('cairo');
+    expect(t.radius).toBe('large');
+    expect(t.density).toBe('spacious');
+    // colors stay preset-scoped
+    expect(t.colors).toEqual(coolModern.colors);
+  });
+
+  it('resolveTheme ignores invalid overrides and keeps preset values', () => {
+    const t = resolveTheme({
+      theme: { preset: 'minimal-clean', font: 'comic-sans', radius: 'gigantic', density: 'max' },
+    } as unknown as Record<string, unknown>);
+    expect(t.font).toBe('system');
+    expect(t.radius).toBe('none');
+    expect(t.density).toBe('comfortable');
   });
 });
 

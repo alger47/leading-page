@@ -78,7 +78,11 @@
         },
         "email": {
           "type": "string",
-          "format": "email"
+          "description": "Real email, OR an unmigrated draft token like [Email]. L1 checks shape only: the placeholder-aware pattern-side keeps raw SchemaBuilder drafts binding-clean; the publish gate (SEM-006) rejects any bracket token at L2 while schema-fill runs before the gate on the web side.",
+          "anyOf": [
+            { "format": "email" },
+            { "pattern": "^\\[[A-Za-z][A-Za-z0-9 ._-]*\\]$" }
+          ]
         },
         "address": {
           "type": "string"

@@ -87,8 +87,8 @@
         "subtitle": "اتصل بنا أو قم بالحجز عبر الإنترنت",
         "primaryCta": {
           "label": "احجز موعد",
-          "href": "#contact-1"
-        }
+"href": "#cta-1"
+    }
       }
     },
     {
