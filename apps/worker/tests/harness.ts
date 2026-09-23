@@ -34,6 +34,11 @@ export interface HarnessOptions {
   auth?: boolean;
 }
 
+export interface Enqueued {
+  jobId: string;
+  data: JobPayload;
+}
+
 export interface Harness {
   store: MemoryJobStore;
   spans: MemorySpanStore;
@@ -45,6 +50,7 @@ export interface Harness {
   engineBase: string;
   resumeWorker(): Promise<void>;
   close(): Promise<void>;
+  lastEnqueued(): Enqueued | null;
 }
 
 export async function makeHarness(opts: HarnessOptions = {}): Promise<Harness> {
@@ -52,6 +58,8 @@ export async function makeHarness(opts: HarnessOptions = {}): Promise<Harness> {
   const retryAfterMs = opts.retryAfterMs ?? 20;
   const engineTimeoutMs = opts.engineTimeoutMs ?? 5_000;
   const queueName = opts.queueName ?? `gen-${Math.random().toString(36).slice(2, 10)}`;
+
+  const enqueued: Enqueued[] = [];
 
   const fake = opts.engineBaseOverride === undefined ? makeFakeEngine() : undefined;
   fake?.setScenario(opts.scenario ?? { mode: 'ok' });
@@ -78,6 +86,12 @@ export async function makeHarness(opts: HarnessOptions = {}): Promise<Harness> {
           onFailed: (id: string, error: Error) => void processor.finalizeFailure(id, error),
         }),
   });
+  const originalAdd = running.queue.add.bind(running.queue);
+  running.queue.add = (async (payload: JobPayload, opts?: { jobId?: string }) => {
+    const { jobId: capturedJobId = '' } = opts ?? {};
+    enqueued.push({ jobId: capturedJobId, data: payload });
+    return originalAdd(payload, { jobId: capturedJobId });
+  }) as EnqueueDriver<JobPayload>['add'];
   const worker: WorkerHandle | undefined = includeWorker ? running.worker : undefined;
   const queue = running.queue;
 
@@ -119,6 +133,7 @@ export async function makeHarness(opts: HarnessOptions = {}): Promise<Harness> {
     resumeWorker: async () => {
       await worker?.resume();
     },
+    lastEnqueued: () => enqueued[enqueued.length - 1] ?? null,
     async close() {
       if (worker !== undefined) await worker.close();
       await queue.close();

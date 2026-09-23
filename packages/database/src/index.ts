@@ -36,6 +36,8 @@ export type {
 } from './repositories/jobs.js';
 export { AssetsRepository } from './repositories/assets.js';
 export type { AssetInput } from './repositories/assets.js';
+export { GeneratedAssetsRepository } from './repositories/generated-assets.js';
+export type { GeneratedAssetEntry } from './repositories/generated-assets.js';
 export { PublishingRepository } from './repositories/published.js';
 export type { PublishInput, PublishOptions } from './repositories/published.js';
 export { PromptVersionsRepository } from './repositories/prompts.js';
@@ -47,6 +49,7 @@ export type {
   Page,
   PageVersion,
   Asset,
+  GeneratedAsset,
   GenerationJob,
   GenerationAttempt,
   PublishedPage,

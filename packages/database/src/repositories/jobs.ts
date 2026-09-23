@@ -24,6 +24,10 @@ export interface CreateJobInput {
   status?: JobStatus;
   kind?: 'FULL' | 'SECTION';
   targetSectionId?: string | null;
+  /** Page version the request was based on (0 = none yet). Finalize saves the
+   * result ONLY over this base; a stale job fails instead of clobbering a
+   * newer manual save (§10.2). */
+  baseVersion?: number | null;
   idempotencyKey: string;
   fingerprint: string;
   traceId: string;
@@ -104,6 +108,7 @@ export class JobsRepository {
           status: input.status ?? 'QUEUED',
           kind: input.kind ?? 'FULL',
           targetSectionId: input.targetSectionId ?? null,
+          baseVersion: input.baseVersion ?? null,
           idempotencyKey: input.idempotencyKey,
           fingerprint: input.fingerprint,
           traceId: input.traceId,

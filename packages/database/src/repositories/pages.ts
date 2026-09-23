@@ -22,6 +22,9 @@ export interface SaveVersionInput {
   schemaVersion: string;
   /** Page Schema document — L1-validated before it can be persisted (§10.2). */
   content: unknown;
+  /** Generation job that produced this version. Unique per job: a finalize
+   * replay/retry returns the ORIGINAL version row and never duplicates it. */
+  generationJobId?: string | null;
   createdBy?: string | null;
 }
 
@@ -127,6 +130,16 @@ export class PagesRepository {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
+        // Idempotent finalize: the same generation job may never yield a
+        // second version (§10.2). A replay returns the ORIGINAL row even when
+        // the optimistic-concurrency base has since moved.
+        if (input.generationJobId != null) {
+          const prior = await tx.pageVersion.findUnique({
+            where: { generationJobId: input.generationJobId },
+            select: { id: true, versionNumber: true, schemaVersion: true, contentJson: true, createdAt: true, createdBy: true, pageId: true, generationJobId: true },
+          });
+          if (prior) return prior;
+        }
         const [latest] = await tx.pageVersion.findMany({
           where: { pageId },
           orderBy: { versionNumber: 'desc' },
@@ -143,13 +156,22 @@ export class PagesRepository {
             versionNumber: current + 1,
             schemaVersion: input.schemaVersion,
             contentJson: input.content as Prisma.InputJsonValue,
+            generationJobId: input.generationJobId ?? null,
             createdBy: input.createdBy ?? owner.userId,
           },
         });
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        // Race between read and insert: another txn committed the same version.
+        // Race between read and insert: another txn committed first. If the
+        // unique generationJobId index fired, the winner IS this version — fetch
+        // and return it idempotently. Otherwise the page moved under us.
+        if (input.generationJobId != null) {
+          const prior = await this.prisma.pageVersion.findUnique({
+            where: { generationJobId: input.generationJobId },
+          });
+          if (prior) return prior;
+        }
         const [latest] = await this.prisma.pageVersion.findMany({
           where: { pageId },
           orderBy: { versionNumber: 'desc' },

@@ -329,7 +329,7 @@ export function PageEditor({ pageId, version }: PageEditorProps) {
           </div>
 
           <div className="editor-preview">
-            <PagePreview schema={draft} />
+            <PagePreview schema={draft} pageId={pageId} />
           </div>
         </div>
       </main>

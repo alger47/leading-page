@@ -90,3 +90,20 @@ describe('worker API routes', () => {
     expect(health.statusCode).toBe(200);
   });
 });
+it('enqueues the full payload (including image options) onto the queue', async () => {
+  const h = await newHarness({ includeWorker: false });
+  const request = {
+    brief: BRIEF,
+    generateImages: true as const,
+    suppliedImages: [
+      { ref: 'asset:product-1', mime: 'image/jpeg', data_b64: 'dGVzdA==' },
+    ],
+  };
+  const made = await enqueue(h, request, 'img-key');
+  expect(made.created).toBe(true);
+  const enqueued = h.lastEnqueued();
+  expect(enqueued?.jobId).toBe(made.record.id);
+  expect(enqueued?.data.generateImages).toBe(true);
+  expect(enqueued?.data.suppliedImages?.length).toBe(1);
+  expect(enqueued?.data.suppliedImages?.[0]?.ref).toBe('asset:product-1');
+});

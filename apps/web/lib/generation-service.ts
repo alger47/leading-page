@@ -18,6 +18,8 @@ import {
   JobsRepository,
   PagesRepository,
   ProjectsRepository,
+  GeneratedAssetsRepository,
+  OptimisticConcurrencyError,
   type GenerationJob,
   type Owner,
 } from '@landing-ai/database';
@@ -81,6 +83,7 @@ function repos() {
     projects: new ProjectsRepository(prisma),
     pages: new PagesRepository(prisma),
     jobs: new JobsRepository(prisma),
+    generatedAssets: new GeneratedAssetsRepository(prisma),
   };
 }
 
@@ -94,7 +97,10 @@ const finalizeRunners = new Map<string, Promise<unknown>>();
 function runExclusive<T>(key: string, task: () => Promise<T>): Promise<T> {
   const previous = finalizeRunners.get(key) ?? Promise.resolve();
   const next = previous.then(task, task);
-  finalizeRunners.set(key, next.catch(() => undefined));
+  // Store the SAME promise `next` in the map so the cleanup identity check
+  // below actually matches (storing `next.catch(...)` would shadow it and
+  // the map would grow forever while serialization still held).
+  finalizeRunners.set(key, next);
   const cleanup = () => {
     if (finalizeRunners.get(key) === next) finalizeRunners.delete(key);
   };
@@ -150,6 +156,10 @@ export class GenerationService {
 
     const now = new Date();
     const request = { brief: input.brief, locale: input.locale, tone: input.tone, ...(input.generateImages === true ? { generateImages: true } : {}) };
+    // Pin the version this request is based on. The finalize guard (E-JOB-006)
+    // later refuses to save the result over anything newer than this number —
+    // a full generation never silently clobbers a manual save made while it ran.
+    const baseVersion = (await pages.listVersions(input.owner, input.projectId, input.pageId)).length;
     const created = await jobs.create(input.owner, input.projectId, {
       id: jobId,
       label: labelForFeedback(input.brief),
@@ -157,6 +167,7 @@ export class GenerationService {
       locale: input.locale,
       tone: input.tone,
       requestJson: request,
+      baseVersion,
       idempotencyKey: key,
       fingerprint: key,
       traceId: `web_${randomUUID()}`,
@@ -231,6 +242,7 @@ export class GenerationService {
       kind: 'SECTION',
       targetSectionId: input.targetSectionId,
       requestJson: request,
+      baseVersion: input.baseVersion,
       idempotencyKey: key,
       fingerprint: key,
       traceId: `web_${randomUUID()}`,
@@ -376,10 +388,26 @@ export class GenerationService {
         try {
           const pageId = job.pageId;
           if (!pageId) throw new Error('completed job has no bound page');
+          // The result is saved ONLY over the version this job started from.
+          // Saving the count-at-kickoff (job.baseVersion) pins the source: a
+          // generation begun against an older draft must fail — never silently
+          // clobber a newer manual save — and a concurrent finalize replay must
+          // yield the SAME version row (idempotent, unique generationJobId).
+          const baseVersion =
+            job.baseVersion ??
+            (await pages.listVersions(owner, projectId, pageId)).length;
+          // Phase 16 durability: persist the generated rasters BEFORE the job
+          // flips to COMPLETED. The web marks a job done at the first
+          // COMPLETED poll; persisted bytes are then served even across
+          // restarts (and draft bytes never leak through the public route, see
+          // the GeneratedAssetsRepository). Best-effort — a failed write keeps
+          // the deterministic placeholder (honest, never broken).
+          await this.persistGeneratedAssets(view, owner, projectId, job).catch(() => undefined);
           const version = await pages.saveVersion(owner, projectId, pageId, {
-            baseVersion: (await pages.listVersions(owner, projectId, pageId)).length,
+            baseVersion,
             schemaVersion: (envelope as { schemaVersion?: string }).schemaVersion ?? '1.0.0',
             content: envelope,
+            generationJobId: jobId,
           });
           fields.resultJson = { pageId, versionNumber: version.versionNumber };
           await jobs
@@ -391,20 +419,31 @@ export class GenerationService {
             })
             .catch(() => undefined);
           // Phase 16: relay the generated rasters from the worker's asset cache
-          // into the server-side store so /assets/asset/[ref] can serve bytes
-          // memory-first. Best-effort — a missing relay just keeps the
-          // deterministic placeholder (never a broken <img>).
+          // into the in-memory fast path so /assets/asset/[ref] can serve bytes
+          // without a DB round-trip. Best-effort — persistence above is the
+          // source of truth, this only adds a warm cache.
           await this.relayAssets(view, jobId).catch(() => undefined);
           return jobs.get(owner, projectId, jobId);
         } catch (error) {
-          // Invalid schema from the engine would have been caught by L1 inside
-          // saveVersion; surface honestly as a failed job, never a fake result.
-          to = 'FAILED';
-          fields = {
-            ...fields,
-            errorCode: 'E-VAL-L1',
-            errorMessage: error instanceof Error ? error.message : String(error),
-          };
+          if (error instanceof OptimisticConcurrencyError) {
+            // A newer version landed after this job started: fail honestly
+            // instead of overwriting the user's newer draft (§10.2).
+            to = 'FAILED';
+            fields = {
+              ...fields,
+              errorCode: 'E-JOB-006',
+              errorMessage: 'generation is out of date: a newer version of this page was saved while it ran',
+            };
+          } else {
+            // Invalid schema from the engine would have been caught by L1 inside
+            // saveVersion; surface honestly as a failed job, never a fake result.
+            to = 'FAILED';
+            fields = {
+              ...fields,
+              errorCode: 'E-VAL-L1',
+              errorMessage: error instanceof Error ? error.message : String(error),
+            };
+          }
         }
       }
     }
@@ -444,6 +483,37 @@ export class GenerationService {
     const rows = mapEngineAttemptsToDb(detail);
     for (const input of rows) {
       await jobs.recordAttempt(owner, projectId, jobId, input).catch(() => undefined);
+    }
+  }
+
+  /** Phase 16 durability: persist the worker-cached generated rasters into the
+   * project-scoped GeneratedAsset table BEFORE the job is marked COMPLETED. The
+   * bytes survive restarts of every layer, and the public route only ever
+   * serves them once the page is live-published (draft isolation). */
+  private async persistGeneratedAssets(
+    view: Awaited<ReturnType<WorkerClient['get']>>,
+    owner: Owner,
+    projectId: string,
+    job: GenerationJob,
+  ): Promise<void> {
+    const manifest = (view?.result as { assets?: readonly unknown[] } | null)?.assets;
+    if (!Array.isArray(manifest) || manifest.length === 0) return;
+    if (this.worker.getAssets === undefined) return;
+    if (!job.pageId) return;
+    const assets = await this.worker.getAssets(job.id);
+    if (!assets || assets.length === 0) return;
+    const { generatedAssets } = repos();
+    for (const asset of assets) {
+      if (typeof asset.ref !== 'string' || typeof asset.data_b64 !== 'string' || asset.data_b64 === '') continue;
+      let bytes: Buffer;
+      try {
+        bytes = Buffer.from(asset.data_b64, 'base64');
+      } catch {
+        continue; // corrupt relay entry — placeholder wins, never a broken byte burst
+      }
+      if (bytes.length === 0) continue;
+      const sha256 = createHash('sha256').update(bytes).digest('hex');
+      await generatedAssets.put(owner, projectId, job.id, asset.ref, asset.mime || 'image/png', bytes, sha256);
     }
   }
 

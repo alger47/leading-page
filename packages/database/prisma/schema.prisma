@@ -120,6 +120,7 @@ model Project {
   jobs      GenerationJob[]
   subdomain Subdomain[]
   published PublishedPage[]
+  generatedAssets GeneratedAsset[]
 
   @@index([userId])
   @@map("project")
@@ -159,6 +160,11 @@ model PageVersion {
 
   pageId String
   page   Page   @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  /// Job that produced this version (FULL/SECTION generation). Unique: a job
+  /// may never materialize more than one version — retries/finalize replays
+  /// return the ORIGINAL row, never a duplicate (§10.2 immutability).
+  generationJobId String?  @unique
 
   published PublishedPage[]
 
@@ -203,6 +209,11 @@ model GenerationJob {
   status        GenerationStatus
   kind          GenerationKind   @default(FULL) // FULL generation vs SECTION regeneration
   targetSectionId String?        // set when kind = SECTION: the section awaiting regeneration
+  /// Page version the request was based on (0 = none yet). Finalize saves the
+  /// result ONLY over this base: a job that started before a newer manual
+  /// save must never silently clobber the newer draft (§10.2). NULL = legacy
+  /// rows (falls back to latest-count semantics).
+  baseVersion   Int?
   idempotencyKey String          @unique
   fingerprint   String
   traceId       String
@@ -224,11 +235,35 @@ model GenerationJob {
   page      Page?          @relation(fields: [pageId], references: [id], onDelete: SetNull)
 
   attempts GenerationAttempt[]
+  assets   GeneratedAsset[]
 
   @@index([projectId, status])
   @@index([status])
   @@index([projectId, createdAt(sort: Desc)])
   @@map("generation_job")
+}
+
+/// Engine-generated raster (Phase 16), project-scoped and persisted at job
+/// finalize. Refs are LOGICAL (`asset:...`) and NOT globally unique, so storage
+/// is scoped per (projectId, jobId): two projects may use the same logical ref
+/// without leaking bytes. Draft assets are NEVER served publicly — the public
+/// asset route only resolves refs owned by a LIVE published snapshot.
+model GeneratedAsset {
+  id        String   @id @default(cuid())
+  ref       String   // logical ref as bound into the schema (asset:<requirement_id>)
+  mime      String
+  bytes     Bytes    @db.ByteA
+  sha256    String?
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  projectId String
+  project   Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  jobId     String
+  job       GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, ref])
+  @@index([projectId])
+  @@map("generated_asset")
 }
 
 model GenerationAttempt {

@@ -46,6 +46,27 @@ export interface EnqueueResult {
   created: boolean;
 }
 
+/**
+ * Serialize a request onto the queue payload (BullMQ redelivery after a
+ * restart rebuilds the record from this — it must carry EVERYTHING the engine
+ * call needs, including the Phase 16 image options).
+ */
+export function buildPayload(request: GenerationRequest, idempotencyKey: string, fingerprint: string): JobPayload {
+  return {
+    brief: request.brief,
+    locale: request.locale,
+    tone: request.tone,
+    budgetUsd: request.budgetUsd,
+    mode: request.mode,
+    targetSectionId: request.targetSectionId,
+    page: request.page,
+    generateImages: request.generateImages,
+    suppliedImages: request.suppliedImages,
+    idempotencyKey,
+    fingerprint,
+  };
+}
+
 export async function enqueue(deps: EnqueueDeps, request: GenerationRequest, idempotencyKey: string): Promise<EnqueueResult> {
   const fingerprint = fingerprintOf(request);
   const existing = deps.store.getByKey(idempotencyKey);
@@ -75,17 +96,7 @@ export async function enqueue(deps: EnqueueDeps, request: GenerationRequest, ide
     events: [{ type: 'job.queued', at: now }],
   };
 
-  const payload: JobPayload = {
-    brief: request.brief,
-    locale: request.locale,
-    tone: request.tone,
-    budgetUsd: request.budgetUsd,
-    mode: request.mode,
-    targetSectionId: request.targetSectionId,
-    page: request.page,
-    idempotencyKey,
-    fingerprint,
-  };
+  const payload: JobPayload = buildPayload(request, idempotencyKey, fingerprint);
 
   deps.store.put(record);
   try {
