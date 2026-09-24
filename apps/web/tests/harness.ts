@@ -132,7 +132,7 @@ export const samplePageSchema = (): Record<string, unknown> => ({
       id: 'hero-01',
       type: 'hero',
       variant: 'split',
-      content: { headline: 'Bienvenue', subheadline: 'Votre partenaire de confiance.', ctaPrimary: { label: 'Commander', href: '#contact' } },
+      content: { title: 'Bienvenue', subtitle: 'Votre partenaire de confiance.', primaryCta: { label: 'Commander', href: '#contact' } },
     },
   ],
 });
@@ -173,20 +173,20 @@ export const publishableEnvelope = (overrides: { footer?: boolean; title?: strin
       },
     },
     {
-      id: 'features-1',
+      id: 'services',
       type: 'features',
       variant: 'grid-3',
       content: {
         title: 'Nos services',
         items: [
-          { headline: 'Consultation', body: 'Suivi complet de la santé de votre animal.' },
-          { headline: 'Vaccination', body: 'Protocoles à jour et personnalisés.' },
-          { headline: 'Urgences', body: 'Accueil rapide des urgences.' },
+          { title: 'Consultation', description: 'Suivi complet de la santé de votre animal.' },
+          { title: 'Vaccination', description: 'Protocoles à jour et personnalisés.' },
+          { title: 'Urgences', description: 'Accueil rapide des urgences.' },
         ],
       },
     },
     {
-      id: 'cta-1',
+      id: 'contact',
       type: 'cta',
       variant: 'banner',
       content: {
@@ -278,6 +278,7 @@ async function routeFor(method: string, path: string) {
     generate: '../app/api/v1/generate/route',
     productExtract: '../app/api/v1/product/extract/route',
     jobId: '../app/api/v1/generation-jobs/[jobId]/route',
+    notifyJob: '../app/api/internal/jobs/[jobId]/notify/route',
     healthz: '../app/api/v1/healthz/route',
   };
   let mod = '';
@@ -297,6 +298,7 @@ async function routeFor(method: string, path: string) {
   else if (routePath === '/api/v1/generate') mod = mods.generate;
   else if (routePath === '/api/v1/product/extract') mod = mods.productExtract;
   else if (routePath.match(/^\/api\/v1\/generation-jobs\/[^/]+$/)) mod = mods.jobId;
+  else if (routePath.match(/^\/api\/internal\/jobs\/[^/]+\/notify$/)) mod = mods.notifyJob;
   if (!mod) throw new Error(`no route mapping for ${method} ${routePath}`);
 
   const m = await import(mod);
@@ -328,6 +330,8 @@ async function paramsFor(path: string): Promise<Record<string, string>> {
   if (regenerate) return { pageId: regenerate[1], sectionId: regenerate[2] };
   const jobId = routePath.match(/^\/api\/v1\/generation-jobs\/([^/]+)$/);
   if (jobId) return { jobId: jobId[1] };
+  const notifyJob = routePath.match(/^\/api\/internal\/jobs\/([^/]+)\/notify$/);
+  if (notifyJob) return { jobId: notifyJob[1] };
   return {};
 }
 

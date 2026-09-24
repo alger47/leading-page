@@ -153,6 +153,21 @@ export class JobsRepository {
     });
   }
 
+  /**
+   * RT ج (internal finalize): resolve a job WITHOUT an ownership filter.
+   * Only the web's internal notify route (authenticated by the shared internal
+   * token, service-to-service) may use this; every tenant-facing path must go
+   * through the owner-scoped `get`/`findOwnedJob`. Used so the background
+   * finalize can locate a job from a worker webhook before the tenant polls,
+   * and derive the Owner from the owning project (the DB row already carries
+   * the tenant chain — we restore it, we never invent it).
+   */
+  async findAny(jobId: string): Promise<{ jobId: string; projectId: string; userId: string; job: GenerationJob } | null> {
+    const job = await this.prisma.generationJob.findFirst({ where: { id: jobId }, include: { project: true } });
+    if (!job) return null;
+    return { jobId: job.id, projectId: job.projectId, userId: job.project.userId, job };
+  }
+
   async listByPage(owner: Owner, projectId: string, pageId: string): Promise<GenerationJob[]> {
     await requireOwnedProject(this.prisma, owner, projectId);
     return this.prisma.generationJob.findMany({

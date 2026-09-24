@@ -22,6 +22,11 @@ export interface WorkerConfig {
   engineTimeoutMs: number;
   maxAttempts: number;
   retryAfterMs: number;
+  /** Web base URL (RT: ج — background finalize). When set, the worker POSTs
+   * a terminal-state webhook to $url/api/internal/jobs/:id/notify so the web
+   * persists the PageVersion + generated assets WITHOUT waiting for a browser
+   * poll. Empty = disabled (local dev, tests). */
+  webNotifyUrl: string;
 }
 
 export const DEV_WORKER_TOKEN = 'dev-worker-token';
@@ -39,6 +44,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     engineTimeoutMs: intFromEnv('ENGINE_TIMEOUT_MS', 120_000),
     maxAttempts,
     retryAfterMs: intFromEnv('RETRY_AFTER_MS', 1_000),
+    webNotifyUrl: (env.WEB_NOTIFY_URL ?? '').replace(/\/+$/, ''),
   };
 }
 

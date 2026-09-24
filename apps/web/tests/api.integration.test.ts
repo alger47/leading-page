@@ -442,7 +442,7 @@ describe('phase8 editor (J3)', () => {
 
     // The worker completes with the fully spliced page; web persists version 2.
     const spliced = JSON.parse(JSON.stringify(samplePageSchema())) as { sections: Array<{ id: string; content: Record<string, string> }> };
-    spliced.sections[0].content.headline = 'Bienvenue — régénéré';
+    spliced.sections[0].content.title = 'Bienvenue — régénéré';
     worker.setStatus(body.job.jobId, 'COMPLETED', { result: { page: spliced } });
     await waitFor(async () => (await fetchJob(api, body.job.jobId)).job?.status === 'COMPLETED');
 
@@ -450,7 +450,7 @@ describe('phase8 editor (J3)', () => {
     const latest = (await jsonOf<{ page: { page: { versionCount: number }; latestVersion: { versionNumber: number; content: { sections: Array<{ id: string; content: Record<string, string> }> } } | null } }>(after)).page;
     expect(latest.page.versionCount).toBe(2);
     expect(latest.latestVersion!.versionNumber).toBe(2);
-    expect(latest.latestVersion!.content.sections[0].content.headline).toBe('Bienvenue — régénéré');
+    expect(latest.latestVersion!.content.sections[0].content.title).toBe('Bienvenue — régénéré');
   });
 
   it('rejects regeneration of a section that no longer exists (404 SECTION_NOT_FOUND)', async () => {
@@ -480,7 +480,7 @@ describe('phase9 versioning (J4)', () => {
 
     const edited = JSON.parse(JSON.stringify(samplePageSchema())) as { page: { title: string; locale: string; direction: string }; sections: Array<{ id: string; content: Record<string, string> }> };
     edited.page.title = 'Agence Bakhti — version éditée';
-    edited.sections[0].content.headline = 'Bienvenue — nouvelle une';
+    edited.sections[0].content.title = 'Bienvenue — nouvelle une';
 
     const save = await api.call('POST', `/api/v1/pages/${pageId}/versions`, { baseVersion: 1, schemaVersion: '1.0.0', content: edited });
     expect(save.status).toBe(200);
@@ -535,13 +535,13 @@ describe('phase9 versioning (J4)', () => {
     expect(diff.metadata.direction.changed).toBe(false);
     expect(diff.metadata.theme.changed).toBe(false);
     expect(diff.counts).toEqual({ added: 0, removed: 0, changed: 1, unchanged: 0 });
-    expect(diff.sections).toEqual([expect.objectContaining({ id: 'hero-01', action: 'changed', changedSlots: ['content.headline'] })]);
+    expect(diff.sections).toEqual([expect.objectContaining({ id: 'hero-01', action: 'changed', changedSlots: ['content.title'] })]);
     expect(editedContent).toBeTruthy();
 
     // Reversed comparison reports the same slots.
     const reversed = await api.call('GET', `/api/v1/pages/${pageId}/versions/compare?from=2&to=1`);
     const rev = await jsonOf<{ diff: { sections: Array<{ id: string; action: string; changedSlots?: string[] }> } }>(reversed);
-    expect(rev.diff.sections[0]).toEqual(expect.objectContaining({ id: 'hero-01', action: 'changed', changedSlots: ['content.headline'] }));
+    expect(rev.diff.sections[0]).toEqual(expect.objectContaining({ id: 'hero-01', action: 'changed', changedSlots: ['content.title'] }));
 
     const invalid = await api.call('GET', `/api/v1/pages/${pageId}/versions/compare?from=0&to=2`);
     expect(invalid.status).toBe(400);
@@ -562,13 +562,13 @@ describe('phase9 versioning (J4)', () => {
     expect(latest.page.versionCount).toBe(3);
     expect(latest.latestVersion!.versionNumber).toBe(3);
     expect(latest.latestVersion!.content.page.title).toBe('Agence Bakhti');
-    expect(latest.latestVersion!.content.sections[0].content.headline).toBe('Bienvenue');
+    expect(latest.latestVersion!.content.sections[0].content.title).toBe('Bienvenue');
 
     // The edited v2 is untouched: restore COPIES, it never rewrites history.
     const two = await api.call('GET', `/api/v1/pages/${pageId}/versions/2`);
     const v2 = await jsonOf<{ version: { content: { page: { title: string }; sections: Array<{ id: string; content: Record<string, string> }> } } }>(two);
     expect(v2.version.content.page.title).toBe('Agence Bakhti — version éditée');
-    expect(v2.version.content.sections[0].content.headline).toBe('Bienvenue — nouvelle une');
+    expect(v2.version.content.sections[0].content.title).toBe('Bienvenue — nouvelle une');
   });
 
   it('restoring an unknown version 404s; foreign pages are 404 everywhere', async () => {

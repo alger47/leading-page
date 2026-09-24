@@ -16,6 +16,7 @@ import { buildServer } from '../src/server.js';
 import { MemoryAssetStore, MemoryJobStore } from '../src/store.js';
 import { MemorySpanStore } from '../src/telemetry.js';
 import { makeFakeEngine, type FakeEngine, type Scenario } from './fake-engine.js';
+import type { WebhookNotifier } from '../src/webhook.js';
 
 /** Shared token for the worker API in tests (see HarnessOptions.auth). */
 export const AUTH_TOKEN = 'test-worker-token';
@@ -28,6 +29,9 @@ export interface HarnessOptions {
   queueName?: string;
   includeWorker?: boolean;
   engineBaseOverride?: string;
+  /** RT ج: inject a webhook-notifier spy so tests can assert the background
+   * finalize nudge fires on terminal states. */
+  notify?: WebhookNotifier;
   /** When true (default) the test harness injects the shared auth header on
    * every app.inject() call, so individual tests don't repeat the token.
    * Set to false to exercise the auth hook directly (401/200 scenarios). */
@@ -74,7 +78,7 @@ export async function makeHarness(opts: HarnessOptions = {}): Promise<Harness> {
   const assets = new MemoryAssetStore();
 
   const includeWorker = opts.includeWorker !== false;
-  const processor = includeWorker ? makeProcessor({ engine, store, spans, assets }) : undefined;
+  const processor = includeWorker ? makeProcessor({ engine, store, spans, assets, notify: opts.notify }) : undefined;
   const running = makeMemoryDriver<JobPayload>(queueName, {
     maxAttempts,
     retryAfterMs,
@@ -105,9 +109,10 @@ export async function makeHarness(opts: HarnessOptions = {}): Promise<Harness> {
     engineTimeoutMs,
     maxAttempts,
     retryAfterMs,
+    webNotifyUrl: '',
   };
 
-  const app = buildServer({ store, spans, queue, engine, config, assets });
+  const app = buildServer({ store, spans, queue, engine, config, assets, notify: opts.notify });
 
   if (opts.auth !== false) {
     // Tests are about the pipeline, not the auth envelope: default the shared

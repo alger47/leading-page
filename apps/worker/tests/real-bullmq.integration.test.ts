@@ -50,6 +50,7 @@ describeOrSkip('real BullMQ stack (Redis present)', () => {
     engineTimeoutMs: 5_000,
     maxAttempts: 2,
     retryAfterMs: 20,
+    webNotifyUrl: '',
   };
 
   let redis: Redis;

@@ -20,6 +20,7 @@ import type { EnqueueDriver } from './queue/ports.js';
 import type { AssetStore, JobRecordStore } from './store.js';
 import type { SpanStore } from './telemetry.js';
 import type { JobPayload } from './jobs/types.js';
+import type { WebhookNotifier } from './webhook.js';
 
 export interface WorkerContext {
   store: JobRecordStore;
@@ -28,6 +29,8 @@ export interface WorkerContext {
   engine: EngineClient;
   config: WorkerConfig;
   assets: AssetStore;
+  /** RT ج: best-effort terminal webhook (configured via WEB_NOTIFY_URL). */
+  notify?: WebhookNotifier;
 }
 
 function errorEnvelope(code: string, message: string, details?: Record<string, unknown>): Record<string, unknown> {
@@ -169,6 +172,7 @@ export function registerRoutes(app: FastifyInstance, ctx: WorkerContext): void {
     record.events.push({ type: 'job.cancelled', at: new Date().toISOString(), code: E_JOB.cancelled });
     record.updatedAt = new Date().toISOString();
     await ctx.queue.remove(record.id).catch(() => undefined);
+    await ctx.notify?.notify(record.id, 'CANCELLED');
     return { jobId: record.id, status: record.status };
   });
 }

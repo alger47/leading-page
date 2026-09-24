@@ -21,12 +21,16 @@ import type { JobLike } from './queue/ports.js';
 import type { AssetStore, JobRecordStore } from './store.js';
 import type { SpanStore } from './telemetry.js';
 import { createTraceId, trace } from './telemetry.js';
+import type { WebhookNotifier } from './webhook.js';
 
 export interface ProcessorDeps {
   engine: EngineClient;
   store: JobRecordStore;
   spans: SpanStore;
   assets: AssetStore;
+  /** RT ج: best-effort terminal-state webhook so the web finalizes jobs
+   * without waiting for the next browser poll. Optional. */
+  notify?: WebhookNotifier;
 }
 
 export const JOB_STARTED = 'job.started' as const;
@@ -168,7 +172,7 @@ export async function processJob(deps: ProcessorDeps, job: JobLike, token?: stri
         if (cause instanceof EngineError && cause.retryable) {
           throw cause; // let BullMQ retry; the 'failed' event finalizes on exhaustion
         }
-        await handleTerminalFailure(record, job, token, code, cause);
+        await handleTerminalFailure(deps, record, job, token, code, cause);
       }
     },
   );
@@ -184,7 +188,7 @@ async function finalizeSuccess(deps: ProcessorDeps, record: JobRecord, result: E
 
   if (result.status === 'FAILED') {
     const code = result.error_code ?? 'E-AI-000';
-    await handleTerminalFailure(record, job, token, code, new Error(result.error_message ?? 'engine job failed'));
+    await handleTerminalFailure(deps, record, job, token, code, new Error(result.error_message ?? 'engine job failed'));
     record.result = result;
     return;
   }
@@ -214,6 +218,11 @@ async function finalizeSuccess(deps: ProcessorDeps, record: JobRecord, result: E
   record.errorMessage = undefined;
   const mode = (result.brief_flags as Record<string, unknown> | undefined)?.generation_mode ?? 'stub';
   emit(record, JOB_COMPLETED, { detail: JSON.stringify({ mode }) });
+
+  // RT ج: background finalize — nudge the web to persist version + rasters
+  // without waiting for a browser poll. Awaiting is safe (never throws) and
+  // guarantees the webhook is on the wire before processJob resolves.
+  await deps.notify?.notify(record.id, 'COMPLETED');
 }
 
 async function relayAssets(
@@ -228,12 +237,15 @@ async function relayAssets(
   }
 }
 
-async function handleTerminalFailure(record: JobRecord, job: JobLike, token: string | undefined, code: string, cause: unknown): Promise<void> {
+async function handleTerminalFailure(deps: ProcessorDeps, record: JobRecord, job: JobLike, token: string | undefined, code: string, cause: unknown): Promise<void> {
   record.status = 'FAILED';
   record.errorCode = code;
   record.errorMessage = cause instanceof Error ? cause.message : String(cause);
   emit(record, JOB_FAILED, { code });
   await safeFail(job, token, code);
+  // RT ج: background finalize — the web must mirror the honest failure even if
+  // nobody is polling the job anymore.
+  await deps.notify?.notify(record.id, 'FAILED');
 }
 
 async function safeFail(job: JobLike, token: string | undefined, code: string): Promise<void> {
@@ -254,6 +266,9 @@ export async function finalizeFailure(deps: ProcessorDeps, jobId: string, error:
   record.errorCode = E_JOB.unreachable;
   record.errorMessage = error.message || 'engine unreachable after retries';
   emit(record, JOB_FAILED, { code: E_JOB.unreachable });
+  // RT ج: background finalize — mirror the terminal failure even when the
+  // user's tab stopped polling (retries exhausted / unreachable engine).
+  await deps.notify?.notify(jobId, 'FAILED');
 }
 
 export interface ProcessFn {
