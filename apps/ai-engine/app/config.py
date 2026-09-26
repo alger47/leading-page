@@ -76,7 +76,10 @@ class Settings(BaseSettings):
     image_hf_model: str = ""
     image_pollinations_base_url: str = "https://image.pollinations.ai/prompt"
     image_pollinations_model: str = ""  # empty => vendor default model
-    image_size: str = "1024x1024"
+    # Empty => orientation-aware defaults (landscape 1536x1024, portrait 1024x1536,
+    # square 1344x1344) so browser cover-crops never upscale generated pixels.
+    # An explicit AI_IMAGE_SIZE (WIDTHxHEIGHT) unwins those defaults.
+    image_size: str = ""
     image_max: int = 4  # max raster images generated per job
     image_max_bytes: int = 800_000  # per-image transfer cap (bytes)
     image_timeout_s: float = 120.0

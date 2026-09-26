@@ -96,7 +96,6 @@ class AssetRenderer:
             model_id = self.settings.image_pollinations_model or "pollinations"
         else:
             model_id = self.settings.image_hf_model or image_def.model_id
-        size = self.settings.image_size or image_def.size
         selected = [
             r
             for r in requirements
@@ -135,7 +134,7 @@ class AssetRenderer:
                 source = "supplied"
             else:
                 try:
-                    result = await provider.generate(prompt=prompt, size=size)
+                    result = await provider.generate(prompt=prompt, size=self._size_for(req, image_def.size))
                 except Exception as exc:  # noqa: BLE001 — bounded per-image outcome, never a job-killer
                     result = ImageResult(ok=False, message=f"image provider raised: {exc}", model=model_id, latency_ms=(time.perf_counter() - started) * 1000.0)
                 cost = image_def.cost_per_image if result.ok and result.data else 0.0
@@ -189,6 +188,24 @@ class AssetRenderer:
         if issues:
             stage.draft = True
         return stage, blobs
+
+    def _size_for(self, req: dict[str, Any], fallback: str) -> str:
+        """Orientation-aware generation size per asset requirement.
+
+        Landscape sections (hero split/carousel, full-width gallery) render at
+        3:2 with cover-crop — a square 1024px source upscales and blurs, so the
+        native landscape 1536x1024 wins. An explicit AI_IMAGE_SIZE unwins the
+        defaults; an unknown orientation falls back to the configured size."""
+        if self.settings.image_size:
+            return self.settings.image_size
+        orientation = str(req.get("orientation", "")).lower()
+        if orientation == "portrait":
+            return "1024x1536"
+        if orientation == "square":
+            return "1344x1344"
+        if orientation == "landscape":
+            return "1536x1024"
+        return fallback
 
     def _prompt(self, *, subject: str, orientation: str, kind: str, tone: str | None) -> str:
         style = _TONE_STYLE.get(tone or "", "professional, photo-realistic")
