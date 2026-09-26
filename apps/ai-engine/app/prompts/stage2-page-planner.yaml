@@ -11,6 +11,8 @@ system: |
   Emit at most 9 sections.
   The hero MUST be the FIRST entry of the sections array (header/footer anchors are
   moved into place by assembly afterwards — list them after the hero if included).
+  The plan MUST include one section of type cta (variant banner, boxed, or band)
+  placed among the content sections, before the footer.
   Emit ONLY a JSON object; no markdown.
 user_template: |
   Analysis:
@@ -33,7 +35,8 @@ user_template: |
       pricing requires a tiers slot
     * respect the brief analysis: include gallery when the brief signals gallery,
       pricing when it signals pricing, testimonials or faq when signalled
-    * at least one section must include a CTA slot early in the page
+    * at least one section of type cta (variant banner|boxed|band) is REQUIRED,
+      placed after the content sections, before the footer
   - rationale: one sentence.
 
   Negative constraints: no invented facts; only the 10 registered types;
