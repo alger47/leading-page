@@ -31,6 +31,12 @@ import { HttpWorkerClient, WorkerCallError, type WorkerClient } from './worker-c
 import { webConfig, DEV_WORKER_TOKEN, type WebConfig } from './env';
 import { validateBriefInput } from './validation';
 
+export interface ProductMeta {
+  name?: string;
+  price?: string;
+  url?: string;
+}
+
 export interface StartGenerationInput {
   owner: Owner;
   projectId: string;
@@ -46,6 +52,9 @@ export interface StartGenerationInput {
   /** Product-link rasters (Phase 16 part 2): real product image bytes the
    * engine uses verbatim. Derived server-side from `productUrl`, capped. */
   suppliedImages?: Array<{ ref: string; mime: string; data_b64: string }>;
+  /** Product metadata derived server-side from the product URL; lands in the
+   * envelope's `page.seo.product` for truthful Product structured data. */
+  product?: ProductMeta;
 }
 
 /** Phase 8 J2: regenerate ONE section. The `page` is the current draft
@@ -155,7 +164,15 @@ export class GenerationService {
     }
 
     const now = new Date();
-    const request = { brief: input.brief, locale: input.locale, tone: input.tone, ...(input.generateImages === true ? { generateImages: true } : {}) };
+    // `product` is stored as a fresh literal so the Prisma Json column keeps
+    // structural assignability (a named interface has no index signature).
+    const request = {
+      brief: input.brief,
+      locale: input.locale,
+      tone: input.tone,
+      ...(input.generateImages === true ? { generateImages: true } : {}),
+      ...(input.product ? { product: { name: input.product.name, price: input.product.price, url: input.product.url } } : {}),
+    };
     // Pin the version this request is based on. The finalize guard (E-JOB-006)
     // later refuses to save the result over anything newer than this number —
     // a full generation never silently clobbers a manual save made while it ran.
@@ -184,6 +201,7 @@ export class GenerationService {
         tone: input.tone,
         generateImages: input.generateImages,
         suppliedImages: input.suppliedImages,
+        product: input.product,
       });
       return { jobId: created.id, created: res.created, status: 'QUEUED' };
     } catch (error) {

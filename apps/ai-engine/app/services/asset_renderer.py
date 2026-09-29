@@ -197,6 +197,7 @@ class AssetRenderer:
             manifest=manifest,
             attempts=attempts,
             issues=issues,
+            supplied=supplied,
         )
 
         stage = StageResult(stage=IMAGE_STAGE, ok=True, data={"images": manifest}, attempts=attempts, issues=issues)
@@ -216,8 +217,16 @@ class AssetRenderer:
         manifest: list[dict[str, Any]],
         attempts: list[GenerationAttempt],
         issues: list[dict[str, Any]],
+        supplied: list[SuppliedImage] | None = None,
     ) -> None:
         """Generate a dedicated square OG raster (1:1) appended to the manifest.
+
+        Real product rasters win first (product-link generation, Phase 16
+        part 2): the share card reuses the SECOND product raster — the first
+        already fronts the hero — falling back to the first, exactly the PAGE3
+        ``image.ts`` pattern. A real product photo is the best og:image there
+        is, and it costs zero vendor calls. When no product raster fits, the
+        stage generates a fresh square tile through the provider.
 
         Run only for the real providers and only when at least one section asset
         was produced (an og without content pixels is not worth a vendor call).
@@ -225,6 +234,39 @@ class AssetRenderer:
         ``page.seo.ogImageRef``. Bounded failure, E-IMG-001 posture: a failed og
         never fails the stage — the ref simply stays unbound (no og meta).
         """
+        og_ref = f"asset:{_OG_REQUIREMENT_ID}"
+        if getattr(provider, "name", "") != "stub":
+            provided = supplied or []
+            candidate = provided[1] if len(provided) > 1 else (provided[0] if provided else None)
+            if candidate is not None and len(candidate.data) <= self.settings.image_max_bytes:
+                manifest.append(
+                    {
+                        "ref": og_ref,
+                        "requirement_id": _OG_REQUIREMENT_ID,
+                        "mime": candidate.mime,
+                        "size_bytes": len(candidate.data),
+                        "source": "supplied",
+                    }
+                )
+                blobs.append({"ref": og_ref, "mime": candidate.mime, "data": bytes(candidate.data)})
+                attempts.append(
+                    GenerationAttempt(
+                        stage=IMAGE_STAGE,
+                        attempt_number=len(attempts) + 1,
+                        prompt_ref="supplied@product",
+                        model_class="supplied",
+                        provider="product",
+                        model_id="supplied",
+                        usage=Usage(0, 0),
+                        cost_usd=0.0,
+                        latency_ms=0.0,
+                        outcome=Outcome.ok,
+                        validation_issues=[],
+                    )
+                )
+                ledger.record(attempts[-1])
+                return
+
         if not manifest or getattr(provider, "name", "") == "stub":
             return
         subject = (subject_hint or "").strip() or "the page hero visual from the landing page brief"
@@ -238,9 +280,8 @@ class AssetRenderer:
         og_ok = bool(result.ok and result.data and len(result.data) <= self.settings.image_max_bytes)
         if og_ok:
             cost = self.routing.image().cost_per_image if self.routing.images else 0.0
-            ref = f"asset:{_OG_REQUIREMENT_ID}"
-            manifest.append({"ref": ref, "requirement_id": _OG_REQUIREMENT_ID, "mime": result.mime, "size_bytes": len(result.data), "source": "generated"})
-            blobs.append({"ref": ref, "mime": result.mime, "data": bytes(result.data)})
+            manifest.append({"ref": og_ref, "requirement_id": _OG_REQUIREMENT_ID, "mime": result.mime, "size_bytes": len(result.data), "source": "generated"})
+            blobs.append({"ref": og_ref, "mime": result.mime, "data": bytes(result.data)})
         else:
             issues.append(
                 {

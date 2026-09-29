@@ -7,6 +7,15 @@ import type { EngineJobPayload, SuppliedImage } from '../engine/types.js';
 
 export type JobStatus = 'QUEUED' | 'RUNNING' | 'VALIDATING' | 'RENDERING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 
+/** Server-derived product metadata (product-link generation, Phase 16 part 2):
+ * the web extracts these from the marketplace page; the engine writes them
+ * into the envelope's `page.seo.product` for truthful Product structured data. */
+export interface ProductMeta {
+  name?: string;
+  price?: string;
+  url?: string;
+}
+
 /** Stable stage event names (§11.4). Layout-planner and post-render stages
  * are deliberately absent: the engine exposes no stable event for layout and
  * assets/rendering land in later phases. */
@@ -67,6 +76,8 @@ export interface GenerationRequest {
    * the engine, which uses them verbatim instead of the image model. Bounded
    * by the web route to image_max entries, each ≤ 1 MiB. */
   suppliedImages?: SuppliedImage[];
+  /** Product metadata forwarded to the engine's envelope SEO block. */
+  product?: ProductMeta;
 }
 
 /** Serialized onto the BullMQ job. */

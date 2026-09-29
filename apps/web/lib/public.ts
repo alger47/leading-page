@@ -8,6 +8,12 @@
 
 import { getPrismaClient } from '@landing-ai/database';
 
+export interface PublishedProductMeta {
+  name?: string;
+  price?: string;
+  url?: string;
+}
+
 export interface PublishedViewByHost {
   host: string;
   versionNumber: number;
@@ -15,6 +21,9 @@ export interface PublishedViewByHost {
   title: string;
   description?: string;
   ogImageRef?: string;
+  /** Present when the page was generated from a product link (server-derived,
+   * written into the envelope's page.seo.product by the engine). */
+  product?: PublishedProductMeta;
   content: Record<string, unknown>;
   publishedAt: string;
 }
@@ -33,7 +42,10 @@ export async function getPublishedViewByHost(host: string): Promise<PublishedVie
   });
   if (!row) return null;
   const content = row.pageVersion.contentJson as Record<string, unknown>;
-  const page = (content?.page ?? {}) as { title?: string; seo?: { description?: string; ogImageRef?: string } };
+  const page = (content?.page ?? {}) as {
+    title?: string;
+    seo?: { description?: string; ogImageRef?: string; product?: PublishedProductMeta };
+  };
   const seo = page.seo;
   return {
     host: normalized,
@@ -42,6 +54,7 @@ export async function getPublishedViewByHost(host: string): Promise<PublishedVie
     title: page.title ?? `Published page`,
     description: seo?.description,
     ogImageRef: seo?.ogImageRef,
+    product: seo?.product,
     content,
     publishedAt: row.publishedAt.toISOString(),
   };

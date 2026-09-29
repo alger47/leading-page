@@ -33,8 +33,11 @@ export async function POST(request: NextRequest) {
 
     // Phase 16 part 2: product-link generation. The brief may have been
     // auto-filled from the product page, but the rasters are ALWAYS re-derived
-    // here server-side — never trusted from the client.
+    // here server-side — never trusted from the client. Product metadata
+    // (name/price/url) is likewise server-derived and forwarded to the engine
+    // so the published page can emit truthful Product structured data.
     let suppliedImages: Array<{ ref: string; mime: string; data_b64: string }> | undefined;
+    let productMeta: { name?: string; price?: string; url?: string } | undefined;
     if (body.productUrl !== undefined) {
       if (typeof body.productUrl !== 'string' || body.productUrl.trim() === '') {
         return jsonError(invalid('productUrl is invalid', 'E-PROD-001'));
@@ -42,6 +45,11 @@ export async function POST(request: NextRequest) {
       try {
         const product = await fetchProductData(body.productUrl.trim());
         suppliedImages = product.supplied;
+        productMeta = {
+          ...(product.title ? { name: product.title } : {}),
+          ...(product.price ? { price: product.price } : {}),
+          url: body.productUrl.trim(),
+        };
       } catch (error) {
         return jsonError(error instanceof ProductSourceError ? error : new ProductSourceError('product fetch failed'));
       }
@@ -59,6 +67,7 @@ export async function POST(request: NextRequest) {
       clientIdempotencyKey: clientKey,
       generateImages: body.generateImages === true,
       suppliedImages,
+      product: productMeta,
     });
 
     return jsonOk({ jobId: result.jobId, status: result.status }, result.created ? 202 : 200);

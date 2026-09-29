@@ -4,8 +4,10 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  offerForPrice,
   publishedPageJsonLd,
   publishedPageMetadata,
+  publishedProductJsonLd,
   publishedOgImageUrl,
   publishedPageUrl,
   publicBaseUrl,
@@ -77,7 +79,7 @@ describe('publishedPageMetadata', () => {
     expect(meta.openGraph?.images).toEqual([
       { url: 'https://dar.example/assets/asset/asset%3Aog', width: 1024, height: 1024, alt: view.title },
     ]);
-    expect(meta.openGraph?.type).toBe('website');
+    expect((meta.openGraph as { type?: string } | undefined)?.type).toBe('website');
   });
 
   it('omits og images and description when absent', () => {
@@ -102,5 +104,66 @@ describe('publishedPageJsonLd', () => {
     const ld = publishedPageJsonLd({ host: view.host, title: 'T' });
     expect(ld.description).toBeUndefined();
     expect(ld.primaryImageOfPage).toBeUndefined();
+  });
+});
+
+describe('publishedPageMetadata with product', () => {
+  it('keeps og:type at its website default and lets JSON-LD carry the Product signal', () => {
+    // Next 14.2's OpenGraph serializer throws on og types outside its fixed
+    // union, so we never set og:type=product; the Product node is the signal.
+    const meta = publishedPageMetadata({ ...view, product: { name: 'Earbuds', price: 'US $29,99' } });
+    expect((meta.openGraph as { type?: string } | undefined)?.type).toBe('website');
+    expect(publishedProductJsonLd({ ...view, product: { name: 'Earbuds', price: 'US $29,99' } })?.['@type']).toBe('Product');
+  });
+});
+
+describe('offerForPrice', () => {
+  it('pins a known currency token into an Offer', () => {
+    expect(offerForPrice('US $12,99')?.priceCurrency).toBe('USD');
+    expect(offerForPrice('AED 45')?.priceCurrency).toBe('AED');
+    expect(offerForPrice('EUR 9,00')?.priceCurrency).toBe('EUR');
+  });
+
+  it('returns undefined for an unpinnable price string (never guesses)', () => {
+    expect(offerForPrice('12,99')).toBeUndefined();
+    expect(offerForPrice('الرجاء التواصل')).toBeUndefined();
+  });
+});
+
+describe('publishedProductJsonLd', () => {
+  const productView = {
+    host: 'p-acb123def.landing-ai.test',
+    title: 'Boutique page',
+    ogImageRef: 'asset:og',
+    product: { name: 'Wireless Earbuds Pro', price: 'US $29,99', url: 'https://www.aliexpress.com/item/1.html' },
+  };
+
+  it('returns null without product metadata', () => {
+    expect(publishedProductJsonLd({ host: view.host, title: 'T' })).toBeNull();
+  });
+
+  it('emits a Product node with name/image/url and a USD offer', () => {
+    const ld = publishedProductJsonLd(productView);
+    expect(ld).not.toBeNull();
+    expect(ld!['@type']).toBe('Product');
+    expect(ld!.name).toBe('Wireless Earbuds Pro');
+    expect(ld!.image).toBe('https://dar.example/assets/asset/asset%3Aog');
+    expect(ld!.url).toBe('https://dar.example/p-acb123def.landing-ai.test');
+    expect(ld!.offers).toEqual({
+      '@type': 'Offer',
+      price: 'US $29,99',
+      priceCurrency: 'USD',
+      availability: 'https://schema.org/InStock',
+      url: 'https://dar.example/p-acb123def.landing-ai.test',
+    });
+  });
+
+  it('falls back to the page title and omits offers when the currency is unknown', () => {
+    const ld = publishedProductJsonLd({
+      ...productView,
+      product: { name: 'Earbuds', price: 'اتصل بنا' },
+    });
+    expect(ld!.name).toBe('Earbuds');
+    expect(ld!.offers).toBeUndefined();
   });
 });

@@ -98,6 +98,7 @@ it('enqueues the full payload (including image options) onto the queue', async (
     suppliedImages: [
       { ref: 'asset:product-1', mime: 'image/jpeg', data_b64: 'dGVzdA==' },
     ],
+    product: { name: 'Wireless Earbuds Pro', price: 'US $29,99', url: 'https://www.aliexpress.com/item/1.html' },
   };
   const made = await enqueue(h, request, 'img-key');
   expect(made.created).toBe(true);
@@ -106,4 +107,22 @@ it('enqueues the full payload (including image options) onto the queue', async (
   expect(enqueued?.data.generateImages).toBe(true);
   expect(enqueued?.data.suppliedImages?.length).toBe(1);
   expect(enqueued?.data.suppliedImages?.[0]?.ref).toBe('asset:product-1');
+  expect(enqueued?.data.product).toEqual({ name: 'Wireless Earbuds Pro', price: 'US $29,99', url: 'https://www.aliexpress.com/item/1.html' });
+});
+
+it('accepts product metadata over POST /api/jobs and relays it onto the queue', async () => {
+  const h = await newHarness({ includeWorker: false });
+  const res = await h.app.inject({
+    method: 'POST',
+    url: '/api/jobs',
+    headers: { 'content-type': 'application/json' },
+    payload: JSON.stringify({
+      brief: BRIEF,
+      product: { name: 'Vetrilleux', price: 'DA 2500', url: 'https://www.aliexpress.com/item/2.html' },
+      generateImages: true,
+    }),
+  });
+  expect(res.statusCode).toBe(202);
+  expect(h.lastEnqueued()?.data.product).toEqual({ name: 'Vetrilleux', price: 'DA 2500', url: 'https://www.aliexpress.com/item/2.html' });
+  expect(res.json<{ status: string }>().status).toBe('QUEUED');
 });

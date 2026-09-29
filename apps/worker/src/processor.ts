@@ -65,6 +65,7 @@ function ensureRecord(deps: ProcessorDeps, jobId: string, payload: JobPayload): 
       page: payload.page,
       generateImages: payload.generateImages,
       suppliedImages: payload.suppliedImages,
+      product: payload.product,
     },
     traceId: createTraceId(),
     status: 'QUEUED',
@@ -155,6 +156,7 @@ export async function processJob(deps: ProcessorDeps, job: JobLike, token?: stri
                 job_id: jobId,
                 generate_images: record.request.generateImages,
                 supplied_images: record.request.suppliedImages,
+                product: record.request.product,
               });
             } catch (cause) {
               if (cause instanceof EngineError) {

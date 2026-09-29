@@ -90,6 +90,28 @@
           "type": "string",
           "enum": ["index, follow", "noindex, follow", "index, nofollow", "noindex, nofollow"],
           "default": "index, follow"
+        },
+        "product": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Server-derived product metadata (product-link generation) for structured-data/OpenGraph markup: the published page emits a schema.org Product node when present",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "price": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "maxLength": 2048
+            }
+          }
         }
       }
     },

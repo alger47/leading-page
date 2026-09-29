@@ -818,6 +818,13 @@ window.runParams = {"data":{"root":{"fields":{
     expect(Buffer.from(supplied![0].data_b64, 'base64').subarray(0, 8).equals(PNG_SIG)).toBe(true);
     expect(supplied![1].ref).toBe('product-2');
 
+    const relayed = createCall?.input.product;
+    expect(relayed).toEqual({
+      name: 'Product-Link Integration Item',
+      price: 'EUR 39,00',
+      url: `${base}/product`,
+    });
+
     const ref = 'asset:hero-x';
     worker.setAssets(jobId, [{ ref, mime: 'image/png', source: 'supplied', requirement_id: 'hero-1', data_b64: TINY_PNG.toString('base64') }]);
     worker.setStatus(jobId, 'COMPLETED', {

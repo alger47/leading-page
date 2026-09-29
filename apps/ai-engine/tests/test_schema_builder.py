@@ -135,3 +135,66 @@ def test_assemble_envelope_passes_canonical_validation(settings) -> None:
     validation = validate_page(schema, envelope_path=settings.page_schema_dir / settings.envelope_schema_name)
     assert validation["valid"] is True
     assert validation["errors"] == []
+
+
+def test_assemble_writes_page_seo_product_when_provided(settings) -> None:
+    out = _stage_outputs("Product: Wireless Earbuds Pro", "en")
+    schema, _issues = assemble(
+        plan=out["plan"],
+        content=out["content"],
+        layout=out["layout"],
+        locale="en",
+        product={
+            "name": "Wireless Earbuds Pro",
+            "price": "US $29,99",
+            "url": "https://www.aliexpress.com/item/1005001.html",
+            "ignored": "never lands in the envelope",
+        },
+    )
+    assert schema["page"]["seo"]["product"] == {
+        "name": "Wireless Earbuds Pro",
+        "price": "US $29,99",
+        "url": "https://www.aliexpress.com/item/1005001.html",
+    }
+    assert "ignored" not in schema["page"]["seo"]["product"]
+    validation = validate_page(schema, envelope_path=settings.page_schema_dir / settings.envelope_schema_name)
+    assert validation["valid"] is True
+    assert validation["errors"] == []
+
+
+def test_assemble_product_cleans_falsy_and_caps_lengths(settings) -> None:
+    out = _stage_outputs("SaaS tool for teams.", "en")
+    schema, _ = assemble(
+        plan=out["plan"],
+        content=out["content"],
+        layout=out["layout"],
+        locale="en",
+        product={"name": "   ", "price": "", "url": None, "nameboom": "x"},
+    )
+    assert "seo" not in schema["page"] or "product" not in schema["page"].get("seo", {})
+    schema2, _ = assemble(
+        plan=out["plan"],
+        content=out["content"],
+        layout=out["layout"],
+        locale="en",
+        product={"name": "T" * 500, "price": "US $9", "url": "https://a.example/" + "x" * 3000},
+    )
+    seo_product = schema2["page"]["seo"]["product"]
+    assert len(seo_product["name"]) == 200
+    assert len(seo_product["url"]) == 2048
+    assert seo_product["url"].startswith("https://a.example/")
+    assert seo_product["price"] == "US $9"
+    validation = validate_page(schema2, envelope_path=settings.page_schema_dir / settings.envelope_schema_name)
+    assert validation["valid"] is True
+    # A non-http(s) URL is dropped rather than risking an invalid canonical URI.
+    schema3, _ = assemble(
+        plan=out["plan"],
+        content=out["content"],
+        layout=out["layout"],
+        locale="en",
+        product={"name": "X", "price": None, "url": "javascript:alert(1)"},
+    )
+    seo3 = schema3["page"]["seo"]["product"]
+    assert "url" not in seo3
+    validation3 = validate_page(schema3, envelope_path=settings.page_schema_dir / settings.envelope_schema_name)
+    assert validation3["valid"] is True

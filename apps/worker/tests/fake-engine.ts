@@ -31,6 +31,7 @@ export interface EngineCall {
   page?: Record<string, unknown>;
   generate_images?: boolean;
   supplied_images?: Array<{ ref: string; mime: string; data_b64: string }>;
+  product?: { name?: string; price?: string; url?: string };
 }
 
 export interface FakeEngine {

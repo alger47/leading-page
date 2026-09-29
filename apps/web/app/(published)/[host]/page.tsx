@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getPublishedViewByHost } from '@/lib/public';
 import { PublishedPageContent } from '@/components/published-page';
-import { publishedPageJsonLd, publishedPageMetadata } from '@/lib/published-seo';
+import { publishedPageJsonLd, publishedPageMetadata, publishedProductJsonLd } from '@/lib/published-seo';
 
 /**
  * Public published page (Phase 10 — J5).
@@ -25,12 +25,19 @@ export default async function PublishedPage({ params }: { params: { host: string
   if (!view) notFound();
 
   const jsonLd = publishedPageJsonLd(view);
+  const productJsonLd = publishedProductJsonLd(view);
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+      {productJsonLd ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+        />
+      ) : null}
       <PublishedPageContent schema={view.content} />
     </>
   );

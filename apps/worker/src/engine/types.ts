@@ -85,6 +85,8 @@ export interface GenerateRequest {
   budget_usd?: number;
   generate_images?: boolean;
   supplied_images?: SuppliedImage[];
+  /** Optional server-derived product metadata → page.seo.product (Phase 16). */
+  product?: { name?: string; price?: string; url?: string };
 }
 
 /** A generated raster fetched from the engine's ephemeral store. */

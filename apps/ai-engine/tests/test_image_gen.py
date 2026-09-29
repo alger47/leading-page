@@ -614,6 +614,68 @@ class FakeRasterProvider:
         return ImageResult(ok=True, data=PNG_BYTES, mime="image/png", message="ok", model=self.name, latency_ms=1.0)
 
 
+def test_asset_renderer_og_reuses_real_product_raster_never_generates():
+    """PAGE3 pattern: with real product rasters the og tile reuses the SECOND
+    product raster (the first already fronts the hero), zero provider calls."""
+    from app.api.container import build_container
+    from app.cost.ledger import JobLedger
+    from app.services.asset_renderer import SuppliedImage
+
+    settings = _stub_settings()
+    settings.image_provider = "pollinations"
+    container = build_container(settings=settings)
+    container.providers.force_image_for_tests(FakeRasterProvider())
+    ledger = JobLedger(container.routing, container.settings, 1.0)
+
+    supplied = [
+        SuppliedImage(ref="product-1", mime="image/png", data=b"\x89PNG\r\n\x1a\nHERO-RASTER-1"),
+        SuppliedImage(ref="product-2", mime="image/webp", data=b"RIFF....WEBPOG-CANDIDATE"),
+    ]
+    stage, blobs = asyncio.run(container.images.render(requirements=REQS, tone=None, ledger=ledger, supplied=supplied))
+
+    images = (stage.data or {}).get("images") or []
+    og_entry = next((e for e in images if e["ref"] == "asset:og"), None)
+    assert og_entry is not None
+    assert og_entry["requirement_id"] == "og"
+    assert og_entry["source"] == "supplied"
+    assert og_entry["mime"] == "image/webp"  # second product raster wins the card
+    og_blob = next(b for b in blobs if b["ref"] == "asset:og")
+    assert og_blob["data"] == b"RIFF....WEBPOG-CANDIDATE"
+    og_attempt = next(a for a in stage.attempts if a.prompt_ref == "supplied@product")
+    assert og_attempt.provider == "product"
+    assert og_attempt.model_id == "supplied"
+    assert og_attempt.cost_usd == 0.0
+    assert og_attempt.outcome.value == "ok"
+
+
+def test_asset_renderer_og_falls_back_to_first_product_then_generation():
+    from app.api.container import build_container
+    from app.cost.ledger import JobLedger
+    from app.services.asset_renderer import SuppliedImage
+
+    settings = _stub_settings()
+    settings.image_provider = "pollinations"
+    container = build_container(settings=settings)
+    container.providers.force_image_for_tests(FakeRasterProvider())
+    ledger = JobLedger(container.routing, container.settings, 1.0)
+
+    # Only ONE product raster: it becomes the og (first, not second).
+    supplied = [SuppliedImage(ref="product-1", mime="image/png", data=b"\x89PNG\r\n\x1a\nSOLO-RASTER")]
+    stage, blobs = asyncio.run(container.images.render(requirements=REQS, tone=None, ledger=ledger, supplied=supplied))
+    images = (stage.data or {}).get("images") or []
+    og_entry = next((e for e in images if e["ref"] == "asset:og"), None)
+    assert og_entry is not None and og_entry["source"] == "supplied"
+    assert next(b for b in blobs if b["ref"] == "asset:og")["data"] == b"\x89PNG\r\n\x1a\nSOLO-RASTER"
+
+    # An oversized product raster can't serve as og → generated tile instead.
+    big = SuppliedImage(ref="product-1", mime="image/png", data=b"\x89PNG\r\n\x1a\n" + b"x" * (2 * 1024 * 1024))
+    stage2, blobs2 = asyncio.run(container.images.render(requirements=REQS, tone=None, ledger=ledger, supplied=[big]))
+    images2 = (stage2.data or {}).get("images") or []
+    og2 = next((e for e in images2 if e["ref"] == "asset:og"), None)
+    assert og2 is not None and og2["source"] == "generated"
+    assert next(b for b in blobs2 if b["ref"] == "asset:og")["data"].startswith(b"\x89PNG")
+
+
 def test_asset_renderer_appends_og_tile_for_real_provider_and_never_for_stub():
     from app.api.container import build_container
     from app.cost.ledger import JobLedger
@@ -642,3 +704,53 @@ def test_asset_renderer_appends_og_tile_for_real_provider_and_never_for_stub():
     assert [b["ref"] for b in blobs].count("asset:og") == 1
     assert all(blob["data"].startswith(b"\x89PNG") for blob in blobs if blob["ref"] == "asset:og")
     assert stage.ok is True
+
+
+def test_generate_with_product_meta_persists_page_seo_product():
+    """Server-derived product metadata lands deterministically in
+    page.seo.product so the published page can emit Product structured data."""
+    from fastapi.testclient import TestClient
+
+    from app.api.container import build_container
+    from app.main import create_app
+
+    container = build_container(settings=_stub_settings())
+    app = create_app(container=container)
+    with TestClient(app) as client:
+        res = client.post(
+            "/internal/v1/generate",
+            headers={"X-Internal-Token": "dev-internal-token"},
+            json={
+                "brief": "Product: Wireless Earbuds Pro\nPrice: US $29,99\nGenerate a high-converting landing page for this product.",
+                "product": {"name": "Wireless Earbuds Pro", "price": "US $29,99", "url": "https://www.aliexpress.com/item/1005001.html"},
+            },
+        )
+    assert res.status_code == 200, res.text
+    job = res.json()["job"]
+    assert job["status"] == "COMPLETED"
+    seo = (job["page"].get("page") or {}).get("seo") or {}
+    assert seo["product"] == {
+        "name": "Wireless Earbuds Pro",
+        "price": "US $29,99",
+        "url": "https://www.aliexpress.com/item/1005001.html",
+    }
+
+
+def test_generate_without_product_leaves_no_seo_product():
+    from fastapi.testclient import TestClient
+
+    from app.api.container import build_container
+    from app.main import create_app
+
+    container = build_container(settings=_stub_settings())
+    app = create_app(container=container)
+    with TestClient(app) as client:
+        res = client.post(
+            "/internal/v1/generate",
+            headers={"X-Internal-Token": "dev-internal-token"},
+            json={"brief": "Boutique hotel near the old town.", "product": {"name": "   "}},
+        )
+    assert res.status_code == 200, res.text
+    job = res.json()["job"]
+    seo = (job["page"].get("page") or {}).get("seo")
+    assert seo is None or "product" not in seo

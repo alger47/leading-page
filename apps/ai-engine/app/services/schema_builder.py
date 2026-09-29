@@ -27,6 +27,7 @@ envelope is still produced so editors/preview can render honestly.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 SCHEMA_VERSION = "1.0.0"
@@ -197,6 +198,26 @@ def _build_theme(layout: dict[str, Any], locale: str) -> dict[str, Any]:
     }
 
 
+def _clean_product(product: dict[str, Any] | None) -> dict[str, Any]:
+    """Deterministically whitelist product metadata from the (server-derived)
+    job request into the envelope's ``page.seo.product`` block. Only the three
+    well-known fields survive, trimmed and length-capped — never free-typed by
+    the LLM and never fabricated out of the brief text. The URL must be a real
+    http(s) absolute one (matches the product-source SSRF posture); anything
+    else is dropped rather than risking an invalid canonical URI."""
+    if not isinstance(product, dict):
+        return {}
+    clean: dict[str, Any] = {}
+    for key, cap in (("name", 200), ("price", 64)):
+        value = product.get(key)
+        if isinstance(value, str) and value.strip():
+            clean[key] = value.strip()[:cap]
+    url = product.get("url")
+    if isinstance(url, str) and url.strip() and not any(ch.isspace() for ch in url) and re.match(r"^https?://", url, re.IGNORECASE):
+        clean["url"] = url.strip()[:2048]
+    return clean
+
+
 def assemble(
     *,
     plan: dict[str, Any],
@@ -207,6 +228,7 @@ def assemble(
     locale: str = "en",
     prompt_versions: dict[str, str] | None = None,
     model: str = "stub",
+    product: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Build the Page Schema envelope from stage outputs.
 
@@ -218,13 +240,18 @@ def assemble(
     sections = _build_sections(plan, content, layout, issues)
     title = _derive_page_title(sections, analysis, issues)
 
+    page: dict[str, Any] = {
+        "title": title,
+        "locale": locale,
+        "direction": direction_for_locale(locale),
+    }
+    product_seo = _clean_product(product)
+    if product_seo:
+        page["seo"] = {"product": product_seo}
+
     schema: dict[str, Any] = {
         "schemaVersion": SCHEMA_VERSION,
-        "page": {
-            "title": title,
-            "locale": locale,
-            "direction": direction_for_locale(locale),
-        },
+        "page": page,
         "theme": _build_theme(layout, locale),
         "sections": sections,
         "assets": [],

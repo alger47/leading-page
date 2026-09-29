@@ -62,6 +62,7 @@ export function buildPayload(request: GenerationRequest, idempotencyKey: string,
     page: request.page,
     generateImages: request.generateImages,
     suppliedImages: request.suppliedImages,
+    product: request.product,
     idempotencyKey,
     fingerprint,
   };

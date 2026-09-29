@@ -15,6 +15,10 @@ export interface PublishedSeoView {
   title: string;
   description?: string;
   ogImageRef?: string;
+  /** Server-derived product metadata (product-link generation). Present when
+   * the page was generated from a product URL; enables Product structured
+   * data + `og:type=product` markup. */
+  product?: { name?: string; price?: string; url?: string };
 }
 
 /** Public base URL (call-time so tests/consumers can override the env). */
@@ -42,7 +46,12 @@ export function publishedOgImageUrl(ogImageRef: string): string {
   return resolved.startsWith('/') ? `${base.replace(/\/+$/, '')}${resolved}` : `${base}${resolved}`;
 }
 
-/** Next Metadata for a live page: canonical + description + indexable + OG. */
+/** Next Metadata for a live page: canonical + description + indexable + OG.
+ * The Product signal lives in `publishedProductJsonLd` structured data: Next
+ * 14.2's OpenGraph serializer runs a `switch` over a fixed og:type union and
+ * throws on unknown values, so `og:type=product` is deliberately NOT set here
+ * (the type stays `website`, the OG default) — honest minima over markup that
+ * the platform would crash trying to emit. */
 export function publishedPageMetadata(view: PublishedSeoView): Metadata {
   const url = publishedPageUrl(view.host);
   const ogImage = view.ogImageRef ? publishedOgImageUrl(view.ogImageRef) : undefined;
@@ -74,4 +83,59 @@ export function publishedPageJsonLd(view: PublishedSeoView): Record<string, unkn
     ...(view.description ? { description: view.description } : {}),
     ...(ogImage ? { primaryImageOfPage: ogImage } : {}),
   };
+}
+
+// Display-string → ISO currency for the Offer node. Only well-known tokens are
+// honored; an unrecognized price string emits no offer rather than a wrong one
+// (honest minima — Product without offers is still valid structured data).
+const CURRENCY_TOKENS: Array<[RegExp, string]> = [
+  [/us\s?\$/i, 'USD'],
+  [/EUR/i, 'EUR'],
+  [/AED/i, 'AED'],
+  [/SAR/i, 'SAR'],
+  [/EGP/i, 'EGP'],
+  [/DZD/i, 'DZD'],
+  [/MAD/i, 'MAD'],
+  [/TND/i, 'TND'],
+  [/JPY/i, 'JPY'],
+  [/GBP/i, 'GBP'],
+  [/KWD/i, 'KWD'],
+];
+
+/** schema.org Offer from a display price string, or undefined when no known
+ * currency token can be pinned (never guesses a currency). */
+export function offerForPrice(
+  price: string,
+): { '@type': 'Offer'; price: string; priceCurrency: string; availability: string } | undefined {
+  const matched = CURRENCY_TOKENS.find(([re]) => re.test(price));
+  if (!matched) return undefined;
+  return {
+    '@type': 'Offer',
+    price: price.trim(),
+    priceCurrency: matched[1],
+    availability: 'https://schema.org/InStock',
+  };
+}
+
+/**
+ * schema.org Product node for a product-linked published page. Emitted only
+ * when the snapshot carries server-derived product metadata; `name`/`image`
+ * come from the page, the price offer only when its currency is pinned.
+ */
+export function publishedProductJsonLd(view: PublishedSeoView): Record<string, unknown> | null {
+  if (!view.product) return null;
+  const url = publishedPageUrl(view.host);
+  const ogImage = view.ogImageRef ? publishedOgImageUrl(view.ogImageRef) : undefined;
+  const node: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: view.product.name ?? view.title,
+    url,
+    ...(ogImage ? { image: ogImage } : {}),
+  };
+  if (view.product.price) {
+    const offer = offerForPrice(view.product.price);
+    if (offer) node.offers = { ...offer, url };
+  }
+  return node;
 }

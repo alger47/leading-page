@@ -68,6 +68,7 @@ class Pipeline:
         budget_usd: float | None = None,
         generate_images: bool = False,
         supplied_images: list[Any] | None = None,
+        product: dict[str, Any] | None = None,
     ) -> JobResult:
         start_ms = time.perf_counter() * 1000
         result = JobResult(job_id=job_id or f"job-{uuid.uuid4().hex[:12]}", status="RUNNING", start_ms=int(start_ms))
@@ -83,7 +84,7 @@ class Pipeline:
         ledger = JobLedger(self.routing, self.settings, budget_usd)
 
         try:
-            return await self._run_stages(result, flags["brief"], resolved_locale, tone, ledger, start_ms, generate_images, supplied_images)
+            return await self._run_stages(result, flags["brief"], resolved_locale, tone, ledger, start_ms, generate_images, supplied_images, product)
         except ProviderHardError as exc:
             if exc.attempt is not None:
                 result.stages.append(
@@ -110,6 +111,7 @@ class Pipeline:
         start_ms: float,
         generate_images: bool,
         supplied_images: list[Any] | None = None,
+        product: dict[str, Any] | None = None,
     ) -> JobResult:
         # Stage 1 — BriefAnalyzer
         s1 = await self.runner.run(
@@ -193,6 +195,7 @@ class Pipeline:
             locale=resolved_locale,
             prompt_versions=_prompt_versions(result.stages),
             model=_primary_model(result.stages),
+            product=product,
         )
         # Phase 16: bind the generated raster manifest into the schema's image
         # slots (hero media, features/gallery items) as `asset:` refs so the

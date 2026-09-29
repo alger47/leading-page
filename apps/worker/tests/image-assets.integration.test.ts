@@ -96,6 +96,7 @@ describe('image asset relay (Stage 6)', () => {
           brief: 'Product: Wireless Earbuds Pro.',
           generateImages: true,
           suppliedImages: [{ ref: 'product-1', mime: 'image/png', data_b64: Buffer.from([0x89, 0x50, 0x4e, 0x47]).toString('base64') }],
+          product: { name: 'Wireless Earbuds Pro', price: 'US $29,99', url: 'https://www.aliexpress.com/item/1.html' },
         },
         headers: { 'idempotency-key': 'ia-4' },
       });
@@ -107,6 +108,7 @@ describe('image asset relay (Stage 6)', () => {
 
       const call = harness.fake!.calls[0];
       expect(call.supplied_images).toEqual([{ ref: 'product-1', mime: 'image/png', data_b64: Buffer.from([0x89, 0x50, 0x4e, 0x47]).toString('base64') }]);
+      expect(call.product).toEqual({ name: 'Wireless Earbuds Pro', price: 'US $29,99', url: 'https://www.aliexpress.com/item/1.html' });
     } finally {
       await harness.close();
     }

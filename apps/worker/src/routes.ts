@@ -72,6 +72,15 @@ const POST_JOB_SCHEMA = {
         },
       },
     },
+    product: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        name: { type: 'string', minLength: 1, maxLength: 200 },
+        price: { type: 'string', minLength: 1, maxLength: 64 },
+        url: { type: 'string', minLength: 1, maxLength: 2048 },
+      },
+    },
   },
 } as const;
 

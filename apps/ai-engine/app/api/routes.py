@@ -53,6 +53,18 @@ def _supplied_images(models: list[SuppliedImage]):
     ]
 
 
+class ProductMeta(BaseModel):
+    """Server-derived product metadata (product-link generation): the web
+    extracts name/price from the marketplace page and forwards them here; the
+    schema builder writes them deterministically into ``page.seo.product`` so
+    the published page can emit truthful Product structured data. Bounds mirror
+    the envelope schema; nothing is inferred from the brief."""
+
+    name: str | None = Field(default=None, max_length=200)
+    price: str | None = Field(default=None, max_length=64)
+    url: str | None = Field(default=None, max_length=2048)
+
+
 class JobRequest(BaseModel):
     brief: str = Field(min_length=1, max_length=4_000)
     locale: str | None = Field(default=None, pattern="^(ar|fr|en)$")
@@ -65,6 +77,8 @@ class JobRequest(BaseModel):
     # Product-link raster bytes (Phase 16 part 2). Bounded: the worker caps this
     # at image_max entries; the renderer also truncates defensively.
     supplied_images: list[SuppliedImage] = Field(default_factory=list, max_length=8)
+    # Product metadata for the envelope's SEO block (optional, server-derived).
+    product: ProductMeta | None = None
 
 
 class RegenerateSectionRequest(BaseModel):
@@ -112,6 +126,7 @@ async def generate(request: Request, body: JobRequest) -> dict:
             budget_usd=body.budget_usd,
             generate_images=body.generate_images,
             supplied_images=_supplied_images(body.supplied_images),
+            product=None if body.product is None else body.product.model_dump(exclude_none=True),
         )
     except BriefValidationError as exc:
         raise HTTPException(status_code=422, detail={"code": exc.code, "message": str(exc)}) from exc
