@@ -8,6 +8,7 @@ import {
   publishedPageMetadata,
   publishedOgImageUrl,
   publishedPageUrl,
+  publicBaseUrl,
 } from '../lib/published-seo.js';
 
 const view = {
@@ -20,6 +21,23 @@ const view = {
 beforeEach(() => {
   process.env.PUBLIC_BASE_URL = 'https://dar.example';
   process.env.PUBLIC_HOST_SUFFIX = 'landing-ai.test';
+});
+
+describe('publicBaseUrl', () => {
+  it('falls back to RENDER_EXTERNAL_URL then localhost', () => {
+    delete process.env.PUBLIC_BASE_URL;
+    process.env.RENDER_EXTERNAL_URL = 'https://web-sjbb.onrender.com';
+    try {
+      expect(publicBaseUrl()).toBe('https://web-sjbb.onrender.com');
+      delete process.env.RENDER_EXTERNAL_URL;
+      expect(publicBaseUrl()).toBe('http://localhost:3000');
+      process.env.PUBLIC_BASE_URL = 'https://custom.example/';
+      expect(publicBaseUrl()).toBe('https://custom.example');
+    } finally {
+      delete process.env.RENDER_EXTERNAL_URL;
+      delete process.env.PUBLIC_BASE_URL;
+    }
+  });
 });
 
 describe('publishedPageUrl', () => {

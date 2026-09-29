@@ -19,7 +19,13 @@ export interface PublishedSeoView {
 
 /** Public base URL (call-time so tests/consumers can override the env). */
 export function publicBaseUrl(): string {
-  return (process.env.PUBLIC_BASE_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
+  // Render injects the service's own external URL at runtime; prefer the
+  // explicit PUBLIC_BASE_URL, then that automatic fallback, then localhost.
+  const raw =
+    process.env.PUBLIC_BASE_URL ??
+    process.env.RENDER_EXTERNAL_URL ??
+    'http://localhost:3000';
+  return raw.replace(/\/+$/, '');
 }
 
 /** Absolute public URL of a live page, e.g. "https://acme.example/p-abc123def". */
