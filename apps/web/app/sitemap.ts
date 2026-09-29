@@ -11,6 +11,10 @@ import { getPrismaClient } from '@landing-ai/database';
 import type { MetadataRoute } from 'next';
 import { publicBaseUrl } from '@/lib/published-seo';
 
+// DB-backed → never prerender at build time (no DATABASE_URL/unreachable DB
+// during next build must not kill the deploy); resolve per request.
+export const dynamic = 'force-dynamic';
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const rows = await getPrismaClient().publishedPage.findMany({
     where: {
