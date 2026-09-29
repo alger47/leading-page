@@ -487,3 +487,158 @@ def test_asset_renderer_enabled_for_pollinations():
     routing_cfg = RoutingConfig.from_path(settings.routing_config_path)
     renderer = AssetRenderer(routing=routing_cfg, settings=settings, providers=None)  # type: ignore[arg-type]
     assert renderer.enabled() is True
+
+
+def test_pollinations_deterministic_seed_same_prompt_same_seed():
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.params["seed"])
+        return httpx.Response(200, content=b"img", headers={"content-type": "image/png"})
+
+    provider = PollinationsImageProvider(transport=httpx.MockTransport(handler))
+    asyncio.run(provider.generate(prompt="the same prompt", size="1024x1024"))
+    asyncio.run(provider.generate(prompt="the same prompt", size="1024x1024"))
+    assert len(seen) == 2
+    assert seen[0] == seen[1]
+
+
+def test_pollinations_seed_disabled_when_mode_not_prompt_sha():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "seed" not in request.url.params
+        return httpx.Response(200, content=b"img", headers={"content-type": "image/png"})
+
+    provider = PollinationsImageProvider(seed="random", transport=httpx.MockTransport(handler))
+    res = asyncio.run(provider.generate(prompt="a cat", size="1024x1024"))
+    assert res.ok is True
+
+
+def test_pollinations_retry_once_on_transient_then_mirror_succeeds():
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.host)
+        if request.url.host == "images.pollinations.ai":
+            return httpx.Response(502, text="bad gateway")
+        return httpx.Response(200, content=b"img", headers={"content-type": "image/png"})
+
+    provider = PollinationsImageProvider(
+        base_urls=["https://images.pollinations.ai/prompt", "https://image.pollinations.ai/prompt"],
+        retry_delay_s=0.0,
+        transport=httpx.MockTransport(handler),
+    )
+    res = asyncio.run(provider.generate(prompt="a cat", size="1024x1024"))
+    assert res.ok is True
+    assert res.data == b"img"
+    assert calls == ["images.pollinations.ai", "image.pollinations.ai"]
+
+
+def test_pollinations_no_retry_on_deterministic_4xx():
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(404, text="nope")
+
+    provider = PollinationsImageProvider(
+        base_urls=["https://images.pollinations.ai/prompt", "https://image.pollinations.ai/prompt"],
+        retry_delay_s=0.0,
+        transport=httpx.MockTransport(handler),
+    )
+    res = asyncio.run(provider.generate(prompt="a cat", size="1024x1024"))
+    assert res.ok is False
+    assert "404" in res.message
+    assert len(calls) == 1  # a deterministic 4xx must NOT fan out across mirrors
+
+
+def test_pollinations_retries_preserve_same_seed_across_attempts():
+    seeds: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seeds.append(request.url.params["seed"])
+        return httpx.Response(503, text="unavailable")
+
+    provider = PollinationsImageProvider(retry_delay_s=0.0, transport=httpx.MockTransport(handler))
+    res = asyncio.run(provider.generate(prompt="a cat", size="1024x1024"))
+    assert res.ok is False
+    assert len(seeds) == 2  # default retries=1 → 2 attempts
+    assert seeds[0] == seeds[1]
+
+
+def test_pollinations_mirror_ssrf_allowlist_includes_each_mirror():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"img", headers={"content-type": "image/png"})
+
+    provider = PollinationsImageProvider(
+        base_urls=["https://images.pollinations.ai/prompt", "https://evil.example/prompt"],
+        retry_delay_s=0.0,
+        transport=httpx.MockTransport(handler),
+    )
+    res = asyncio.run(provider.generate(prompt="a cat", size="1024x1024"))
+    # each configured mirror may be contacted; assert_safe_egress must accept
+    # image.pollinations.ai even when a second mirror host is present.
+    assert res.ok is True
+
+
+def test_bind_generated_assets_wires_og_image_ref_into_page_seo():
+    from app.services.schema_builder import bind_generated_assets
+
+    schema = {
+        "sections": [{"id": "hero-1", "type": "hero", "content": {"media": "placeholder-1"}}]
+    }
+    manifest = [
+        {"ref": "asset:hero-bg", "requirement_id": "hero-bg"},
+        {"ref": "asset:og", "requirement_id": "og"},
+    ]
+    bind_generated_assets(schema, manifest)
+    assert schema["sections"][0]["content"]["media"]["assetRef"] == "asset:hero-bg"
+    assert schema["page"]["seo"]["ogImageRef"] == "asset:og"
+
+
+def test_bind_generated_assets_leaves_seo_unset_when_no_og_entry():
+    from app.services.schema_builder import bind_generated_assets
+
+    schema = {
+        "sections": [{"id": "hero-1", "type": "hero", "content": {"media": "placeholder-1"}}]
+    }
+    bind_generated_assets(schema, [{"ref": "asset:hero-bg", "requirement_id": "hero-bg"}])
+    assert "seo" not in schema.get("page", {})
+
+
+class FakeRasterProvider:
+    """Mimics a real raster provider (non-stub): returns generated bytes."""
+
+    name = "pollinations"
+
+    async def generate(self, *, prompt: str, size: str) -> ImageResult:
+        return ImageResult(ok=True, data=PNG_BYTES, mime="image/png", message="ok", model=self.name, latency_ms=1.0)
+
+
+def test_asset_renderer_appends_og_tile_for_real_provider_and_never_for_stub():
+    from app.api.container import build_container
+    from app.cost.ledger import JobLedger
+
+    # Stub: og is skipped — 2 section images only, no asset:og.
+    container = build_container(settings=_stub_settings())
+    ledger = JobLedger(container.routing, container.settings, 1.0)
+    stage, blobs = asyncio.run(container.images.render(requirements=REQS, tone=None, ledger=ledger))
+    refs = [e["ref"] for e in (stage.data or {}).get("images") or []]
+    assert "asset:og" not in refs
+    assert [b["ref"] for b in blobs] == refs
+
+    # Real provider: a dedicated square 1024x1024 og tile is appended + billed.
+    settings = _stub_settings()
+    settings.image_provider = "pollinations"
+    container = build_container(settings=settings)
+    container.providers.force_image_for_tests(FakeRasterProvider())
+    ledger = JobLedger(container.routing, container.settings, 1.0)
+    stage, blobs = asyncio.run(container.images.render(requirements=REQS, tone=None, ledger=ledger))
+    images = (stage.data or {}).get("images") or []
+    refs = [e["ref"] for e in images]
+    assert "asset:og" in refs
+    og_entry = next(e for e in images if e["ref"] == "asset:og")
+    assert og_entry["requirement_id"] == "og"
+    assert og_entry["source"] == "generated"
+    assert [b["ref"] for b in blobs].count("asset:og") == 1
+    assert all(blob["data"].startswith(b"\x89PNG") for blob in blobs if blob["ref"] == "asset:og")
+    assert stage.ok is True

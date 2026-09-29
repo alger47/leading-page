@@ -17,6 +17,7 @@ import { describe, expect, it } from 'vitest';
 const routeSrc = readFileSync(new URL('../app/(published)/[host]/page.tsx', import.meta.url), 'utf8');
 const shellSrc = readFileSync(new URL('../components/published-page.tsx', import.meta.url), 'utf8');
 const dashboardLayout = readFileSync(new URL('../app/(dashboard)/layout.tsx', import.meta.url), 'utf8');
+const seoSrc = readFileSync(new URL('../lib/published-seo.ts', import.meta.url), 'utf8');
 
 describe('published page isolation', () => {
   it('the public route is server-only and imports nothing dashboard/editor', () => {
@@ -34,7 +35,8 @@ describe('published page isolation', () => {
   });
 
   it('published pages are indexable; dashboard (draft) routes are noindex', () => {
-    expect(routeSrc).toMatch(/index:\s*true/);
+    expect(routeSrc).toContain('publishedPageMetadata');
+    expect(`${routeSrc}\n${seoSrc}`).toMatch(/index:\s*true/);
     expect(dashboardLayout).toMatch(/index:\s*false/);
   });
 });

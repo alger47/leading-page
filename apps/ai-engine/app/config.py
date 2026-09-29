@@ -76,6 +76,19 @@ class Settings(BaseSettings):
     image_hf_model: str = ""
     image_pollinations_base_url: str = "https://image.pollinations.ai/prompt"
     image_pollinations_model: str = ""  # empty => vendor default model
+    # Ordered pollinations mirror base URLs (comma-separated). Empty => the
+    # single AI_IMAGE_POLLINATIONS_BASE_URL. A transient failure falls through
+    # to the next mirror for the SAME prompt; 4xx/oversize are not retried.
+    image_pollinations_base_urls: str = ""
+    # Bounded per-image retry (SAME prompt => SAME seed => SAME raster):
+    # `image_retries` tries total (0 = no retry); the delay applies between
+    # attempts so the vendor's edge recovers from a transient 5xx/429.
+    image_retries: int = 1
+    image_retry_delay_s: float = 2.5
+    # Deterministic seed mode: "prompt-sha" derives a per-prompt seed from
+    # sha256(prompt) so a retry re-renders the SAME image; a plain integer pins
+    # every generated image to that one seed. Any other value disables seeding.
+    image_seed: str = "prompt-sha"
     # Empty => orientation-aware defaults (landscape 1536x1024, portrait 1024x1536,
     # square 1344x1344) so browser cover-crops never upscale generated pixels.
     # An explicit AI_IMAGE_SIZE (WIDTHxHEIGHT) unwins those defaults.

@@ -297,3 +297,22 @@ def bind_generated_assets(schema: dict[str, Any], manifest: list[dict[str, Any]]
         if not alt:
             alt = requirement.replace("-", " ").replace("_", " ").strip().capitalize()
         owner[key] = {"assetRef": entry["ref"], "alt": alt or "Generated image for this section"}
+
+    # OG/social-share raster (Stage 6 og tile, square 1:1) → page.seo.ogImageRef.
+    # Bound only when the og entry exists in the manifest; a failed/absent og
+    # leaves the ref unset so the public renderer emits no og:image meta. The
+    # envelope schema already accepts page.seo.{title,description,ogImageRef}.
+    og_entry = next(
+        (e for e in manifest if isinstance(e, dict) and str(e.get("requirement_id") or "") == "og" and isinstance(e.get("ref"), str) and e["ref"].startswith("asset:")),
+        None,
+    )
+    if og_entry is not None and isinstance(schema, dict):
+        page = schema.get("page")
+        if not isinstance(page, dict):
+            page = {}
+            schema["page"] = page
+        seo = page.get("seo")
+        if not isinstance(seo, dict):
+            seo = {}
+            page["seo"] = seo
+        seo["ogImageRef"] = og_entry["ref"]

@@ -31,6 +31,11 @@ _HTTP_PROVIDERS: dict[str, type] = {
 }
 
 
+def _csv_list(value: str) -> list[str]:
+    """Comma-separated mirror list → trimmed non-empty entries (empty = [])."""
+    return [item.strip().rstrip("/") for item in value.split(",") if item.strip()]
+
+
 class ProviderRegistry:
     """One provider instance per model class (stub shared by default).
 
@@ -73,10 +78,15 @@ class ProviderRegistry:
         if mode == "pollinations":
             key = f"pollinations:{self.settings.image_pollinations_model or 'default'}"
             if key not in self._image_built:
+                mirrors = _csv_list(self.settings.image_pollinations_base_urls)
                 self._image_built[key] = PollinationsImageProvider(
                     base_url=self.settings.image_pollinations_base_url,
+                    base_urls=mirrors or None,
                     model=self.settings.image_pollinations_model,
                     timeout_s=self.settings.image_timeout_s,
+                    retries=self.settings.image_retries,
+                    retry_delay_s=self.settings.image_retry_delay_s,
+                    seed=self.settings.image_seed,
                 )
             return self._image_built[key]
         if mode == "huggingface":

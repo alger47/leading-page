@@ -13,6 +13,8 @@ export interface PublishedViewByHost {
   versionNumber: number;
   schemaVersion: string;
   title: string;
+  description?: string;
+  ogImageRef?: string;
   content: Record<string, unknown>;
   publishedAt: string;
 }
@@ -31,12 +33,15 @@ export async function getPublishedViewByHost(host: string): Promise<PublishedVie
   });
   if (!row) return null;
   const content = row.pageVersion.contentJson as Record<string, unknown>;
-  const page = (content?.page ?? {}) as { title?: string };
+  const page = (content?.page ?? {}) as { title?: string; seo?: { description?: string; ogImageRef?: string } };
+  const seo = page.seo;
   return {
     host: normalized,
     versionNumber: row.pageVersion.versionNumber,
     schemaVersion: row.pageVersion.schemaVersion,
     title: page.title ?? `Published page`,
+    description: seo?.description,
+    ogImageRef: seo?.ogImageRef,
     content,
     publishedAt: row.publishedAt.toISOString(),
   };

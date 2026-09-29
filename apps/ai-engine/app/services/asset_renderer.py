@@ -31,6 +31,9 @@ from app.routing.config import RoutingConfig
 IMAGE_STAGE = "asset-renderer"
 IMAGE_ISSUE_RULE = "E-IMG-001"
 _GENERATED_KINDS = ("image", "illustration")
+_OG_REQUIREMENT_ID = "og"
+# OG/Social share raster aspect: square 1:1, native 1024px (vendors downscale).
+_OG_SIZE = "1024x1024"
 
 
 @dataclass(frozen=True)
@@ -184,10 +187,89 @@ class AssetRenderer:
                     }
                 )
 
+        await self._generate_og(
+            provider=provider,
+            requirements=selected,
+            subject_hint=selected[0].get("subject") if selected else None,
+            tone=tone,
+            ledger=ledger,
+            blobs=blobs,
+            manifest=manifest,
+            attempts=attempts,
+            issues=issues,
+        )
+
         stage = StageResult(stage=IMAGE_STAGE, ok=True, data={"images": manifest}, attempts=attempts, issues=issues)
         if issues:
             stage.draft = True
         return stage, blobs
+
+    async def _generate_og(
+        self,
+        *,
+        provider: Any,
+        requirements: list[dict[str, Any]],
+        subject_hint: str | None,
+        tone: str | None,
+        ledger: JobLedger,
+        blobs: list[dict[str, Any]],
+        manifest: list[dict[str, Any]],
+        attempts: list[GenerationAttempt],
+        issues: list[dict[str, Any]],
+    ) -> None:
+        """Generate a dedicated square OG raster (1:1) appended to the manifest.
+
+        Run only for the real providers and only when at least one section asset
+        was produced (an og without content pixels is not worth a vendor call).
+        The blob ref is ``asset:og``; schema_builder wires it into
+        ``page.seo.ogImageRef``. Bounded failure, E-IMG-001 posture: a failed og
+        never fails the stage — the ref simply stays unbound (no og meta).
+        """
+        if not manifest or getattr(provider, "name", "") == "stub":
+            return
+        subject = (subject_hint or "").strip() or "the page hero visual from the landing page brief"
+        prompt = self._prompt(subject=subject, orientation="square", kind="image", tone=tone)
+        started = time.perf_counter()
+        try:
+            result = await provider.generate(prompt=prompt, size=_OG_SIZE)
+        except Exception as exc:  # noqa: BLE001 — bounded per-image outcome
+            result = ImageResult(ok=False, message=f"og image provider raised: {exc}", model="pollinations", latency_ms=(time.perf_counter() - started) * 1000.0)
+        cost = 0.0
+        og_ok = bool(result.ok and result.data and len(result.data) <= self.settings.image_max_bytes)
+        if og_ok:
+            cost = self.routing.image().cost_per_image if self.routing.images else 0.0
+            ref = f"asset:{_OG_REQUIREMENT_ID}"
+            manifest.append({"ref": ref, "requirement_id": _OG_REQUIREMENT_ID, "mime": result.mime, "size_bytes": len(result.data), "source": "generated"})
+            blobs.append({"ref": ref, "mime": result.mime, "data": bytes(result.data)})
+        else:
+            issues.append(
+                {
+                    "severity": "warning",
+                    "ruleId": IMAGE_ISSUE_RULE,
+                    "path": "/og",
+                    "message": result.message or "og image generation failed — no social-share asset",
+                }
+            )
+        attempts.append(
+            GenerationAttempt(
+                stage=IMAGE_STAGE,
+                attempt_number=len(attempts) + 1,
+                prompt_ref=f"og@{self.settings.image_pollinations_model or 'pollinations'}",
+                model_class="image",
+                provider=getattr(provider, "name", "?"),
+                model_id=self.settings.image_pollinations_model or "pollinations",
+                usage=Usage(0, 0),
+                cost_usd=cost,
+                latency_ms=result.latency_ms,
+                outcome=Outcome.ok if og_ok else Outcome.provider_error,
+                validation_issues=[
+                    {"severity": "warning", "ruleId": IMAGE_ISSUE_RULE, "path": "/og", "message": result.message or "og image generation failed — no social-share asset"}
+                ]
+                if not og_ok
+                else [],
+            )
+        )
+        ledger.record(attempts[-1])
 
     def _size_for(self, req: dict[str, Any], fallback: str) -> str:
         """Orientation-aware generation size per asset requirement.
